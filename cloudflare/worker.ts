@@ -1,20 +1,22 @@
-import {GET,POST} from '../app/api/workspace/route';
-import {verifyAccess,AccessError,type AccessEnvironment} from './access';
+import {GET,POST} from './workspace';
+import {verifyAccess,login,logout,AccessError,type AccessEnvironment} from './access';
 export type WorkerEnvironment=AccessEnvironment & {DB:D1Database;ASSETS:Fetcher};
 function secured(response:Response){
  const headers=new Headers(response.headers);
  headers.set('Cache-Control','no-store');
  headers.set('X-Content-Type-Options','nosniff');
  headers.set('Referrer-Policy','same-origin');
+ headers.set('X-Frame-Options','DENY');
  return new Response(response.body,{status:response.status,headers});
 }
 export default {
  async fetch(request:Request,env:WorkerEnvironment):Promise<Response>{
   const url=new URL(request.url);
-  if(!url.pathname.startsWith('/api/')&&url.pathname!=='/auth/login')return env.ASSETS.fetch(request);
+  if(!url.pathname.startsWith('/api/')&&!url.pathname.startsWith('/auth/'))return env.ASSETS.fetch(request);
   try{
+   if(url.pathname==='/auth/login')return secured(await login(request,env));
+   if(url.pathname==='/auth/logout')return secured(await logout(request,env));
    const identity=await verifyAccess(request,env);
-   if(url.pathname==='/auth/login')return secured(new Response(null,{status:302,headers:{Location:'/'}}));
    if(url.pathname==='/api/session'){
     if(request.method!=='GET')return secured(new Response(null,{status:405,headers:{Allow:'GET'}}));
     return secured(Response.json({email:identity.email}));
@@ -28,7 +30,6 @@ export default {
     if(length>100000)return secured(Response.json({error:'حجم الطلب أكبر من المسموح'},{status:413}));
    }
    const headers=new Headers(request.headers);
-   // Replace any identity supplied by a visitor with our verified identity.
    for(const name of [...headers.keys()])if(name.toLowerCase().startsWith('oai-authenticated-'))headers.delete(name);
    headers.set('oai-authenticated-user-id',identity.workspace);
    headers.set('oai-authenticated-user-email',identity.email);

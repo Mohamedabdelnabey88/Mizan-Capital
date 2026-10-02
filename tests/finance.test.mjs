@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const require=createRequire(import.meta.url),wr=createRequire(require.resolve('wrangler/package.json'));
 const {build}=wr('esbuild'),{Miniflare}=wr('miniflare');
-await build({stdin:{contents:"import {GET,POST} from './app/api/workspace/route';export default {fetch:(req)=>req.method==='POST'?POST(req):GET(req)}",resolveDir:process.cwd(),sourcefile:'test-worker.ts'},bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],outfile:'.sites-runtime/test-worker.mjs'});
+await build({stdin:{contents:"import {GET,POST} from './cloudflare/workspace';export default {fetch:(req)=>req.method==='POST'?POST(req):GET(req)}",resolveDir:process.cwd(),sourcefile:'test-worker.ts'},bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],outfile:'.sites-runtime/test-worker.mjs'});
 await build({entryPoints:['lib/finance.ts'],bundle:true,format:'esm',platform:'node',outfile:'.sites-runtime/finance-test.mjs'});
 const f=await import('../.sites-runtime/finance-test.mjs');
 assert.equal(f.monthAdd('2026-01-31',1),'2026-02-28');assert.equal(f.monthAdd('2028-01-31',1),'2028-02-29');

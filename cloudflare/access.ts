@@ -58,8 +58,7 @@ export async function login(request:Request,env:AccessEnvironment){
   if(password.length<8||password.length>200||!/^\S+@\S+\.\S+$/.test(email))throw new AccessError(401,'البريد الإلكتروني أو كلمة المرور غير صحيحة.');
   const key=await checkRateLimit(request,env,email);
   const user=USERS.find(u=>u.email===email);
-  const ok=user?await verifyPassword(password,user):false;
-  if(!ok){await recordFailure(env,key);throw new AccessError(401,'البريد الإلكتروني أو كلمة المرور غير صحيحة.');}
+  if(!user||!await verifyPassword(password,user)){await recordFailure(env,key);throw new AccessError(401,'البريد الإلكتروني أو كلمة المرور غير صحيحة.');}
   await env.DB.prepare('DELETE FROM auth_attempts WHERE id=?').bind(key).run();
   const random=new Uint8Array(32);crypto.getRandomValues(random);const token=b64url(random),id=await sha256(token);
   const now=Math.floor(Date.now()/1000),expires=now+SESSION_SECONDS;

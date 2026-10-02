@@ -1,6 +1,6 @@
 # ميزان — إدارة المشاريع ورأس المال
 
-Private Arabic financial workspace on Sites. Amounts are stored as integer halalas. Every request is scoped by the platform-authenticated user id. Accounting journals are balanced, immutable, idempotent and corrected using reversal entries. D1 batches make posting and associated state changes atomic; optimistic project locks prevent simultaneous financial mutations from evaluating stale balances.
+Private Arabic financial workspace with a standalone Cloudflare Workers deployment and the original Sites build. For the configured Cloudflare account, follow [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md). Amounts are stored as integer halalas. Requests are scoped to the authenticated owner: standalone Cloudflare verifies Access signatures and the owner email, while the original Sites build uses its authenticated gateway. Accounting journals are balanced, immutable, idempotent and corrected using reversal entries. D1 batches make posting and associated state changes atomic; optimistic project locks prevent simultaneous financial mutations from evaluating stale balances.
 
 ## Implemented
 
@@ -43,3 +43,9 @@ The API trusts `oai-authenticated-user-id` only behind the Sites authenticated g
 - Actual distributions are recorded with today's date so current cash and entitlement checks are meaningful. Amounts are floored to whole halalas.
 - Internal funding repayments reduce the borrower's payable and lender's receivable without recording profit. The repayment cannot exceed the amount recorded for that project pair.
 - Payroll renewal starts after the employee's last scheduled month, retains the original day-of-month convention and does not modify paid or previously scheduled amounts.
+
+## Cloudflare deployment in 0.3.0
+
+Standalone Worker entrypoint: `cloudflare/worker.ts`. Build with `pnpm build:cloudflare` and publish with `pnpm deploy:cloudflare` after configuring Access. The frontend is client-rendered so static page rendering does not consume Worker CPU. The existing Sites commands remain available. Cloudflare API access fails closed until `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` and `OWNER_EMAIL` are set. Client-supplied identity headers are overwritten after JWT verification; cross-origin mutations are rejected.
+
+Bulk obligation insert/update operations reduce query count for long schedules and retain D1 transaction rollback and optimistic concurrency checks. A separate test suite exercises the actual standalone Worker, forged/expired tokens, owner restrictions, 360-installment loans and concurrent payroll renewals.

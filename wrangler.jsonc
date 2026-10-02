@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mizan-capital",
+  "account_id": "fb0e76b654ce8aae5c18d7c472a89713",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-05-15",
+  "workers_dev": true,
+  "preview_urls": false,
+  "keep_vars": true,
+  "assets": {
+    "directory": "./dist/cloudflare",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mizan-capital-db",
+      "database_id": "d76ff340-feb4-474d-9330-f8651a65b70e",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}

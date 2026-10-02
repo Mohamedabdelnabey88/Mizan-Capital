@@ -44,3 +44,7 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+
+# Standalone Cloudflare local secrets and generated type caches
+.dev.vars*
+*.tsbuildinfo

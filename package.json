@@ -1,6 +1,6 @@
 {
   "name": "mizan-capital",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -13,7 +13,12 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "test": "node tests/finance.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:cloudflare": "vite build --config vite.cloudflare.config.ts",
+    "dev:cloudflare": "wrangler dev --config wrangler.jsonc",
+    "db:migrate:cloudflare": "wrangler d1 migrations apply mizan-capital-db --remote --config wrangler.jsonc",
+    "deploy:cloudflare": "pnpm db:migrate:cloudflare && wrangler deploy --config wrangler.jsonc",
+    "test:cloudflare": "node tests/cloudflare.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

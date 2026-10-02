@@ -12,14 +12,14 @@ const base={iss:domain,aud:['test-audience'],email:'owner@example.com',sub:'test
 const encode=value=>Buffer.from(JSON.stringify(value)).toString('base64url');
 async function token(claims={},header={}){const msg=encode({alg:'RS256',kid:'test-key',...header})+'.'+encode({...base,...claims});const sig=await crypto.subtle.sign('RSASSA-PKCS1-v1_5',keys.privateKey,new TextEncoder().encode(msg));return msg+'.'+Buffer.from(sig).toString('base64url');}
 const options={modules:true,scriptPath:'.sites-runtime/cloudflare-worker.mjs',compatibilityDate:'2026-05-15',d1Databases:['DB'],serviceBindings:{ASSETS:()=>new Response('public shell only')},outboundService:req=>{assert.equal(req.url,domain+'/cdn-cgi/access/certs');return Response.json({keys:[jwk]});}};
-const mf=new Miniflare({...options,bindings:{ACCESS_TEAM_DOMAIN:domain,ACCESS_AUD:'test-audience',OWNER_EMAIL:'owner@example.com'}});
+const mf=new Miniflare({...options,bindings:{ACCESS_TEAM_DOMAIN:domain,ACCESS_AUD:'test-audience',OWNER_EMAIL:'owner@example.com',MEMBER_EMAILS:'member1@example.com,member2@example.com'}});
 let checks=0;
 try{
  const db=await mf.getD1Database('DB');
  for(const file of fs.readdirSync('drizzle').filter(s=>s.endsWith('.sql')).sort())for(const sql of fs.readFileSync('drizzle/'+file,'utf8').split('--> statement-breakpoint').filter(s=>s.trim()))await db.prepare(sql).run();
  const valid=await token();
  async function call({jwt=valid,method='GET',body,extra={},path='/api/workspace'}={}){
-  return mf.dispatchFetch('https://mizan.example'+path,{method,headers:{...(jwt?{'Cf-Access-Jwt-Assertion':jwt}:{}),...(method==='POST'?{'Content-Type':'application/json','Origin':'https://mizan.example'}:{}),...extra},...(body?{body:JSON.stringify(body)}:{})});
+  return mf.dispatchFetch('https://mizan.example'+path,{method,redirect:'manual',headers:{...(jwt?{'Cf-Access-Jwt-Assertion':jwt}:{}),...(method==='POST'?{'Content-Type':'application/json','Origin':'https://mizan.example'}:{}),...extra},...(body?{body:JSON.stringify(body)}:{})});
  }
  async function expectStatus(args,status){const res=await call(args);assert.equal(res.status,status,await res.text());checks++;}
  await expectStatus({jwt:null,extra:{'oai-authenticated-user-id':'cloudflare-owner'}},401);
@@ -40,7 +40,14 @@ try{
  const res=await call();assert.equal(res.status,200);assert.equal(res.headers.get('cache-control'),'no-store');checks++;
  const projectRequest={action:'project',requestId:crypto.randomUUID(),payload:{name:'اختبار Cloudflare',activity:'اختبار',mode:'operating',ownership:100,reserve:0,payout:30}};
  await expectStatus({method:'POST',body:projectRequest,extra:{'oai-authenticated-user-id':'attacker'}},200);
- const rows=(await db.prepare('SELECT owner FROM records').all()).results;assert.deepEqual(rows.map(r=>r.owner),['cloudflare-owner']);checks++;
+ const session=await call({path:'/api/session',jwt:await token({email:'MEMBER1@example.com',sub:'member-one'})});assert.equal(session.status,200);assert.deepEqual(await session.json(),{email:'member1@example.com'});checks++;
+ await expectStatus({path:'/api/session',jwt:null},401);
+ const entry=await call({path:'/auth/login'});assert.equal(entry.status,302);assert.equal(entry.headers.get('location'),'/');checks++;
+ await expectStatus({path:'/auth/login',jwt:null},401);
+ const shared=await (await call({jwt:await token({email:'member2@example.com',sub:'member-two'})})).json();assert.equal(shared.records.length,1);checks++;
+ await expectStatus({method:'POST',jwt:await token({email:'member1@example.com',sub:'member-one'}),body:{...projectRequest,requestId:crypto.randomUUID()},extra:{'oai-authenticated-user-email':'forged@example.com'}},200);
+ const log=(await db.prepare('SELECT detail FROM audit').all()).results;assert(log.some(row=>row.detail.endsWith('member1@example.com')));assert(!log.some(row=>row.detail.includes('forged@example.com')));checks++;
+ const rows=(await db.prepare('SELECT owner FROM records').all()).results;assert.deepEqual(rows.map(r=>r.owner),['cloudflare-owner','cloudflare-owner']);checks++;
  // The real API must handle the longest supported schedule on a fresh D1 database.
  let w=await (await call()).json();const project=w.records[0].id;
  const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -56,7 +63,7 @@ try{
  const race=await Promise.all([call({method:'POST',body:{...renewal,requestId:crypto.randomUUID()}}),call({method:'POST',body:{...renewal,requestId:crypto.randomUUID()}})]);
  assert(race.every(r=>[200,400].includes(r.status)));const successes=race.filter(r=>r.status===200).length;assert(successes>=1);
  w=await (await call()).json();const payroll=w.records.filter(r=>r.data.employee===emp.id);assert.equal(payroll.length,24*(1+successes));assert.equal(new Set(payroll.map(r=>r.data.date)).size,payroll.length);checks++;
- console.log(JSON.stringify({passed:true,checks,verified:['JWT signature and claims','owner-only access','spoofed identity rejected','cross-origin writes blocked','360-payment loan and replacement','atomic payroll renewal']}));
+ console.log(JSON.stringify({passed:true,checks,verified:['JWT signature and claims','three-person shared workspace and actor audit','spoofed identity rejected','cross-origin writes blocked','360-payment loan and replacement','atomic payroll renewal']}));
 }finally{await mf.dispose();}
 const missing=new Miniflare(options);
 try{const res=await missing.dispatchFetch('https://mizan.example/api/workspace',{headers:{'oai-authenticated-user-id':'cloudflare-owner'}});assert.equal(res.status,503);console.log('Missing Access configuration: safely blocked');}finally{await missing.dispose();}

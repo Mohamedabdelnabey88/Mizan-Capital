@@ -37,7 +37,7 @@
 1. فعّل Cloudflare Zero Trust بالخطة المجانية إن لم تكن مفعلة.
 2. من Worker `mizan-capital` افتح **Access**، ثم **Protect this Worker behind Access**.
 3. اختر **All traffic** لتشمل الحماية الإنتاج، ثم أكمل إعداد سياسة السماح.
-4. في Zero Trust > Access controls > Applications، افتح التطبيق الناتج وعدّل سياسة Allow لتسمح **ببريد المالك المحدد فقط**. اختر Emails، وليس Everyone أو نطاق بريد عام مثل gmail.com.
+4. في Zero Trust > Access controls > Applications، افتح التطبيق الناتج وعدّل سياسة Allow لتسمح **ببريد المالك وبريدَي العضوين المحددين فقط**. اختر Emails، وليس Everyone أو نطاق بريد عام مثل gmail.com.
 5. استخدم One-time PIN عبر البريد أو مزوّد هوية سبق إعداده في حسابك.
 6. انسخ **Application Audience (AUD) Tag** من Additional settings للتطبيق، واعرف عنوان الفريق `https://اسم-الفريق.cloudflareaccess.com`.
 
@@ -52,6 +52,7 @@
 | `ACCESS_TEAM_DOMAIN` | `https://اسم-الفريق.cloudflareaccess.com` بدون شرطة مائلة أخيرة |
 | `ACCESS_AUD` | AUD الخاص بتطبيق ميزان |
 | `OWNER_EMAIL` | البريد الكامل الذي سيستخدمه المالك للدخول |
+| `MEMBER_EMAILS` | بريد العضو الأول وبريد العضو الثاني مفصولان بفاصلة إنجليزية `,`؛ اتركه فارغًا إن لم تضف أعضاء |
 
 هذه القيم ليست كلمات مرور. `keep_vars: true` يحافظ على القيم المضافة من لوحة التحكم عند نشر تغييرات الكود. لا تضف قائمة `vars` فارغة إلى الإعدادات.
 
@@ -81,6 +82,14 @@ pnpm exec wrangler deploy --dry-run --config wrangler.jsonc
 - لا يعني نجاح الاختبارات ضمان بقاء كل حجم بيانات تحت حد CPU المجاني. راقب زمن المعالجة والصفوف المقروءة بعد التشغيل.
 - حفظ الجداول الطويلة يستخدم إدخالًا وتحديثًا جماعيًا داخل transaction واحدة؛ فشل التحقق أو تعارض الإصدار يرجع العملية كلها.
 - تحميل البيانات الحالي يجلب كامل دفتر مساحة المالك. قبل تضخم السجلات يلزم نقل التجميعات للخادم وإضافة pagination بدل افتراض استهلاك ثابت.
-- حسابات الموظفين الحالية سجلات رواتب، وليست حسابات دخول. النسخة مخصصة لمالك واحد.
+- حسابات الموظفين الحالية سجلات رواتب، وليست حسابات دخول. مساحة ميزان تسمح للمالك وعضوين إضافيين بالدخول بالبريد المعتمد، مع صلاحيات مالية متساوية وسجل يوضح بريد منفذ كل عملية. لا توجد إدارة مستخدمين داخل الموقع؛ الإضافة والإزالة من إعدادات Access ومتغيرات Worker.
 
 مراجع Cloudflare: [Workers Access](https://developers.cloudflare.com/workers/configuration/cloudflare-access/)، [JWT validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)، [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
+
+## صفحة الدخول والفريق
+
+صفحة `/login` تعرض هوية ميزان وتوجّه إلى `/auth/login` لإتمام التحقق باستخدام Cloudflare Access. يتم فحص الجلسة من `/api/session` قبل عرض لوحة العمل.
+
+يمكن إبقاء حماية All traffic؛ عندئذ تظهر شاشة Cloudflare أولًا. لإظهار صفحة ميزان قبل التحقق، استخدم تطبيق Access واحدًا يحتوي مسارَي المضيف العام `/api/*` و`/auth/*` على نطاق Worker نفسه، وسياسة السماح بالإيميلات الثلاثة نفسها. لا تنشئ سياسة Bypass لمسارات API. استخدم AUD لهذا التطبيق. باقي الواجهة عامة ولا تحتوي بيانات مالية، ويتحقق Worker من JWT وقائمة البريد في كل طلب.
+
+جميع الأعضاء يستخدمون نفس مساحة البيانات الحالية دون إنشاء دفاتر منفصلة. لإلغاء وصول عضو احذف بريده من MEMBER_EMAILS ومن سياسة Access؛ يتحقق Worker من القائمة مع كل طلب حتى لو ظلت جلسة Access قديمة سارية.

@@ -1,6 +1,6 @@
 # ميزان — إدارة المشاريع ورأس المال
 
-Private Arabic financial workspace with a standalone Cloudflare Workers deployment and the original Sites build. For the configured Cloudflare account, follow [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md). Amounts are stored as integer halalas. Requests are scoped to the authenticated owner: standalone Cloudflare verifies Access signatures and the owner email, while the original Sites build uses its authenticated gateway. Accounting journals are balanced, immutable, idempotent and corrected using reversal entries. D1 batches make posting and associated state changes atomic; optimistic project locks prevent simultaneous financial mutations from evaluating stale balances.
+Private Arabic financial workspace with a standalone Cloudflare Workers deployment and the original Sites build. For the configured Cloudflare account, follow [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md). Amounts are stored as integer halalas. Requests are scoped to the authenticated owner: standalone Cloudflare verifies Access signatures and an explicit allowlist (owner plus up to two members sharing one workspace), while the original Sites build uses its authenticated gateway. Accounting journals are balanced, immutable, idempotent and corrected using reversal entries. D1 batches make posting and associated state changes atomic; optimistic project locks prevent simultaneous financial mutations from evaluating stale balances.
 
 ## Implemented
 
@@ -49,3 +49,7 @@ The API trusts `oai-authenticated-user-id` only behind the Sites authenticated g
 Standalone Worker entrypoint: `cloudflare/worker.ts`. Build with `pnpm build:cloudflare` and publish with `pnpm deploy:cloudflare` after configuring Access. The frontend is client-rendered so static page rendering does not consume Worker CPU. The existing Sites commands remain available. Cloudflare API access fails closed until `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` and `OWNER_EMAIL` are set. Client-supplied identity headers are overwritten after JWT verification; cross-origin mutations are rejected.
 
 Bulk obligation insert/update operations reduce query count for long schedules and retain D1 transaction rollback and optimistic concurrency checks. A separate test suite exercises the actual standalone Worker, forged/expired tokens, owner restrictions, 360-installment loans and concurrent payroll renewals.
+
+## Team login
+
+The Cloudflare frontend includes a responsive Arabic login page at `/login` and verifies `/api/session` before loading the workspace. Access handles email verification. Set `MEMBER_EMAILS` to up to two comma-separated addresses and allow the same addresses in Access. All three users have equal financial access; every new audit record includes the verified actor email. Existing workspace data is preserved. See the setup guide for routing, revocation, and required runtime settings.

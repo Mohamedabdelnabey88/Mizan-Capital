@@ -11,9 +11,14 @@ function secured(response:Response){
 export default {
  async fetch(request:Request,env:WorkerEnvironment):Promise<Response>{
   const url=new URL(request.url);
-  if(!url.pathname.startsWith('/api/'))return env.ASSETS.fetch(request);
+  if(!url.pathname.startsWith('/api/')&&url.pathname!=='/auth/login')return env.ASSETS.fetch(request);
   try{
-   const owner=await verifyAccess(request,env);
+   const identity=await verifyAccess(request,env);
+   if(url.pathname==='/auth/login')return secured(new Response(null,{status:302,headers:{Location:'/'}}));
+   if(url.pathname==='/api/session'){
+    if(request.method!=='GET')return secured(new Response(null,{status:405,headers:{Allow:'GET'}}));
+    return secured(Response.json({email:identity.email}));
+   }
    if(url.pathname!=='/api/workspace')return secured(Response.json({error:'غير موجود'},{status:404}));
    if(!['GET','POST'].includes(request.method))return secured(new Response(null,{status:405,headers:{Allow:'GET, POST'}}));
    if(request.method==='POST'){
@@ -25,7 +30,8 @@ export default {
    const headers=new Headers(request.headers);
    // Replace any identity supplied by a visitor with our verified identity.
    for(const name of [...headers.keys()])if(name.toLowerCase().startsWith('oai-authenticated-'))headers.delete(name);
-   headers.set('oai-authenticated-user-id',owner);
+   headers.set('oai-authenticated-user-id',identity.workspace);
+   headers.set('oai-authenticated-user-email',identity.email);
    const trusted=new Request(request,{headers});
    return secured(await (request.method==='POST'?POST(trusted):GET(trusted)));
   }catch(error){

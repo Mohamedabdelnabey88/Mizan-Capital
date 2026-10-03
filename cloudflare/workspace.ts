@@ -9,6 +9,7 @@ async function snapshot(db:D1Database,owner:string):Promise<Workspace>{const [a,
 function identify(req:Request){const owner=req.headers.get('oai-authenticated-user-id');if(!owner)throw Error('AUTH');return owner;}
 export async function GET(req:Request){try{const owner=identify(req);return Response.json(await snapshot(database(),owner),{headers:{'Cache-Control':'no-store'}});}catch(e:any){return Response.json({error:e.message==='AUTH'?'سجل الدخول للوصول إلى بياناتك.':'تعذر تحميل البيانات. حاول مجددًا.'},{status:e.message==='AUTH'?401:503});}}
 function operatingRows(w:Workspace,year:number){return w.records.filter(r=>r.kind==='project'&&r.data.mode==='operating').map(r=>({...r.data,id:r.id,net:profit(w,r.id,year+'-01-01',year+'-12-31').net}));}
+function ownerPolicyForYear(w:Workspace,year:number){const end=year+'-12-31';return w.records.filter(r=>r.kind==='ownerPolicy'&&String(r.data.effectiveFrom||'')<=end).sort((a,b)=>String(a.data.effectiveFrom||'').localeCompare(String(b.data.effectiveFrom||''))).at(-1);}
 export async function POST(req:Request){try{const owner=identify(req);if(req.headers.get('sec-fetch-site')==='cross-site')return Response.json({error:'طلب غير مسموح'},{status:403});if(!req.headers.get('content-type')?.includes('application/json'))throw Error('نوع الطلب غير صحيح.');const raw=await req.text();if(raw.length>100000)throw Error('حجم الطلب أكبر من المسموح.');const body=JSON.parse(raw);const action=str(body.action,50),id=str(body.requestId,100),p=body.payload||{};const db=database();if(await db.prepare('SELECT id FROM commands WHERE id=? AND owner=?').bind(id,owner).first())return Response.json({ok:true,replayed:true});const w=await snapshot(db,owner),time=new Date().toISOString();let ops:D1PreparedStatement[]=[];const ledgerLocks=new Map<string,number>();const inserts:{id:string;kind:string;data:string}[]=[];
 const patches=new Map<string,{id:string;version:number;data:string}>();
 const guardProject=(pid:string)=>{const pr=w.records.find(r=>r.id===pid&&r.kind==='project');if(pr)ledgerLocks.set(pr.id,pr.version);};
@@ -119,7 +120,7 @@ else if(action==='setOwnerPolicy'){
 }
 else if(action==='annualOwnerDistribution'){
  const year=Math.trunc(num(p.year,2000,2100));const existing=w.records.find(x=>x.kind==='ownerSettlement'&&x.data.year===year);if(existing)throw Error('تم اعتماد تسوية المالك لهذه السنة مسبقًا.');
- const policy=w.records.filter(x=>x.kind==='ownerPolicy').at(-1);
+ const policy=ownerPolicyForYear(w,year);
  if(!policy)throw Error('حدد نسبة المالك السنوية أولاً.');
  const pct=Number(policy.data.percentBps||0);if(pct<=0)throw Error('نسبة المالك السنوية يجب أن تكون أكبر من صفر.');
  const rows=operatingRows(w,year);const totalProfit=rows.reduce((s,x)=>s+x.net,0);if(totalProfit<=0)throw Error('لا يوجد صافي ربح موجب للمحفظة في هذه السنة.');

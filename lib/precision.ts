@@ -7,4 +7,4 @@ export function subMicro(a:Micro,b:Micro):Micro{return a-b;}
 export function mulBps(v:Micro,bps:bigint):Micro{return (v*bps)/BigInt(10000);}
 export function halfUpDiv(a:Micro,b:bigint):Micro{if(b<=BigInt(0))throw Error('المقام يجب أن يكون موجبًا.');const q=a/b,r=a%b;return r*BigInt(2)>=b?q+BigInt(1):q;}
 export function microFromHalala(halala:number):Micro{if(!Number.isSafeInteger(halala))throw Error('قيمة الهللات غير صحيحة.');return BigInt(halala)*BigInt(1000);}
-export function halalaFromMicro(v:Micro):number{return Number(halfUpDiv(v,100BigInt(0)));}
+export function halalaFromMicro(v:Micro):number{return Number(halfUpDiv(v,BigInt(1000)));}

@@ -96,7 +96,7 @@ else if(action==='setOwnerPolicy'){
 }
 else if(action==='annualOwnerDistribution'){
  const year=Math.trunc(num(p.year,2000,2100));const existing=w.records.find(x=>x.kind==='ownerSettlement'&&x.data.year===year);if(existing)throw Error('تم اعتماد تسوية المالك لهذه السنة مسبقًا.');
- const policy=w.records.filter(x=>x.kind==='ownerPolicy').sort((a,b)=>String(a.created).localeCompare(String(b.created))).at(-1);
+ const policy=w.records.filter(x=>x.kind==='ownerPolicy').at(-1);
  if(!policy)throw Error('حدد نسبة المالك السنوية أولاً.');
  const pct=Number(policy.data.percentBps||0);if(pct<=0)throw Error('نسبة المالك السنوية يجب أن تكون أكبر من صفر.');
  const rows=operatingRows(w,year);const totalProfit=rows.reduce((s,x)=>s+x.net,0);if(totalProfit<=0)throw Error('لا يوجد صافي ربح موجب للمحفظة في هذه السنة.');

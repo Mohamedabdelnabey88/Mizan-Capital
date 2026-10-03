@@ -39,7 +39,7 @@ await ok('dailyReport',{project:a,date:T,manager:'مدير الاختبار',gro
 await fail('dailyReport',{project:a,date:T,manager:'مدير الاختبار',gross:10000,channels:{cash:10000},memo:'تقرير مكرر'});
 w=await read();const dr=w.records.find(r=>r.kind==='dailyReport'&&r.data.status==='approved');
 await ok('dailyReportCorrection',{id:dr.id,manager:'مدير الاختبار',gross:12000,channels:{cash:7000,bank:5000,mada:0,visa:0,mastercard:0,receivable:0},reason:'تصحيح قبض اليوم',reversalDate:T,memo:'تصحيح'});
-w=await read();assert.equal(w.records.find(r=>r.id===dr.id).data.status,'corrected');assert.equal(f.balance(w,a).revenue,2200000);assert.equal(f.balance(w,a).mada||0,0);checks++;
+w=await read();assert.equal(w.records.find(r=>r.id===dr.id).data.status,'corrected');assert.equal(f.balance(w,a).revenue,-2200000);assert.equal(f.balance(w,a).mada||0,0);checks++;
 await ok('entry',{project:a,kind:'distribution',amount:2000,date:T,memo:'توزيع'});
 await ok('investmentStart',{lender:a,borrower:b,amount:5000,start:T,maturity:f.dayAdd(T,7),expectedReturn:500,memo:'دورة اختبار'});
 w=await read();const cycle=w.records.find(r=>r.kind==='investmentCycle'&&r.data.lender===a&&r.data.borrower===b);assert(cycle);

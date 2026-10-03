@@ -1,12 +1,12 @@
 
-const precision=await import('../lib/precision.ts');import {createRequire} from 'node:module';
+import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const require=createRequire(import.meta.url),wr=createRequire(require.resolve('wrangler/package.json'));
 const {build}=wr('esbuild'),{Miniflare}=wr('miniflare');
 await build({stdin:{contents:"import {GET,POST} from './cloudflare/workspace';export default {fetch:(req)=>req.method==='POST'?POST(req):GET(req)}",resolveDir:process.cwd(),sourcefile:'test-worker.ts'},bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],outfile:'.sites-runtime/test-worker.mjs'});
-await build({entryPoints:['lib/finance.ts'],bundle:true,format:'esm',platform:'node',outfile:'.sites-runtime/finance-test.mjs'});
-const f=await import('../.sites-runtime/finance-test.mjs');
+await build({entryPoints:['lib/finance.ts','lib/precision.ts'],bundle:true,format:'esm',platform:'node',outdir:'.sites-runtime'});
+const f=await import('../.sites-runtime/finance.js');const precision=await import('../.sites-runtime/precision.js');
 assert.equal(f.monthAdd('2026-01-31',1),'2026-02-28');assert.equal(f.monthAdd('2028-01-31',1),'2028-02-29');
 for(const annual of [0,6,12]){const s=f.loanSchedule(12345678,annual,36,'2026-01-31');assert.equal(s.reduce((n,r)=>n+r.principal,0),12345678);assert.equal(s.at(-1).date,'2028-12-31');assert(s.every(r=>r.amount===r.interest+r.principal));}const exactRate=f.loanRateFromPaymentExact(50000,4244,12);assert(exactRate>3&&exactRate<4);const exactSchedule=f.loanScheduleFromPaymentExact(50000,4244,12,'2026-01-31');assert.equal(exactSchedule.length,12);assert.equal(exactSchedule.at(-1).principal,exactSchedule.reduce((n,r)=>n+r.principal,0)-exactSchedule.slice(0,-1).reduce((n,r)=>n+r.principal,0));assert.equal(exactSchedule.reduce((n,r)=>n+r.principal,0),5000000);
 assert.throws(()=>f.validateLines([{project:'a',account:'cash',debit:10,credit:0},{project:'a',account:'capital',debit:0,credit:9}]));

@@ -89,7 +89,7 @@ else if(action==='investmentReturn'){
 }
 else if(action==='setOwnerPolicy'){
  const pct=percentBps(p.percent,'نسبة المالك السنوية');
- const existing=w.records.filter(x=>x.kind==='ownerPolicy').sort((a,b)=>String(a.created).localeCompare(String(b.created))).at(-1);
+ const existing=w.records.filter(x=>x.kind==='ownerPolicy').at(-1);
  if(existing)update(existing,{...existing.data,percentBps:pct,effectiveFrom:date(p.effectiveFrom||today())});
  else put('ownerPolicy',{percentBps:pct,effectiveFrom:date(p.effectiveFrom||today())});
  description='تحديث نسبة المالك السنوية إلى '+(pct/100).toFixed(2)+'%';

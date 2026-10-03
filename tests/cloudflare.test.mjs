@@ -80,7 +80,7 @@ try{
 
   let w=await (await call()).json();const project=w.records[0].id;
   const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-  await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{project,name:'360 قسطًا',amount:360000,rate:0,months:360,start:date,firstDate:date}}},200);
+  await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{project,name:'360 قسطًا',amount:360000,monthlyPayment:1000,months:360,start:date,firstDate:date}}},200);
   w=await (await call()).json();const loan=w.records.find(r=>r.kind==='loan');let due=w.records.filter(r=>r.data.loan===loan.id&&r.data.status==='pending');
   assert.equal(due.length,360);checks++;
 

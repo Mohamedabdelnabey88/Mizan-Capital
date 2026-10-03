@@ -97,11 +97,12 @@ else if(action==='investmentReturn'){
  const r=find(p.id,'investmentCycle'),d=r.data;if(d.status!=='active')throw Error('دورة الاستثمار ليست نشطة.');
  const dt=date(p.date);if(dt<d.start)throw Error('تاريخ الاسترداد لا يسبق بداية الدورة.');
  const principal=d.principal,actual=d.actualReturn||0,ret=p.actualReturn?halala(p.actualReturn,'العائد الفعلي'):actual;
- const borrower=project(d.borrower),lender=project(d.lender);const b=balance(w,borrower.id,dt);if(principal>(b.inter_payable||0))throw Error('رصيد التمويل/الاستثمار المستحق على المشروع لا يكفي للاسترداد.');
- const total=principal+ret;
+ const borrower=project(d.borrower),lender=project(d.lender);const b=balance(w,borrower.id,dt);if(principal>(b.inter_payable||0))throw Error('رصيد أصل الاستثمار المستحق على المشروع لا يكفي للاسترداد.');
+ const total=principal+ret;if(total>(b.cash||0))throw Error('سيولة المشروع المستثمر فيه لا تكفي لرد أصل الاستثمار والعائد الفعلي.');
  journal('investmentReturn','إغلاق دورة استثمار داخلية',dt,[
    {project:borrower.id,account:'inter_payable',debit:principal,credit:0},
-   {project:borrower.id,account:'cash',debit:0,credit:principal},
+   ...(ret?[{project:borrower.id,account:'interest',debit:ret,credit:0}]:[]),
+   {project:borrower.id,account:'cash',debit:0,credit:total},
    {project:lender.id,account:'cash',debit:total,credit:0},
    {project:lender.id,account:'investment',debit:0,credit:principal},
    ...(ret?[{project:lender.id,account:'dividend',debit:0,credit:ret}]:[])

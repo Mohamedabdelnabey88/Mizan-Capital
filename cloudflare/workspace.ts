@@ -46,6 +46,7 @@ else if(action==='settle'){const r=find(p.id,'obligation'),d=r.data;if(d.status!
 else if(action==='cancelDue'){const r=find(p.id,'obligation');if(r.data.status!=='pending'||r.data.loan)throw Error('هذا الاستحقاق لا يمكن إلغاؤه من هنا.');update(r,{...r.data,status:'cancelled',reason:str(p.reason)});description='إلغاء استحقاق: '+r.data.title;}
 else if(action==='dailyReport'){
  const pr=project(p.project),d=date(p.date);if(d>today())throw Error('التقرير اليومي لا يمكن أن يكون مستقبليًا.');
+ if(w.records.some(x=>x.kind==='dailyReport'&&x.data.project===pr.id&&x.data.date===d&&x.data.status==='approved'))throw Error('يوجد تقرير يومي معتمد لهذا المشروع في نفس التاريخ. استخدم مسار التصحيح بدل إنشاء تقرير ثانٍ.');
  const gross=halala(p.gross,'إجمالي دخل اليوم');if(gross===0)throw Error('إجمالي دخل اليوم يجب أن يكون أكبر من صفر.');
  const channels:any=p.channels||{};let allocated=0;const lines:Line[]=[];
  for(const key of paymentAccounts){const raw=channels[key]??'';if(raw===''||raw==null)continue;const a=halala(raw,'مبلغ '+paymentLabels[key]);allocated+=a;lines.push({project:pr.id,account:key,debit:a,credit:0});}

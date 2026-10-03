@@ -11,7 +11,7 @@ import {Toaster,toast} from 'sonner';
 import {AreaChart,Area,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,ReferenceLine} from 'recharts';
 import {accounts,kinds,today,dayAdd,monthAdd,balance,profit,forecast,loanSchedule,distributionEntitlement,firstAffordableDate,internalFunding,liquidity,cardReceivables,paymentAccountNames,type Workspace,type RecordItem} from '@/lib/finance';
 import {demoWorkspace} from '@/lib/demo';
-import {downloadXlsx,moneyCell,dateCell,escapeHtml,type ExportCell,type ExportSheet} from '@/lib/export';
+import {downloadXlsx,moneyCell,dateCell,percentCell,escapeHtml,type ExportCell,type ExportSheet} from '@/lib/export';
 const nav=[['dashboard','نظرة عامة',LayoutDashboard],['projects','المشاريع والاستثمارات',Building2],['daily','التقارير اليومية',ReceiptText],['ledger','الحركات المالية',ArrowLeftRight],['cashflow','السيولة المتوقعة',Wallet],['calendar','تقويم الالتزامات',CalendarDays],['loans','التمويل والقروض',Landmark],['team','الموظفون والرواتب',Users],['risks','إدارة المخاطر',ShieldCheck],['decisions','مركز القرار',ChartNoAxesCombined],['reports','التقارير المحاسبية',FileText],['settings','الضبط وسجل المراجعة',Settings2]] as const;
 const empty:Workspace={records:[],journals:[],audit:[]};
 const fmt=(v:number)=>new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(v/100);

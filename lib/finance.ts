@@ -78,6 +78,42 @@ export function internalFunding(w:Workspace,lender:string,borrower:string,end=to
   .flatMap(j=>j.lines).filter(l=>l.project===lender&&l.account==='inter_receivable')
   .reduce((sum,l)=>sum+l.debit-l.credit,0);
 }
+export type CashFlowRow={date:string;operatingIn:number;operatingOut:number;investingIn:number;investingOut:number;financingIn:number;financingOut:number;transferIn:number;transferOut:number;otherIn:number;otherOut:number;net:number;};
+export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=today()){
+ const openingDate= start==='0000-01-01'?'0000-01-01':dayAdd(start,-1);
+ const opening=balance(w,project,openingDate).cash||0;
+ const rows=new Map<string,CashFlowRow>();
+ const get=(date:string)=>{let r=rows.get(date);if(!r){r={date,operatingIn:0,operatingOut:0,investingIn:0,investingOut:0,financingIn:0,financingOut:0,transferIn:0,transferOut:0,otherIn:0,otherOut:0,net:0};rows.set(date,r);}return r;};
+ const category=(kind:string)=>{
+  if(['income','collect','dailyReport','cardSettlement','expense','paybill','cogs','salary'].includes(kind))return 'operating';
+  if(['asset','invest','dividend','returnCapital','investmentStart','investmentReturn'].includes(kind))return 'investing';
+  if(['capital','loan','settle','prepay','distribution','annualOwnerDistribution'].includes(kind))return 'financing';
+  if(['transfer','repayTransfer'].includes(kind))return 'transfer';
+  return 'other';
+ };
+ for(const j of w.journals){if(j.date<start||j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(l.account!=='cash'&&l.account!=='bank')continue;const r=get(j.date),cat=category(j.kind),inflow=l.debit,outflow=l.credit;if(inflow){(r as any)[cat+'In']+=inflow;}if(outflow){(r as any)[cat+'Out']+=outflow;}r.net+=inflow-outflow;}}
+ const days=[...rows.values()].sort((a,b)=>a.date.localeCompare(b.date));
+ let running=opening;for(const r of days){running+=r.net;}
+ return {opening,rows:days,net:running-opening,closing:running};
+}
+export function investmentFundingReport(w:Workspace,project='all',start='0000-01-01',end=today()){
+ const rows=w.records.filter(r=>r.kind==='investmentCycle'&&String(r.data.start)<=end&&String(r.data.maturity||r.data.start)>=start&&(project==='all'||r.data.lender===project||r.data.borrower===project)).map(r=>{const d=r.data;return {id:r.id,start:d.start,maturity:d.maturity,lender:d.lender,borrower:d.borrower,principal:Number(d.principal||0),expectedReturn:Number(d.expectedReturn||0),actualReturn:Number(d.actualReturn||0),status:d.status||'active'};});
+ const funding=w.journals.filter(j=>j.date>=start&&j.date<=end&&(j.kind==='transfer'||j.kind==='repayTransfer')).map(j=>{const lines=j.lines.filter(l=>project==='all'||l.project===project);const debit=lines.filter(l=>l.account==='inter_receivable').reduce((s,l)=>s+l.debit-l.credit,0);const credit=lines.filter(l=>l.account==='inter_payable').reduce((s,l)=>s+l.debit-l.credit,0);return {date:j.date,kind:j.kind,memo:j.memo,amount:Math.max(Math.abs(debit),Math.abs(credit)),direction:j.kind==='transfer'?'ضخ تمويل':'رد تمويل',source:j.source||''};});
+ const activeInvestment=rows.filter(r=>r.status==='active').reduce((s,r)=>s+r.principal,0);
+ const expectedReturn=rows.reduce((s,r)=>s+r.expectedReturn,0);
+ const actualReturn=rows.filter(r=>r.status!=='active').reduce((s,r)=>s+r.actualReturn,0);
+ const fundingOutstanding=(()=>{let total=0;for(const j of w.journals){if(j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(l.account==='inter_receivable')total+=l.debit-l.credit;if(l.account==='inter_payable')total-=l.debit-l.credit;}}return Math.max(0,total);})();
+ return {investments:rows,funding,activeInvestment,expectedReturn,actualReturn,fundingOutstanding};
+}
+export function annualOwnerReport(w:Workspace,year:number){
+ const projects=w.records.filter(r=>r.kind==='project'&&r.data.mode==='operating');
+ const policies=w.records.filter(r=>r.kind==='ownerPolicy'&&String(r.data.effectiveFrom||'')<=year+'-12-31').sort((a,b)=>String(a.data.effectiveFrom||'').localeCompare(String(b.data.effectiveFrom||'')));
+ const policy=policies.at(-1);const percentBps=Number(policy?.data.percentBps||0);
+ const rows=projects.map(p=>({project:p.id,name:p.data.name,ownership:Number(p.data.ownership||0),profit:profit(w,p.id,year+'-01-01',year+'-12-31').net}));
+ const totalProfit=rows.reduce((s,r)=>s+r.profit,0),ownerShare=Math.floor(totalProfit*percentBps/10000);
+ const settlement=w.records.find(r=>r.kind==='ownerSettlement'&&Number(r.data.year)===year);
+ return {year,percentBps,policyDate:policy?.data.effectiveFrom||'',rows,totalProfit,ownerShare,paid:Number(settlement?.data.totalOwner||0),settlementDate:settlement?.data.paidOn||'',status:settlement?'paid':'pending',remaining:Math.max(0,ownerShare-Number(settlement?.data.totalOwner||0))};
+}
 export function distributionEntitlement(w:Workspace,project:RecordItem){
  const b=balance(w,project.id),net=profit(w,project.id,'0000-01-01').net;
  return Math.max(0,Math.floor((net-(b.retained||0))*project.data.ownership/100*project.data.payout/100)-(b.distribution||0));

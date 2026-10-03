@@ -1,4 +1,5 @@
-import {createRequire} from 'node:module';
+
+const precision=await import('../lib/precision.ts');import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const require=createRequire(import.meta.url),wr=createRequire(require.resolve('wrangler/package.json'));

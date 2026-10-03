@@ -16,6 +16,10 @@ export default {
   try{
    if(url.pathname==='/auth/login')return secured(await login(request,env));
    if(url.pathname==='/auth/logout')return secured(await logout(request,env));
+   if(url.pathname==='/auth/health'){
+    const sessions=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('auth_sessions','auth_attempts') ORDER BY name").all();
+    return secured(Response.json({ok:true,tables:sessions.results?.map((r:any)=>r.name)||[]}));
+   }
    const identity=await verifyAccess(request,env);
    if(url.pathname==='/api/session'){
     if(request.method!=='GET')return secured(new Response(null,{status:405,headers:{Allow:'GET'}}));

@@ -1,3 +1,4 @@
+// Mizan production auth: deployed through the Cloudflare production workflow.
 export type AccessEnvironment={DB:D1Database};
 
 const SESSION_COOKIE='mizan_session';

@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/deploy-production.yml"
+      - "cloudflare/**"
+      - "drizzle/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
   workflow_dispatch:
 
 permissions:

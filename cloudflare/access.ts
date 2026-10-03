@@ -8,9 +8,9 @@ const MAX_ATTEMPTS=5;
 const USERS=[{
   email:'famaradona89@gmail.com',
   workspace:'cloudflare-owner',
-  iterations:210000,
+  iterations:10000,
   salt:'nqjxDvXZeKczfg_L5_XInw',
-  verifier:'oM-jcXP6aBfAKc1GKFFFl5Xlh8edlCYB85bgCUgNS28'
+  verifier:'98G_M9SQgsjRkMOoGZR014KjkeybsfShrRVvKxCILFc'
 }] as const;
 
 export class AccessError extends Error{

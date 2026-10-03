@@ -40,3 +40,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: pnpm deploy:cloudflare
+      - name: Smoke test authentication database
+        run: |
+          set -e
+          echo '--- auth health ---'
+          curl --fail-with-body --silent --show-error https://mizan-capital.famaradona89.workers.dev/auth/health
+          echo

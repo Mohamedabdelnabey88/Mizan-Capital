@@ -1,5 +1,5 @@
 import {database} from '@/db';
-import {accounts,cents,dayAdd,monthAdd,today,validateLines,loanSchedule,loanRateFromPayment,loanScheduleFromPayment,balance,profit,forecast,internalFunding,distributionEntitlement,type Workspace,type Line} from '@/lib/finance';
+import {accounts,cents,dayAdd,monthAdd,today,validateLines,loanSchedule,loanRateFromPayment,loanScheduleFromPayment,loanRateFromPaymentExact,loanScheduleFromPaymentExact,balance,profit,forecast,internalFunding,distributionEntitlement,type Workspace,type Line} from '@/lib/finance';
 export const dynamic='force-dynamic'; // financial operations: halala-safe ledger, auditable daily corrections, investments, annual owner settlement
 const uid=()=>crypto.randomUUID();
 function str(v:any,n=200){if(typeof v!=='string'||!v.trim()||v.length>n)throw Error('راجع الحقول المطلوبة وطول النص.');return v.trim();}
@@ -16,6 +16,7 @@ const guardProject=(pid:string)=>{const pr=w.records.find(r=>r.id===pid&&r.kind=
 const put=(kind:string,data:any,rid=uid())=>{inserts.push({id:rid,kind,data:JSON.stringify(data)});if(data.project)guardProject(data.project);return rid;};
 const find=(rid:string,kind?:string)=>{const r=w.records.find(r=>r.id===rid&&(!kind||r.kind===kind));if(!r)throw Error('السجل غير موجود أو غير مسموح.');return r;};
 const update=(r:any,data:any)=>{patches.set(r.id,{id:r.id,version:r.version,data:JSON.stringify(data)});if(data.project)guardProject(data.project);};
+const money5=(v:any,label='المبلغ')=>{const s=String(v??'').trim().replace(/,/g,'');if(!/^\d+(?:\.\d{1,5})?$/.test(s))throw Error(label+' يجب أن يصل إلى 5 منازل عشرية كحد أقصى.');const n=Number(s);if(!Number.isFinite(n)||n<0||n>1000000000)throw Error(label+' خارج النطاق المسموح.');return Number(n.toFixed(5));};
 const halala=(v:any,label='المبلغ')=>{
  const s=String(v??'').trim().replace(/,/g,'');
  if(!/^\d+(?:\.\d{1,2})?$/.test(s))throw Error(label+' يجب أن يكون بريالين عشريين كحد أقصى (هللات).');

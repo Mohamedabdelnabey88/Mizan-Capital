@@ -1,6 +1,6 @@
 import {database} from '@/db';
 import {accounts,cents,dayAdd,monthAdd,today,validateLines,loanSchedule,balance,profit,forecast,internalFunding,distributionEntitlement,type Workspace,type Line} from '@/lib/finance';
-export const dynamic='force-dynamic'; // financial operations: halala-safe ledger, daily reports, investments, annual owner settlement
+export const dynamic='force-dynamic'; // financial operations: halala-safe ledger, auditable daily corrections, investments, annual owner settlement
 const uid=()=>crypto.randomUUID();
 function str(v:any,n=200){if(typeof v!=='string'||!v.trim()||v.length>n)throw Error('راجع الحقول المطلوبة وطول النص.');return v.trim();}
 function date(v:any){const s=str(v,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||isNaN(Date.parse(s+'T12:00Z'))||new Date(s+'T12:00Z').toISOString().slice(0,10)!==s)throw Error('تاريخ غير صحيح.');return s;}

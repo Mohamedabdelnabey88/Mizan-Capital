@@ -8,8 +8,8 @@ const USERS=[{
   email:'famaradona89@gmail.com',
   workspace:'cloudflare-owner',
   iterations:210000,
-  salt:'dLtuJ6aSGZ1HkvxIdxpiZA',
-  verifier:'oYWlGSQ9NehndQ1oNjscISIaiL8XAZCZTFmcRD4hV4I'
+  salt:'nqjxDvXZeKczfg_L5_XInw',
+  verifier:'oM-jcXP6aBfAKc1GKFFFl5Xlh8edlCYB85bgCUgNS28'
 }] as const;
 
 export class AccessError extends Error{

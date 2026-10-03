@@ -96,7 +96,7 @@ else if(action==='investmentStart'){
 else if(action==='investmentReturn'){
  const r=find(p.id,'investmentCycle'),d=r.data;if(d.status!=='active')throw Error('دورة الاستثمار ليست نشطة.');
  const dt=date(p.date);if(dt<d.start)throw Error('تاريخ الاسترداد لا يسبق بداية الدورة.');
- const principal=d.principal,actual=d.actualReturn||0;const ret=p.actualReturn?halala(p.actualReturn,'العائد الفعلي'):actual;
+ const principal=d.principal,actual=d.actualReturn||0,ret=p.actualReturn?halala(p.actualReturn,'العائد الفعلي'):actual;
  const borrower=project(d.borrower),lender=project(d.lender);const b=balance(w,borrower.id,dt);if(principal>(b.inter_payable||0))throw Error('رصيد التمويل/الاستثمار المستحق على المشروع لا يكفي للاسترداد.');
  const total=principal+ret;
  journal('investmentReturn','إغلاق دورة استثمار داخلية',dt,[

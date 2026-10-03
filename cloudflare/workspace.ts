@@ -25,7 +25,7 @@ const halala=(v:any,label='المبلغ')=>{
 const percentBps=(v:any,label='النسبة')=>{
  const s=String(v??'').trim();
  if(!/^(?:\\d{1,3})(?:\\.\\d{1,2})?$/.test(s))throw Error(label+' يجب أن تكون حتى منزلتين عشريتين.');
- const n=Number(s);if(!Number.isFinite(n)||n<0||n>100)return Math.round(n*100);
+ const n=Number(s);if(!Number.isFinite(n)||n<0||n>100)throw Error(label+' يجب أن تكون بين 0% و100%.');
  return Math.round(n*100);
 };
 const paymentAccounts=['cash','bank','mada','visa','mastercard','receivable'] as const;

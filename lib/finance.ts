@@ -26,7 +26,7 @@ export function yearlyProfit(w:Workspace,year:number,project='all'){
  return profit(w,project,year+'-01-01',year+'-12-31').net;
 }
 export function allocationTotal(a:Record<string,unknown>){
- return Object.values(a).reduce((s,v)=>s+Number(v||0),0);
+ return Object.values(a).reduce<number>((s,v)=>s+Number(v||0),0);
 }
 export function balance(w:Workspace,project='all',end=today()){const a:Record<string,number>={};for(const j of w.journals){if(j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;a[l.account]=(a[l.account]||0)+l.debit-l.credit;}}return a;}
 export function profit(w:Workspace,project='all',start=today().slice(0,4)+'-01-01',end=today()){let revenue=0,expense=0;for(const j of w.journals){if(j.date<start||j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(accounts[l.account]?.type==='income')revenue+=l.credit-l.debit;if(accounts[l.account]?.type==='expense')expense+=l.debit-l.credit;}}return {revenue,expense,net:revenue-expense};}

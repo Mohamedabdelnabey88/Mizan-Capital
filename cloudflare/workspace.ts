@@ -17,14 +17,14 @@ const find=(rid:string,kind?:string)=>{const r=w.records.find(r=>r.id===rid&&(!k
 const update=(r:any,data:any)=>{patches.set(r.id,{id:r.id,version:r.version,data:JSON.stringify(data)});if(data.project)guardProject(data.project);};
 const halala=(v:any,label='المبلغ')=>{
  const s=String(v??'').trim().replace(/,/g,'');
- if(!/^\\d+(?:\\.\\d{1,2})?$/.test(s))throw Error(label+' يجب أن يكون بريالين عشريين كحد أقصى (هللات).');
+ if(!/^\d+(?:\.\d{1,2})?$/.test(s))throw Error(label+' يجب أن يكون بريالين عشريين كحد أقصى (هللات).');
  const [a,b='']=s.split('.'); const n=Number(a)*100+Number((b+'00').slice(0,2));
  if(!Number.isSafeInteger(n)||n<0||n>100000000000)throw Error(label+' خارج النطاق المسموح.');
  return n;
 };
 const percentBps=(v:any,label='النسبة')=>{
  const s=String(v??'').trim();
- if(!/^(?:\\d{1,3})(?:\\.\\d{1,2})?$/.test(s))throw Error(label+' يجب أن تكون حتى منزلتين عشريتين.');
+ if(!/^(?:\d{1,3})(?:\.\d{1,2})?$/.test(s))throw Error(label+' يجب أن تكون حتى منزلتين عشريتين.');
  const n=Number(s);if(!Number.isFinite(n)||n<0||n>100)throw Error(label+' يجب أن تكون بين 0% و100%.');
  return Math.round(n*100);
 };

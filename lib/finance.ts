@@ -30,6 +30,27 @@ export function allocationTotal(a:Record<string,unknown>){
 }
 export function balance(w:Workspace,project='all',end=today()){const a:Record<string,number>={};for(const j of w.journals){if(j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;a[l.account]=(a[l.account]||0)+l.debit-l.credit;}}return a;}
 export function profit(w:Workspace,project='all',start=today().slice(0,4)+'-01-01',end=today()){let revenue=0,expense=0;for(const j of w.journals){if(j.date<start||j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(accounts[l.account]?.type==='income')revenue+=l.credit-l.debit;if(accounts[l.account]?.type==='expense')expense+=l.debit-l.credit;}}return {revenue,expense,net:revenue-expense};}
+
+export function loanRateFromPayment(principal:number,payment:number,months:number){
+ if(principal<=0||payment<=0||!Number.isInteger(months)||months<1||months>360)throw Error('راجع أصل التمويل والقسط وعدد الأشهر.');
+ if(payment*months<principal)throw Error('إجمالي الأقساط أقل من أصل التمويل؛ لا يمكن استنتاج تكلفة تمويل موجبة.');
+ if(payment*months===principal)return 0;
+ const pv=principal/100,emi=payment/100;
+ let lo=0,hi=1;
+ const f=(r:number)=>emi*(1-Math.pow(1+r,-months))/r-pv;
+ while(f(hi)>0&&hi<100)hi*=2;
+ for(let i=0;i<100;i++){const mid=(lo+hi)/2;if(f(mid)>0)lo=mid;else hi=mid;}
+ return ((lo+hi)/2)*12*100;
+}
+export function loanScheduleFromPayment(principal:number,payment:number,months:number,first:string){
+ const annual=loanRateFromPayment(principal,payment,months),r=annual/1200;let rest=principal;
+ return Array.from({length:months},(_,i)=>{
+  const interest=Math.round((rest/100)*r*100), principalPart=i===months-1?rest:Math.min(rest,Math.max(0,payment-interest));
+  const amount=principalPart+interest;rest-=principalPart;
+  return {date:monthAdd(first,i),principal:principalPart,interest,amount};
+ });
+}
+
 export function loanSchedule(principal:number,annual:number,months:number,first:string){if(principal<=0||!Number.isInteger(months)||months<1||months>360||principal<months||annual<0||annual>100)throw Error('راجع مبلغ التمويل والنسبة وعدد الأشهر.');const r=annual/1200;const payment=r?Math.round(principal*r/(1-Math.pow(1+r,-months))):Math.round(principal/months);let rest=principal;return Array.from({length:months},(_,i)=>{const interest=Math.round(rest*r);let p=i===months-1?rest:Math.min(rest,Math.max(0,payment-interest));rest-=p;return {date:monthAdd(first,i),principal:p,interest,amount:p+interest};});}
 // Daily cash ordering is deliberately conservative: payments precede collections
 // on the same date because the bank's actual settlement times are not known.

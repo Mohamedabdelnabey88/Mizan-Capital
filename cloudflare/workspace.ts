@@ -46,7 +46,7 @@ else if(action==='settle'){const r=find(p.id,'obligation'),d=r.data;if(d.status!
 else if(action==='cancelDue'){const r=find(p.id,'obligation');if(r.data.status!=='pending'||r.data.loan)throw Error('هذا الاستحقاق لا يمكن إلغاؤه من هنا.');update(r,{...r.data,status:'cancelled',reason:str(p.reason)});description='إلغاء استحقاق: '+r.data.title;}
 else if(action==='dailyReport'){
  const pr=project(p.project),d=date(p.date);if(d>today())throw Error('التقرير اليومي لا يمكن أن يكون مستقبليًا.');
- if(w.records.some(x=>x.kind==='dailyReport'&&x.data.project===pr.id&&x.data.date===d&&x.data.status==='approved'))throw Error('يوجد تقرير يومي معتمد لهذا المشروع في نفس التاريخ. استخدم مسار التصحيح بدل إنشاء تقرير ثانٍ.');
+ if(w.records.some(x=>x.kind==='dailyReport'&&x.data.project===pr.id&&x.data.date===d&&x.data.status==='approved'&&!x.data.correctedBy))throw Error('يوجد تقرير يومي معتمد لهذا المشروع في نفس التاريخ. استخدم مسار التصحيح بدل إنشاء تقرير ثانٍ.');
  const gross=halala(p.gross,'إجمالي دخل اليوم');if(gross===0)throw Error('إجمالي دخل اليوم يجب أن يكون أكبر من صفر.');
  const channels:any=p.channels||{};let allocated=0;const lines:Line[]=[];
  for(const key of paymentAccounts){const raw=channels[key]??'';if(raw===''||raw==null)continue;const a=halala(raw,'مبلغ '+paymentLabels[key]);allocated+=a;lines.push({project:pr.id,account:key,debit:a,credit:0});}
@@ -56,6 +56,27 @@ else if(action==='dailyReport'){
  const reportId=put('dailyReport',{project:pr.id,date:d,gross,channels:Object.fromEntries(paymentAccounts.map(k=>[k,halala(channels[k]||'0','مبلغ '+paymentLabels[k])])),status:'approved',approvedAt:time,manager:str(p.manager||'المدير')});
  journal('dailyReport','تقرير يومي معتمد — '+str(p.memo||d),d,lines,'daily-report:'+reportId);
  description='اعتماد تقرير يومي: '+pr.data.name+' — '+(gross/100).toFixed(2)+' ريال';
+}
+else if(action==='dailyReportCorrection'){
+ const original=find(p.id,'dailyReport'),od=original.data;
+ if(od.status!=='approved'||od.correctedBy)throw Error('هذا التقرير لا يمكن تصحيحه مرة أخرى. اختر التقرير المعتمد الحالي.');
+ const pr=project(od.project),d=date(od.date);
+ if(pr.data.closedThrough&&d<=pr.data.closedThrough)throw Error('الفترة التي تحتوي التقرير مقفلة؛ لا يمكن تعديل التقرير بعد الإقفال. استخدم قيد تسوية في الفترة الحالية مع مستند التصحيح.');
+ const originalJournal=w.journals.find(j=>j.source==='daily-report:'+original.id);
+ if(!originalJournal)throw Error('لم يُعثر على القيد المرتبط بالتقرير؛ أوقف التصحيح وراجع سجل المراجعة.');
+ const gross=halala(p.gross,'إجمالي دخل اليوم المصحح');if(gross===0)throw Error('إجمالي دخل اليوم يجب أن يكون أكبر من صفر.');
+ const channels:any=p.channels||{};let allocated=0;const correctedLines:Line[]=[];
+ for(const key of paymentAccounts){const raw=channels[key]??'';if(raw===''||raw==null)continue;const a=halala(raw,'مبلغ '+paymentLabels[key]);allocated+=a;correctedLines.push({project:pr.id,account:key,debit:a,credit:0});}
+ if(allocated!==gross)throw Error('مجموع طرق الإيداع يجب أن يساوي الإجمالي المصحح بالهللة. الفرق: '+((gross-allocated)/100).toFixed(2)+' ريال.');
+ if(correctedLines.length===0)throw Error('أدخل طريقة إيداع واحدة على الأقل.');
+ correctedLines.push({project:pr.id,account:'revenue',debit:0,credit:gross});
+ const reversalDate=date(p.reversalDate||d);if(reversalDate<d)throw Error('تاريخ التصحيح لا يسبق تاريخ التقرير.');
+ const reversalLines=originalJournal.lines.map(l=>({...l,debit:l.credit,credit:l.debit}));
+ journal('dailyReportReversal','عكس التقرير اليومي للتصحيح — '+str(p.reason,300),reversalDate,reversalLines,'daily-report-reversal:'+original.id,originalJournal.id);
+ const correctedId=put('dailyReport',{project:pr.id,date:d,gross,channels:Object.fromEntries(paymentAccounts.map(k=>[k,halala(channels[k]||'0','مبلغ '+paymentLabels[k])])),status:'approved',approvedAt:time,manager:str(p.manager||od.manager||'المدير'),correctedFrom:original.id,correctionReason:str(p.reason,300),reversalDate});
+ journal('dailyReport','تقرير يومي مصحح — '+str(p.memo||d),d,correctedLines,'daily-report:'+correctedId);
+ update(original,{...od,status:'corrected',correctedBy:correctedId,correctedAt:time});
+ description='تصحيح التقرير اليومي: '+pr.data.name+' — '+(gross/100).toFixed(2)+' ريال';
 }
 else if(action==='settleCards'){
  const pr=project(p.project),d=date(p.date),from=ensurePayment(p.fromAccount),to=ensurePayment(p.toAccount||'bank');

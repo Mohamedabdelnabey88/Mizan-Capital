@@ -34,6 +34,10 @@ jobs:
             echo "::error::CLOUDFLARE_API_TOKEN is not configured in GitHub Actions secrets."
             exit 2
           fi
+      - name: Verify application types and finance tests
+        run: |
+          pnpm typecheck
+          pnpm test
       - name: Build Cloudflare assets
         run: pnpm build:cloudflare
       - name: Apply D1 migrations and deploy Worker

@@ -66,7 +66,7 @@ else if(action==='dailyReportCorrection'){
  if(!originalJournal)throw Error('لم يُعثر على القيد المرتبط بالتقرير؛ أوقف التصحيح وراجع سجل المراجعة.');
  const gross=halala(p.gross,'إجمالي دخل اليوم المصحح');if(gross===0)throw Error('إجمالي دخل اليوم يجب أن يكون أكبر من صفر.');
  const channels:any=p.channels||{};let allocated=0;const correctedLines:Line[]=[];
- for(const key of paymentAccounts){const raw=channels[key]??'';if(raw===''||raw==null)continue;const a=halala(raw,'مبلغ '+paymentLabels[key]);allocated+=a;correctedLines.push({project:pr.id,account:key,debit:a,credit:0});}
+ for(const key of paymentAccounts){const raw=channels[key]??'';if(raw===''||raw==null||Number(raw)===0)continue;const a=halala(raw,'مبلغ '+paymentLabels[key]);allocated+=a;correctedLines.push({project:pr.id,account:key,debit:a,credit:0});}
  if(allocated!==gross)throw Error('مجموع طرق الإيداع يجب أن يساوي الإجمالي المصحح بالهللة. الفرق: '+((gross-allocated)/100).toFixed(2)+' ريال.');
  if(correctedLines.length===0)throw Error('أدخل طريقة إيداع واحدة على الأقل.');
  correctedLines.push({project:pr.id,account:'revenue',debit:0,credit:gross});

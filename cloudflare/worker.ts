@@ -18,7 +18,16 @@ export default {
    if(url.pathname==='/auth/logout')return secured(await logout(request,env));
    if(url.pathname==='/auth/health'){
     const sessions=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('auth_sessions','auth_attempts') ORDER BY name").all();
-    return secured(Response.json({ok:true,tables:sessions.results?.map((r:any)=>r.name)||[]}));
+    const probeId='health-'+crypto.randomUUID();
+    const now=Math.floor(Date.now()/1000);
+    await env.DB.prepare('INSERT INTO auth_attempts(id,count,first_attempt) VALUES(?,?,?)').bind(probeId,1,now).run();
+    await env.DB.prepare('SELECT count, first_attempt FROM auth_attempts WHERE id=?').bind(probeId).first();
+    await env.DB.prepare('DELETE FROM auth_attempts WHERE id=?').bind(probeId).run();
+    const sessionId='health-'+crypto.randomUUID();
+    await env.DB.prepare('INSERT INTO auth_sessions(id,email,workspace,expires,created) VALUES(?,?,?,?,?)').bind(sessionId,'health@example.invalid','health-probe',now+60,now).run();
+    await env.DB.prepare('SELECT email,workspace,expires FROM auth_sessions WHERE id=?').bind(sessionId).first();
+    await env.DB.prepare('DELETE FROM auth_sessions WHERE id=?').bind(sessionId).run();
+    return secured(Response.json({ok:true,tables:sessions.results?.map((r:any)=>r.name)||[],databaseWrite:true}));
    }
    const identity=await verifyAccess(request,env);
    if(url.pathname==='/api/session'){

@@ -34,7 +34,16 @@ await fail('entry',{project:b,target:a,kind:'repayTransfer',amount:20001,date:T,
 await ok('entry',{project:b,target:a,kind:'repayTransfer',amount:1000,date:T,memo:'رد جزئي'});
 w=await read();assert.equal(f.internalFunding(w,a,b),1900000);assert.equal(f.balance(w).cash,10000000);assert.equal(f.profit(w).net,0);
 await fail('entry',{project:a,target:b,kind:'repayTransfer',amount:1,date:T,memo:'اتجاه خاطئ'});
-await ok('entry',{project:a,kind:'income',amount:10000,date:T,memo:'إيراد'});await fail('entry',{project:a,kind:'distribution',amount:4000,date:T,memo:'فوق الاستحقاق'});await ok('entry',{project:a,kind:'distribution',amount:2000,date:T,memo:'توزيع'});
+await ok('entry',{project:a,kind:'income',amount:10000,date:T,memo:'إيراد'});await fail('entry',{project:a,kind:'distribution',amount:4000,date:T,memo:'فوق الاستحقاق'});
+await ok('dailyReport',{project:a,date:T,manager:'مدير الاختبار',gross:10000,channels:{cash:5000,bank:0,mada:5000,visa:0,mastercard:0,receivable:0},memo:'تقرير يومي أول'});
+await fail('dailyReport',{project:a,date:T,manager:'مدير الاختبار',gross:10000,channels:{cash:10000},memo:'تقرير مكرر'});
+w=await read();const dr=w.records.find(r=>r.kind==='dailyReport'&&r.data.status==='approved');
+await ok('dailyReportCorrection',{id:dr.id,manager:'مدير الاختبار',gross:12000,channels:{cash:7000,bank:5000,mada:0,visa:0,mastercard:0,receivable:0},reason:'تصحيح قبض اليوم',reversalDate:T,memo:'تصحيح'});
+w=await read();assert.equal(w.records.find(r=>r.id===dr.id).data.status,'corrected');assert.equal(f.balance(w,a).revenue,2200000);assert.equal(f.balance(w,a).mada||0,0);checks++;
+await ok('entry',{project:a,kind:'distribution',amount:2000,date:T,memo:'توزيع'});
+await ok('investmentStart',{lender:a,borrower:b,amount:5000,start:T,maturity:f.dayAdd(T,7),expectedReturn:500,memo:'دورة اختبار'});
+w=await read();const cycle=w.records.find(r=>r.kind==='investmentCycle'&&r.data.lender===a&&r.data.borrower===b);assert(cycle);
+await ok('investmentReturn',{id:cycle.id,date:T,actualReturn:500});w=await read();assert.equal(f.balance(w,b).cash,850000);assert.equal(f.balance(w,b).interest,50000);assert.equal(f.balance(w,a).dividend,50000);checks++;
 await ok('loan',{project:a,name:'تمويل',amount:12000,rate:0,months:12,start:T,firstDate:f.monthAdd(T,1)});w=await read();const loan=w.records.find(r=>r.kind==='loan'),dues=w.records.filter(r=>r.kind==='obligation'&&r.data.loan===loan.id);assert.equal(dues.length,12);await ok('settle',{id:dues[0].id,date:T});await fail('settle',{id:dues[0].id,date:T});w=await read();assert.equal(f.balance(w,a).loan,-1100000);
 await fail('replaceSchedule',{id:loan.id,date:T,prepay:1000,fee:0,rows:f.monthAdd(T,1)+',1,0'});await ok('replaceSchedule',{id:loan.id,date:T,prepay:1000,fee:20,rows:Array.from({length:10},(_,i)=>f.monthAdd(T,i+1)+',1000,0').join('\n')});w=await read();assert.equal(f.balance(w,a).loan,-1000000);assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===loan.id&&r.data.status==='pending').length,10);
 const before=f.balance(w,b).cash||0;await ok('loan',{project:b,name:'رصيد قائم',amount:1000,rate:0,months:10,start:T,firstDate:f.monthAdd(T,1),fundingMode:'opening'});w=await read();assert.equal(f.balance(w,b).cash||0,before);assert.equal(f.balance(w,b).loan,-100000);

@@ -160,6 +160,23 @@ else if(action==='annualOwnerDistribution'){
  description='اعتماد توزيع المالك السنوي لعام '+year;
 }
 else if(action==='projectFunding'){const target=project(p.project);const amount=cents(p.amount);const dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغ التمويل.');const source=['personal','project','external'].includes(p.sourceType)?p.sourceType:'personal';let lines:Line[];let sourceLabel='تمويل شخصي';if(source==='project'){if(!p.sourceProject||p.sourceProject===p.project)throw Error('اختر مشروعًا آخر كمصدر للتمويل.');project(p.sourceProject);lines=[...pair(p.sourceProject,'inter_receivable','cash',amount),...pair(p.project,'cash','inter_payable',amount)];sourceLabel='تمويل من مشروع آخر';}else if(source==='external'){lines=pair(p.project,'cash','payable',amount);sourceLabel='تمويل خارجي مستحق';}else{lines=pair(p.project,'cash','capital',amount);}const rid=put('projectFunding',{project:p.project,sourceType:source,sourceProject:source==='project'?p.sourceProject:'',amount,date:dt,memo:str(p.memo||sourceLabel,300)});journal('transfer',sourceLabel+' — '+target.data.name,dt,lines,'projectFunding:'+rid);description='تمويل '+target.data.name+' — '+sourceLabel;}
+else if(action==='cancelFunding'){
+ const funding=find(p.id,'projectFunding');
+ const fd=funding.data as any;
+ if(fd.status==='cancelled')throw Error('هذا التمويل ملغى بالفعل.');
+ const repayments=w.records.filter(x=>x.kind==='fundingRepayment'&&x.data.fundingId===funding.id&&x.data.status!=='cancelled');
+ if(repayments.length)throw Error('لا يمكن إلغاء التمويل بعد وجود استرداد مرتبط به. اعكس الاسترداد أولًا.');
+ const related=w.records.filter(x=>x.id!==funding.id&&((x.kind==='fundingRepayment'&&x.data.fundingId===funding.id)||(x.data&&x.data.fundingId===funding.id)));
+ if(related.length)throw Error('لا يمكن إلغاء التمويل لأنه مرتبط بحركة أخرى. صحح الحركة التابعة أولًا.');
+ const original=w.journals.find(j=>j.source==='projectFunding:'+funding.id);
+ if(!original)throw Error('لم يتم العثور على القيد الأصلي للتمويل.');
+ if(w.journals.some(j=>j.reversal===original.id))throw Error('تم عكس قيد التمويل بالفعل.');
+ const cancelDate=date(p.date||today());
+ if(cancelDate<date(fd.date))throw Error('تاريخ الإلغاء لا يمكن أن يسبق تاريخ التمويل.');
+ journal('reversal','عكس تمويل: '+(fd.memo||fd.project)+' — '+str(p.reason||'تصحيح تمويل',200),cancelDate,original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
+ update(funding,{...fd,status:'cancelled',cancelledAt:cancelDate,cancelReason:str(p.reason||'تصحيح تمويل',200)});
+ description='إلغاء تمويل مع عكس أثره المحاسبي: '+funding.id;
+}
 else if(action==='fundingRepayment'){
  const funding=w.records.find(x=>x.kind==='projectFunding'&&x.id===p.fundingId);
  if(!funding)throw Error('لم يتم العثور على عملية التمويل الأصلية.');

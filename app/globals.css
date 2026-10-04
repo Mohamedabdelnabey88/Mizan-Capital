@@ -10,3 +10,51 @@
 @media(max-width:640px){body{font-size:15px}.topbar{height:62px;padding:0 16px}.breadcrumb{gap:8px;font-size:12px}.top-actions{gap:8px}.page-content{padding:22px 14px 10px}.page-heading{gap:8px;margin-bottom:18px}h1{font-size:24px}.eyebrow{font-size:12px}.page-heading p{font-size:12px;max-width:230px}.btn{padding:9px 11px;font-size:12px}.heading-actions .btn{gap:4px}.heading-actions{padding-top:29px}.filterbar{padding:6px 9px;gap:3px}.scope-picker{width:100%}.period-filter{width:100%;justify-content:space-between}.period-filter input{width:118px;font-size:12px}.stat-grid{gap:10px}.stat-card{padding:16px 12px 12px;border-radius:10px}.stat-card h2{font-size:24px;letter-spacing:-.7px;margin:15px 0 12px}.stat-top{font-size:12px}.stat-top svg{width:16px}.stat-foot{font-size:12px;flex-wrap:wrap;gap:7px}.tag{font-size:12px}.panel-head{padding:17px 16px 13px;align-items:flex-start;flex-wrap:wrap}.panel-head h3{font-size:16px}.panel-head p{font-size:12px}.chart{height:225px;padding:0}.chart-summary{padding:14px;font-size:12px;gap:10px}.chart-summary strong{font-size:15px}.chart-legend{padding:0 17px 12px;font-size:12px}.project-grid{grid-template-columns:1fr;gap:0}.project-amounts b{font-size:23px}.demo-banner{font-size:12px;gap:6px}.demo-banner>span{flex:1}.demo-banner button{font-size:12px;white-space:nowrap}.setup-panel{padding:16px;gap:10px}.setup-icon{padding:10px}.setup-panel h3{font-size:15px}.setup-panel p{font-size:12px}.setup-panel .btn{width:100%}.page-footer{font-size:12px;gap:8px}.page-footer span:last-child{font-size:12px}.note{font-size:12px;padding:13px}.calendar-header{padding:17px 12px;gap:10px}.calendar-header h3{font-size:15px}.calendar-header p{display:none}.calendar-header .btn{font-size:12px;padding:8px}.calendar-header .icon-button{width:29px;height:29px}.calendar-grid{padding:0 8px 12px}.calendar-weekday{font-size:12px;padding:10px 0}.calendar-cell{min-height:75px;padding:4px 2px;gap:2px}.calendar-cell>b{font-size:12px}.calendar-chip{font-size:12px;padding:2px}.calendar-cell>small{font-size:12px}.simulator-grid{grid-template-columns:1fr;padding:10px 17px}.form-grid{grid-template-columns:1fr}.wide{grid-column:auto}.panel>.form-grid{padding:6px 17px 20px}.finance-dialog{padding:23px 18px!important;max-height:92dvh}.finance-dialog .form-grid{gap:15px}.finance-dialog [data-slot=dialog-title]{font-size:19px}.field{font-size:14px}.field input,.field textarea{font-size:16px}.finance-dialog .picker{font-size:15px}.report-tabs{gap:0;margin:0 12px 10px;width:calc(100% - 24px)}.report-tabs button{font-size:12px;padding:10px 8px}.financial-report{padding:16px}.financial-report>div{font-size:13px}.financial-report h2{font-size:21px}.search-box input{width:130px}.decision-intro{padding:17px;gap:12px}.decision-intro h3{font-size:15px}.decision-intro p{font-size:12px}.risk-checks{padding:0 17px 12px}.risk-checks>div{gap:12px}.risk-checks b{font-size:12px}.risk-checks small{font-size:12px}.entry-memo b{min-width:160px}.stacked-form{padding:7px 17px 20px}.calendar-header .inline-actions{gap:5px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 @media print{body{background:white;font-size:12px}[data-slot=sidebar],.topbar,.page-heading,.filterbar,.demo-banner,.page-footer,.btn,.heading-actions,.report-tabs{display:none!important}[data-slot=sidebar-wrapper]{display:block!important}.main-shell{width:100%;margin:0}.page-content{padding:0}.panel{border:0;box-shadow:none;break-inside:avoid}.panel-head{padding:10px 0}.financial-report{max-width:none;padding:10px}.financial-report>div{break-inside:avoid}.note{background:white}.money{white-space:nowrap}*{print-color-adjust:exact;-webkit-print-color-adjust:exact}@page{size:A4;margin:16mm}}
+
+
+/* Mizan premium shell refinements */
+:root{
+  --mizan-ink:#173a31;
+  --mizan-muted:#718078;
+  --mizan-line:#e2e9e5;
+  --mizan-soft:#f4f7f5;
+  --mizan-accent:#d9edac;
+}
+body{background:#f4f7f5;color:#243332}
+.app-sidebar{box-shadow:-10px 0 35px rgba(18,55,43,.08)}
+.app-sidebar [data-slot=sidebar-inner]{padding:18px 12px 12px}
+.brand{font-size:30px;letter-spacing:-.5px}
+.workspace-label{background:rgba(255,255,255,.025);transition:.2s}
+.workspace-label:hover{border-color:#59796a;background:rgba(255,255,255,.05)}
+.nav-caption{letter-spacing:.2px;font-weight:600}
+.app-sidebar [data-slot=sidebar-menu-button]{position:relative;transition:background .18s,color .18s,transform .18s}
+.app-sidebar [data-slot=sidebar-menu-button]:hover{background:#21463d;color:#f5faf7;transform:translateX(-2px)}
+.app-sidebar [data-slot=sidebar-menu-button][data-active=true]:before{content:'';position:absolute;right:4px;top:10px;bottom:10px;width:3px;border-radius:3px;background:#205d49}
+.main-shell{background:#f4f7f5}
+.topbar{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.94);backdrop-filter:blur(12px);box-shadow:0 1px 0 rgba(28,59,48,.03)}
+.page-content{padding-top:31px}
+.page-heading{align-items:flex-end}
+.page-heading h1{color:#173a31}
+.filterbar{box-shadow:0 4px 18px rgba(28,59,48,.035);border-color:#e0e7e3}
+.stat-card,.panel{box-shadow:0 5px 22px rgba(28,59,48,.035)}
+.stat-card{transition:transform .2s,box-shadow .2s,border-color .2s}
+.stat-card:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(28,59,48,.07);border-color:#d5e1db}
+.panel{transition:border-color .2s}
+.panel:hover{border-color:#dbe5df}
+.panel-head{min-height:72px}
+[data-slot=table-head]{background:#f7f9f8;color:#66776e;font-weight:600}
+[data-slot=table-row]{transition:background .15s}
+[data-slot=table-row]:hover{background:#f6faf7}
+.btn.primary{background:#1e604b}
+.btn.primary:hover{background:#164c3b;transform:translateY(-1px)}
+.btn.secondary{border-color:#dce5e0;background:#fff}
+.search-box{background:#fff}
+.finance-dialog{box-shadow:0 25px 70px rgba(20,49,40,.22)!important;border:1px solid #dfe8e3!important}
+.form-error{box-shadow:inset 3px 0 0 #c15d51}
+@media(max-width:640px){
+  .topbar{position:sticky}
+  .page-content{padding-top:18px}
+  .page-heading{align-items:flex-start}
+  .panel,.stat-card{box-shadow:0 3px 14px rgba(28,59,48,.04)}
+  .app-sidebar [data-slot=sidebar-menu-button]{height:47px}
+}

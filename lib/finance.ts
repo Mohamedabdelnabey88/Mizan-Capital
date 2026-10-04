@@ -118,8 +118,13 @@ export function internalFunding(w:Workspace,lender:string,borrower:string,end=to
   const borrowerPayable=j.lines.find(l=>l.project===borrower&&l.account==='inter_payable');
   const borrowerReceivable=j.lines.find(l=>l.project===borrower&&l.account==='inter_receivable');
   const lenderPayable=j.lines.find(l=>l.project===lender&&l.account==='inter_payable');
-  if(lenderReceivable&&borrowerPayable) funded+=Math.max(0,lenderReceivable.debit-lenderReceivable.credit);
-  if(borrowerReceivable&&lenderPayable) repaid+=Math.max(0,borrowerReceivable.credit-borrowerReceivable.debit);
+  if(lenderReceivable&&borrowerPayable){
+   funded+=Math.max(0,lenderReceivable.debit-lenderReceivable.credit);
+   repaid+=Math.max(0,lenderReceivable.credit-lenderReceivable.debit);
+  }
+  if(borrowerReceivable&&lenderPayable){
+   funded-=Math.max(0,borrowerReceivable.credit-borrowerReceivable.debit);
+  }
  }
  return Math.max(0,funded-repaid);
 }

@@ -93,14 +93,18 @@ export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=
  const opening=(openingBalance.cash||0)+(openingBalance.bank||0);
  const rows=new Map<string,CashFlowRow>();
  const get=(date:string)=>{let r=rows.get(date);if(!r){r={date,operatingIn:0,operatingOut:0,investingIn:0,investingOut:0,financingIn:0,financingOut:0,transferIn:0,transferOut:0,otherIn:0,otherOut:0,net:0};rows.set(date,r);}return r;};
- const category=(kind:string)=>{
+ const category=(j:{kind:string;memo:string})=>{
+  const kind=j.kind;
   if(['income','collect','dailyReport','cardSettlement','expense','paybill','cogs','inventory','salary'].includes(kind))return 'operating';
   if(['asset','invest','dividend','returnCapital','investmentStart','investmentReturn'].includes(kind))return 'investing';
   if(['capital','loan','settle','prepay','distribution','annualOwnerDistribution'].includes(kind))return 'financing';
-  if(['transfer','repayTransfer'].includes(kind))return 'transfer';
+  if(['transfer','repayTransfer'].includes(kind)){
+   if(kind==='transfer'&&/تمويل شخصي|تمويل خارجي مستحق/.test(j.memo))return 'financing';
+   return 'transfer';
+  }
   return 'other';
  };
- for(const j of w.journals){if(j.date<start||j.date>end)continue;const interestOut=(j.kind==='settle'||j.kind==='prepay')?j.lines.filter(l=>l.account==='interest').reduce((s,l)=>s+l.debit-l.credit,0):0;const principalOut=(j.kind==='settle'||j.kind==='prepay')?j.lines.filter(l=>l.account==='loan').reduce((s,l)=>s+l.debit-l.credit,0):0;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(l.account!=='cash'&&l.account!=='bank')continue;const r=get(j.date),cat=category(j.kind),inflow=l.debit,outflow=l.credit;if(j.kind==='settle'||j.kind==='prepay'){if(outflow){r.operatingOut+=Math.min(outflow,Math.max(0,interestOut));r.financingOut+=Math.max(0,outflow-Math.min(outflow,Math.max(0,interestOut)));}else if(inflow){r.financingIn+=inflow;}}else{if(inflow){(r as any)[cat+'In']+=inflow;}if(outflow){(r as any)[cat+'Out']+=outflow;}}r.net+=inflow-outflow;}}
+ for(const j of w.journals){if(j.date<start||j.date>end)continue;const interestOut=(j.kind==='settle'||j.kind==='prepay')?j.lines.filter(l=>l.account==='interest').reduce((s,l)=>s+l.debit-l.credit,0):0;const principalOut=(j.kind==='settle'||j.kind==='prepay')?j.lines.filter(l=>l.account==='loan').reduce((s,l)=>s+l.debit-l.credit,0):0;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(l.account!=='cash'&&l.account!=='bank')continue;const r=get(j.date),cat=category(j),inflow=l.debit,outflow=l.credit;if(j.kind==='settle'||j.kind==='prepay'){if(outflow){r.operatingOut+=Math.min(outflow,Math.max(0,interestOut));r.financingOut+=Math.max(0,outflow-Math.min(outflow,Math.max(0,interestOut)));}else if(inflow){r.financingIn+=inflow;}}else{if(inflow){(r as any)[cat+'In']+=inflow;}if(outflow){(r as any)[cat+'Out']+=outflow;}}r.net+=inflow-outflow;}}
  const days=[...rows.values()].sort((a,b)=>a.date.localeCompare(b.date));
  let running=opening;for(const r of days){running+=r.net;}
  return {opening,rows:days,net:running-opening,closing:running};

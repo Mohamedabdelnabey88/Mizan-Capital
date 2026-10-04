@@ -18,6 +18,8 @@ const put=(kind:string,data:any,rid=uid())=>{inserts.push({id:rid,kind,data:JSON
 const find=(rid:string,kind?:string)=>{const r=w.records.find(r=>r.id===rid&&(!kind||r.kind===kind));if(!r)throw Error('السجل غير موجود أو غير مسموح.');return r;};
 const update=(r:any,data:any)=>{patches.set(r.id,{id:r.id,version:r.version,data:JSON.stringify(data)});if(data.project)guardProject(data.project);};
 const money5=(v:any,label='المبلغ')=>{const s=String(v??'').trim().replace(/,/g,'');if(!/^\d+(?:\.\d{1,5})?$/.test(s))throw Error(label+' يجب أن يصل إلى 5 منازل عشرية كحد أقصى.');const n=Number(s);if(!Number.isFinite(n)||n<0||n>1000000000)throw Error(label+' خارج النطاق المسموح.');return Number(n.toFixed(5));};
+const planMoneyMicro=(v:any,label='المبلغ المخطط')=>Math.round(money5(v,label)*100000);
+const projectPlansSnapshot=(ws:Workspace,pid:string)=>ws.records.filter((x:any)=>x.kind==='projectPlan'&&x.data.project===pid);
 const halala=(v:any,label='المبلغ')=>{
  const s=String(v??'').trim().replace(/,/g,'');
  if(!/^\d+(?:\.\d{1,2})?$/.test(s))throw Error(label+' يجب أن يكون بريالين عشريين كحد أقصى (هللات).');

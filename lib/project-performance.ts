@@ -13,7 +13,7 @@ const daysInMonth=(s:string)=>new Date(Date.UTC(Number(s.slice(0,4)),Number(s.sl
 
 export function projectPlans(w:Workspace,projectId:string){
   return w.records.filter(r=>r.kind==='projectPlan'&&r.data.project===projectId)
-    .sort((a,b)=>String(a.data.effectiveFrom).localeCompare(String(b.data.effectiveFrom))||String(a.created||'').localeCompare(String(b.created||'')))
+    .sort((a,b)=>String(a.data.effectiveFrom).localeCompare(String(b.data.effectiveFrom))||String((a as any).created||'').localeCompare(String((b as any).created||'')))
     .map(r=>r.data);
 }
 

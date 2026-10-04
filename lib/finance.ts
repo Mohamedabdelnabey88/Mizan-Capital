@@ -130,13 +130,14 @@ export function investmentFundingReport(w:Workspace,project='all',start='0000-01
  return {investments,funding,activeInvestment:investments.filter(r=>r.status==='active').reduce((s,r)=>s+r.principal,0),expectedReturn:investments.reduce((s,r)=>s+r.expectedReturn,0),actualReturn:investments.filter(r=>r.status!=='active').reduce((s,r)=>s+r.actualReturn,0),fundingOutstanding:funding.reduce((s,r)=>s+r.outstanding,0)};
 }
 export function annualOwnerReport(w:Workspace,year:number){
+ const fy=fiscalYearForStart(w,year),fyEnd=fy.end;
  const projects=w.records.filter(r=>r.kind==='project'&&r.data.mode==='operating');
  const policies=w.records.filter(r=>r.kind==='ownerPolicy'&&String(r.data.effectiveFrom||'')<=year+'-12-31').sort((a,b)=>String(a.data.effectiveFrom||'').localeCompare(String(b.data.effectiveFrom||'')));
  const policy=policies.at(-1);const percentBps=Number(policy?.data.percentBps||0);
- const rows=projects.map(p=>({project:p.id,name:p.data.name,ownership:Number(p.data.ownership||0),profit:profit(w,p.id,year+'-01-01',year+'-12-31').net}));
+ const rows=projects.map(p=>({project:p.id,name:p.data.name,ownership:Number(p.data.ownership||0),profit:profit(w,p.id,fy.start,fy.end).net}));
  const totalProfit=rows.reduce((s,r)=>s+r.profit,0),ownerShare=Math.floor(totalProfit*percentBps/10000);
  const settlement=w.records.find(r=>r.kind==='ownerSettlement'&&Number(r.data.year)===year);
- return {year,percentBps,policyDate:policy?.data.effectiveFrom||'',rows,totalProfit,ownerShare,paid:Number(settlement?.data.totalOwner||0),settlementDate:settlement?.data.paidOn||'',status:settlement?'paid':'pending',remaining:Math.max(0,ownerShare-Number(settlement?.data.totalOwner||0))};
+ return {year,fyStart:fy.start,fyEnd:fy.end,fiscalYearId:fy.id||'',fiscalLabel:fy.label||'',percentBps,policyDate:policy?.data.effectiveFrom||'',rows,totalProfit,ownerShare,paid:Number(settlement?.data.totalOwner||0),settlementDate:settlement?.data.paidOn||'',status:settlement?'paid':'pending',remaining:Math.max(0,ownerShare-Number(settlement?.data.totalOwner||0))};
 }
 export function distributionEntitlement(w:Workspace,project:RecordItem){
  const b=balance(w,project.id),net=profit(w,project.id,'0000-01-01').net;

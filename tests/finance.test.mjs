@@ -82,5 +82,32 @@ await ok('obligation',{project:gapProject,title:'دفع مبكر',amount:900,dat
 await ok('obligation',{project:gapProject,title:'تحصيل لاحق',amount:1000,date:f.dayAdd(T,5),direction:'in',category:'revenue'});
 await fail('entry',{project:gapProject,kind:'distribution',amount:1,date:T,memo:'العجز قبل الإيراد'});
 await assert.rejects(()=>db.prepare('UPDATE journals SET memo=? WHERE owner=?').bind('corrupt','test-owner').run(),/posted_entry_immutable/);await assert.rejects(()=>db.prepare('DELETE FROM journals WHERE owner=?').bind('test-owner').run(),/posted_entry_immutable/);checks+=2;
+// Funding correction: canceling a mistaken funding must reverse its journal, preserve audit history, and restore balances.
+await ok('projectFunding',{project:a,sourceType:'personal',amount:1234.56,date:T,memo:'تمويل تجريبي خاطئ'});
+w=await read();
+const mistaken=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل تجريبي خاطئ');
+assert(mistaken);
+const beforeCancel=f.balance(w,a);
+const originalFundingJournal=w.journals.find(j=>j.source==='projectFunding:'+mistaken.id);
+assert(originalFundingJournal);
+const profitBeforeCancel=f.profit(w,a).net;
+await ok('cancelFunding',{id:mistaken.id,date:T,reason:'تصحيح بيانات اختبار'});
+w=await read();
+const cancelled=w.records.find(r=>r.id===mistaken.id);
+assert.equal(cancelled.data.status,'cancelled');
+const reversal=w.journals.find(j=>j.reversal===originalFundingJournal.id);
+assert(reversal);
+assert.equal(f.balance(w,a).cash,beforeCancel.cash);
+assert.equal(f.balance(w,a).capital,beforeCancel.capital);
+assert.equal(f.profit(w,a).net,profitBeforeCancel);
+assert.equal(f.projectFundingSummaries(w,a).some(x=>x.id===mistaken.id),false);
+await fail('cancelFunding',{id:mistaken.id,date:T,reason:'محاولة ثانية'});
+await ok('projectFunding',{project:a,sourceType:'personal',amount:500,date:T,memo:'تمويل تجريبي مع استرداد'});
+w=await read();
+const repFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل تجريبي مع استرداد');
+assert(repFunding);
+await ok('fundingRepayment',{fundingId:repFunding.id,amount:100,date:T,memo:'استرداد جزئي'});
+await fail('cancelFunding',{id:repFunding.id,date:T,reason:'لا يجب الإلغاء بعد الاسترداد'});
+checks+=8;
 w=await read();for(const j of w.journals)f.validateLines(j.lines);const bal=f.balance(w);assert.equal(Object.values(bal).reduce((s,v)=>s+v,0),0);const forecast=f.forecast(w);assert.equal(forecast.buckets.length,13);console.log(JSON.stringify({passed:true,mutationChecks:checks,records:w.records.length,journals:w.journals.length,verified:['identity isolation','balanced journals','idempotency','internal transfers','profit versus cash','loan repayment','early settlement','opening debt','payroll dates','reversal uniqueness','period lock','cash forecast']}));
 }finally{await mf.dispose();}

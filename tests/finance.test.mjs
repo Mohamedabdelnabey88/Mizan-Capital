@@ -85,7 +85,7 @@ assert.equal(w.records.some(r=>r.id===a),false);
 assert.equal(w.records.some(r=>r.data&&Object.values(r.data).some(v=>v===a)),false);
 const remainingProjectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===a));
 assert(remainingProjectJournals.length>0);
-assert(remainingProjectJournals.every(j=>w.journals.some(x=>x.reversal===j.id)));
+assert(remainingProjectJournals.filter(j=>!j.reversal).every(j=>w.journals.some(x=>x.reversal===j.id)));
 assert.equal(Object.values(f.balance(w)).reduce((sum,v)=>sum+v,0),0);
 checks+=4;
 await ok('closePeriod',{id:b,date:T});await fail('entry',{project:b,kind:'income',amount:100,date:T,memo:'فترة مقفلة'});

@@ -42,6 +42,19 @@ export function allocationTotal(a:Record<string,unknown>){
 }
 export function balance(w:Workspace,project='all',end=today()){const a:Record<string,number>={};for(const j of w.journals){if(j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;a[l.account]=(a[l.account]||0)+l.debit-l.credit;}}return a;}
 export function profit(w:Workspace,project='all',start=today().slice(0,4)+'-01-01',end=today()){let revenue=0,expense=0;for(const j of w.journals){if(j.date<start||j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(accounts[l.account]?.type==='income')revenue+=l.credit-l.debit;if(accounts[l.account]?.type==='expense')expense+=l.debit-l.credit;}}return {revenue,expense,net:revenue-expense};}
+export type AccountingTrace={transactionId:string;date:string;kind:string;memo:string;lines:Line[];ledgerDelta:Record<string,number>;cashDelta:number;profitDelta:number;project:string;};
+export function traceTransaction(w:Workspace,transactionId:string):AccountingTrace|undefined{
+ const j=w.journals.find(x=>x.id===transactionId||x.sourceId===transactionId||x.source===transactionId);
+ if(!j)return;
+ const ledgerDelta:Record<string,number>={};let cashDelta=0,profitDelta=0,project='all';
+ for(const l of j.lines){ledgerDelta[l.account]=(ledgerDelta[l.account]||0)+l.debit-l.credit;if(l.account==='cash'||l.account==='bank')cashDelta+=l.debit-l.credit;if(accounts[l.account]?.type==='income')profitDelta+=l.credit-l.debit;if(accounts[l.account]?.type==='expense')profitDelta-=l.debit-l.credit;if(project==='all'&&l.project)project=l.project;}
+ return {transactionId,date:j.date,kind:j.kind,memo:j.memo,lines:j.lines,ledgerDelta,cashDelta,profitDelta,project};
+}
+export function accountingControlTotals(w:Workspace,start='0000-01-01',end=today(),project='all'){
+ let debit=0,credit=0,cash=0,profitDelta=0;
+ for(const j of w.journals){if(j.date<start||j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;debit+=l.debit;credit+=l.credit;if(l.account==='cash'||l.account==='bank')cash+=l.debit-l.credit;if(accounts[l.account]?.type==='income')profitDelta+=l.credit-l.debit;if(accounts[l.account]?.type==='expense')profitDelta-=l.debit-l.credit;}}
+ const cf=actualCashFlow(w,project,start,end);const b=balance(w,project,end);const balanceCheck=debit-credit;const cashFromBalance=(b.cash||0)+(b.bank||0);return {debit,credit,balanceCheck,cash,cashFromBalance,cashFlowClosing:cf.closing,profitDelta,profitNet:profit(w,project,start,end).net,cashFlowDifference:cf.closing-cashFromBalance};
+}
 
 export function loanRateFromPaymentExact(principalSar:number,paymentSar:number,months:number){if(!Number.isFinite(principalSar)||!Number.isFinite(paymentSar)||principalSar<=0||paymentSar<=0||!Number.isInteger(months)||months<1||months>360)throw Error('راجع أصل التمويل والقسط وعدد الأشهر.');if(paymentSar*months<principalSar)throw Error('إجمالي الأقساط أقل من أصل التمويل؛ لا يمكن استنتاج تكلفة تمويل موجبة.');if(Math.abs(paymentSar*months-principalSar)<0.000000001)return 0;let lo=0,hi=1;const f=(r:number)=>paymentSar*(1-Math.pow(1+r,-months))/r-principalSar;while(f(hi)>0&&hi<100)hi*=2;for(let i=0;i<120;i++){const mid=(lo+hi)/2;if(f(mid)>0)lo=mid;else hi=mid;}return ((lo+hi)/2)*12*100;}
 export function loanScheduleFromPaymentExact(principalSar:number,paymentSar:number,months:number,first:string){const annual=loanRateFromPaymentExact(principalSar,paymentSar,months),r=annual/1200;let rest=principalSar;return Array.from({length:months},(_,i)=>{const interest=Math.round(rest*r*100),principalPart=i===months-1?Math.round(rest*100):Math.min(Math.round(rest*100),Math.max(0,Math.round(paymentSar*100)-interest));const amount=principalPart+interest;rest=Math.max(0,rest-principalPart/100);return {date:monthAdd(first,i),principal:principalPart,interest,amount};});}

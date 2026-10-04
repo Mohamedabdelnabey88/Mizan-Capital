@@ -104,16 +104,18 @@ export function projectFundingSummaries(w:Workspace,project='all',end=today()):F
  const cutoff=String(end);
  const matches=w.records.filter(r=>{
   const d=r.data as Partial<ProjectFunding>&{status?:string};
-  if(String(r.kind).trim()!=='projectFunding'||String(d.status||'')==='cancelled')return false;
-  const recordDate=String(d.date||'');
-  if(!recordDate||recordDate>cutoff)return false;
-  return project==='all'||String(d.project||'')===String(project)||String(d.sourceProject||'')===String(project);
+  return String(r.kind).trim()==='projectFunding'&&String(d.status||'')!=='cancelled';
  });
- return matches.map(r=>{
+ return matches.filter(r=>{
+  const d=r.data as ProjectFunding;
+  const recordDate=String(d.date||'');
+  if(recordDate&&recordDate>cutoff)return false;
+  return project==='all'||String(d.project||'')===String(project)||String(d.sourceProject||'')===String(project);
+ }).map(r=>{
   const d=r.data as ProjectFunding;
   const repaid=w.records.filter(x=>{
    const xd=x.data as any;
-   return String(x.kind).trim()==='fundingRepayment'&&String(xd.fundingId||'')===String(r.id)&&String(xd.date||'')<=cutoff;
+   return String(x.kind).trim()==='fundingRepayment'&&String(xd.fundingId||'')===String(r.id)&&(!xd.date||String(xd.date)<=cutoff);
   }).reduce((sum,x)=>sum+Number((x.data as any).amount||0),0);
   const original=Number(d.amount||0);
   const paid=Math.min(original,Math.max(0,repaid));

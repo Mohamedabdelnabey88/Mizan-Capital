@@ -109,5 +109,16 @@ assert(repFunding);
 await ok('fundingRepayment',{fundingId:repFunding.id,amount:100,date:T,memo:'استرداد جزئي'});
 await fail('cancelFunding',{id:repFunding.id,date:T,reason:'لا يجب الإلغاء بعد الاسترداد'});
 checks+=8;
+// Full project deletion is explicit and destructive, so require exact project-name confirmation.
+w=await read();
+const projectToDelete=w.records.find(r=>r.kind==='project'&&r.id===a);
+assert(projectToDelete);
+await fail('deleteProject',{id:a,confirmName:'اسم خاطئ',reason:'اختبار'});
+await ok('deleteProject',{id:a,confirmName:projectToDelete.data.name,reason:'حذف بيانات اختبار'});
+w=await read();
+assert.equal(w.records.some(r=>r.id===a),false);
+assert.equal(w.records.some(r=>r.data&&Object.values(r.data).some(v=>v===a)),false);
+assert.equal(w.journals.some(j=>j.lines.some(l=>l.project===a)||String(j.source||'').includes(a)||String(j.reversal||'').includes(a)),false);
+checks+=4;
 w=await read();for(const j of w.journals)f.validateLines(j.lines);const bal=f.balance(w);assert.equal(Object.values(bal).reduce((s,v)=>s+v,0),0);const forecast=f.forecast(w);assert.equal(forecast.buckets.length,13);console.log(JSON.stringify({passed:true,mutationChecks:checks,records:w.records.length,journals:w.journals.length,verified:['identity isolation','balanced journals','idempotency','internal transfers','profit versus cash','loan repayment','early settlement','opening debt','payroll dates','reversal uniqueness','period lock','cash forecast']}));
 }finally{await mf.dispose();}

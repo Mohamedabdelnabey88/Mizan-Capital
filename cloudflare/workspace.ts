@@ -63,7 +63,7 @@ else if(action==='deleteProject'){
  const linkedEmployeeIds=new Set(w.records.filter(x=>x.kind==='employee'&&x.data.project===projectId).map(x=>x.id));
  const employeeRecords=w.records.filter(x=>linkedEmployeeIds.has(x.data?.employee));
  const allRecordIds=new Set([projectId,...linkedRecords.map(x=>x.id),...employeeRecords.map(x=>x.id)]);
- const projectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===projectId));
+ const projectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===projectId)&&!j.reversal);
  for(const original of projectJournals){
    if(w.journals.some(j=>j.reversal===original.id))continue;
    journal('reversal','عكس قيد حذف المشروع: '+str(r.data.name||'',120)+' — '+str(p.reason||'حذف مشروع',200),date(p.date||today()),original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);

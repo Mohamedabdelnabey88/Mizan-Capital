@@ -74,14 +74,23 @@ export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,out
  return {days,buckets,min,ending:cash,shortfall:Math.max(0,reserve-min),firstGap};
 }
 export function internalFunding(w:Workspace,lender:string,borrower:string,end=today()){
- return w.journals.filter(j=>j.date<=end&&j.lines.some(l=>l.project===borrower&&l.account==='inter_payable'))
-  .flatMap(j=>j.lines).filter(l=>l.project===lender&&l.account==='inter_receivable')
-  .reduce((sum,l)=>sum+l.debit-l.credit,0);
+ let funded=0,repaid=0;
+ for(const j of w.journals){
+  if(j.date>end)continue;
+  const lenderReceivable=j.lines.find(l=>l.project===lender&&l.account==='inter_receivable');
+  const borrowerPayable=j.lines.find(l=>l.project===borrower&&l.account==='inter_payable');
+  const borrowerReceivable=j.lines.find(l=>l.project===borrower&&l.account==='inter_receivable');
+  const lenderPayable=j.lines.find(l=>l.project===lender&&l.account==='inter_payable');
+  if(lenderReceivable&&borrowerPayable) funded+=Math.max(0,lenderReceivable.debit-lenderReceivable.credit);
+  if(borrowerReceivable&&lenderPayable) repaid+=Math.max(0,borrowerReceivable.credit-borrowerReceivable.debit);
+ }
+ return Math.max(0,funded-repaid);
 }
 export type CashFlowRow={date:string;operatingIn:number;operatingOut:number;investingIn:number;investingOut:number;financingIn:number;financingOut:number;transferIn:number;transferOut:number;otherIn:number;otherOut:number;net:number;};
 export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=today()){
  const openingDate= start==='0000-01-01'?'0000-01-01':dayAdd(start,-1);
- const opening=balance(w,project,openingDate).cash||0;
+ const openingBalance=balance(w,project,openingDate);
+ const opening=(openingBalance.cash||0)+(openingBalance.bank||0);
  const rows=new Map<string,CashFlowRow>();
  const get=(date:string)=>{let r=rows.get(date);if(!r){r={date,operatingIn:0,operatingOut:0,investingIn:0,investingOut:0,financingIn:0,financingOut:0,transferIn:0,transferOut:0,otherIn:0,otherOut:0,net:0};rows.set(date,r);}return r;};
  const category=(kind:string)=>{

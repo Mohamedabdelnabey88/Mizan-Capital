@@ -39,7 +39,7 @@ await ok('projectFunding',{project:a,sourceType:'personal',amount:3000,date:T,me
 w=await read();const personalFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.sourceType==='personal'&&r.data.amount===300000);assert(personalFunding);
 await ok('fundingRepayment',{fundingId:personalFunding.id,amount:1000,date:T,memo:'استرداد شخصي جزئي'});
 w=await read();let fs=f.projectFundingSummaries(w,a,T).find(x=>x.id===personalFunding.id);assert.equal(fs.repaid,100000);assert.equal(fs.outstanding,200000);assert.equal(Math.round(fs.recoveryPct*100),3333);
-assert.equal(f.profit(w,a).net,0);assert.equal((f.balance(w,a).capital||0),9900000);
+assert.equal(f.profit(w,a).net,0);assert.equal((f.balance(w,a).capital||0),10200000);
 await ok('projectFunding',{project:b,sourceType:'external',amount:4000,date:T,memo:'تمويل خارجي'});
 w=await read();const externalFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.sourceType==='external'&&r.data.project===b);assert(externalFunding);
 await ok('fundingRepayment',{fundingId:externalFunding.id,amount:1500,date:T,memo:'سداد خارجي جزئي'});

@@ -35,6 +35,17 @@ await fail('entry',{project:b,target:a,kind:'repayTransfer',amount:20001,date:T,
 await ok('entry',{project:b,target:a,kind:'repayTransfer',amount:1000,date:T,memo:'رد جزئي'});
 w=await read();assert.equal(f.internalFunding(w,a,b),1900000);assert.equal(f.balance(w).cash,10000000);assert.equal(f.profit(w).net,0);
 await fail('entry',{project:a,target:b,kind:'repayTransfer',amount:1,date:T,memo:'اتجاه خاطئ'});
+await ok('projectFunding',{project:a,sourceType:'personal',amount:3000,date:T,memo:'رأس مال إضافي مرتبط'});
+w=await read();const personalFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.sourceType==='personal'&&r.data.amount===300000);assert(personalFunding);
+await ok('fundingRepayment',{fundingId:personalFunding.id,amount:1000,date:T,memo:'استرداد شخصي جزئي'});
+w=await read();let fs=f.projectFundingSummaries(w,a,T).find(x=>x.id===personalFunding.id);assert.equal(fs.repaid,100000);assert.equal(fs.outstanding,200000);assert.equal(Math.round(fs.recoveryPct*100),3333);
+assert.equal(f.profit(w,a).net,0);assert.equal((f.balance(w,a).capital||0),9900000);
+await ok('projectFunding',{project:b,sourceType:'external',amount:4000,date:T,memo:'تمويل خارجي'});
+w=await read();const externalFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.sourceType==='external'&&r.data.project===b);assert(externalFunding);
+await ok('fundingRepayment',{fundingId:externalFunding.id,amount:1500,date:T,memo:'سداد خارجي جزئي'});
+w=await read();fs=f.projectFundingSummaries(w,b,T).find(x=>x.id===externalFunding.id);assert.equal(fs.repaid,150000);assert.equal(fs.outstanding,250000);assert.equal(f.profit(w,b).net,0);
+await fail('fundingRepayment',{fundingId:externalFunding.id,amount:2501,date:T,memo:'تجاوز'});
+assert.equal(f.actualCashFlow(w,b,T,T).rows[0].financingIn,400000);assert.equal(f.actualCashFlow(w,b,T,T).rows[0].financingOut,150000);
 await ok('entry',{project:a,kind:'income',amount:10000,date:T,memo:'إيراد'});await fail('entry',{project:a,kind:'distribution',amount:4000,date:T,memo:'فوق الاستحقاق'});
 await ok('dailyReport',{project:a,date:T,manager:'مدير الاختبار',gross:10000,channels:{cash:5000,bank:0,mada:5000,visa:0,mastercard:0,receivable:0},memo:'تقرير يومي أول'});
 await fail('dailyReport',{project:a,date:T,manager:'مدير الاختبار',gross:10000,channels:{cash:10000},memo:'تقرير مكرر'});

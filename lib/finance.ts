@@ -44,7 +44,7 @@ export function balance(w:Workspace,project='all',end=today()){const a:Record<st
 export function profit(w:Workspace,project='all',start=today().slice(0,4)+'-01-01',end=today()){let revenue=0,expense=0;for(const j of w.journals){if(j.date<start||j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(accounts[l.account]?.type==='income')revenue+=l.credit-l.debit;if(accounts[l.account]?.type==='expense')expense+=l.debit-l.credit;}}return {revenue,expense,net:revenue-expense};}
 export type AccountingTrace={transactionId:string;date:string;kind:string;memo:string;lines:Line[];ledgerDelta:Record<string,number>;cashDelta:number;profitDelta:number;project:string;};
 export function traceTransaction(w:Workspace,transactionId:string):AccountingTrace|undefined{
- const j=w.journals.find(x=>x.id===transactionId||x.sourceId===transactionId||x.source===transactionId);
+ const j=w.journals.find(x=>x.id===transactionId||x.source===transactionId);
  if(!j)return;
  const ledgerDelta:Record<string,number>={};let cashDelta=0,profitDelta=0,project='all';
  for(const l of j.lines){ledgerDelta[l.account]=(ledgerDelta[l.account]||0)+l.debit-l.credit;if(l.account==='cash'||l.account==='bank')cashDelta+=l.debit-l.credit;if(accounts[l.account]?.type==='income')profitDelta+=l.credit-l.debit;if(accounts[l.account]?.type==='expense')profitDelta-=l.debit-l.credit;if(project==='all'&&l.project)project=l.project;}

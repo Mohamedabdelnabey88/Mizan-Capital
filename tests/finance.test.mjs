@@ -118,7 +118,10 @@ await ok('deleteProject',{id:a,confirmName:projectToDelete.data.name,reason:'Ø­Ø
 w=await read();
 assert.equal(w.records.some(r=>r.id===a),false);
 assert.equal(w.records.some(r=>r.data&&Object.values(r.data).some(v=>v===a)),false);
-assert.equal(w.journals.some(j=>j.lines.some(l=>l.project===a)||String(j.source||'').includes(a)||String(j.reversal||'').includes(a)),false);
+const remainingProjectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===a));
+assert(remainingProjectJournals.length>0);
+assert(remainingProjectJournals.every(j=>w.journals.some(x=>x.reversal===j.id)));
+assert.equal(Object.values(f.balance(w)).reduce((sum,v)=>sum+v,0),0);
 checks+=4;
 w=await read();for(const j of w.journals)f.validateLines(j.lines);const bal=f.balance(w);assert.equal(Object.values(bal).reduce((s,v)=>s+v,0),0);const forecast=f.forecast(w);assert.equal(forecast.buckets.length,13);console.log(JSON.stringify({passed:true,mutationChecks:checks,records:w.records.length,journals:w.journals.length,verified:['identity isolation','balanced journals','idempotency','internal transfers','profit versus cash','loan repayment','early settlement','opening debt','payroll dates','reversal uniqueness','period lock','cash forecast']}));
 }finally{await mf.dispose();}

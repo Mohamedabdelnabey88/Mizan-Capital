@@ -22,8 +22,20 @@ export function cardReceivables(w:Workspace,project='all',end=today()){
  const b=balance(w,project,end);
  return (b.mada||0)+(b.visa||0)+(b.mastercard||0);
 }
+export type FiscalYear={id?:string;start:string;end:string;label?:string};
+export function fiscalYearForDate(w:Workspace,at=today()):FiscalYear{
+ const rows=w.records.filter(r=>r.kind==='fiscalYear'&&String(r.data.start)<=at&&String(r.data.end)>=at).sort((a,b)=>String(a.data.start).localeCompare(String(b.data.start)));
+ const row=rows.at(-1);
+ if(row)return {id:row.id,start:String(row.data.start),end:String(row.data.end),label:String(row.data.label||'')};
+ const y=Number(at.slice(0,4));return {start:y+'-01-01',end:y+'-12-31',label:'السنة الميلادية '+y};
+}
+export function fiscalYearForStart(w:Workspace,startYear:number):FiscalYear{
+ const rows=w.records.filter(r=>r.kind==='fiscalYear'&&String(r.data.start).slice(0,4)===String(startYear)).sort((a,b)=>String(a.data.start).localeCompare(String(b.data.start)));
+ const row=rows.at(-1);if(row)return {id:row.id,start:String(row.data.start),end:String(row.data.end),label:String(row.data.label||'')};
+ return {start:startYear+'-01-01',end:startYear+'-12-31',label:'السنة الميلادية '+startYear};
+}
 export function yearlyProfit(w:Workspace,year:number,project='all'){
- return profit(w,project,year+'-01-01',year+'-12-31').net;
+ const fy=fiscalYearForStart(w,year);return profit(w,project,fy.start,fy.end).net;
 }
 export function allocationTotal(a:Record<string,unknown>){
  return Object.values(a).reduce<number>((s,v)=>s+Number(v||0),0);

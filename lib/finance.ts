@@ -132,11 +132,11 @@ export function investmentFundingReport(w:Workspace,project='all',start='0000-01
 export function annualOwnerReport(w:Workspace,year:number){
  const fy=fiscalYearForStart(w,year),fyEnd=fy.end;
  const projects=w.records.filter(r=>r.kind==='project'&&r.data.mode==='operating');
- const policies=w.records.filter(r=>r.kind==='ownerPolicy'&&String(r.data.effectiveFrom||'')<=year+'-12-31').sort((a,b)=>String(a.data.effectiveFrom||'').localeCompare(String(b.data.effectiveFrom||'')));
+ const policies=w.records.filter(r=>r.kind==='ownerPolicy'&&String(r.data.effectiveFrom||'')<=fyEnd).sort((a,b)=>String(a.data.effectiveFrom||'').localeCompare(String(b.data.effectiveFrom||'')));
  const policy=policies.at(-1);const percentBps=Number(policy?.data.percentBps||0);
  const rows=projects.map(p=>({project:p.id,name:p.data.name,ownership:Number(p.data.ownership||0),profit:profit(w,p.id,fy.start,fy.end).net}));
  const totalProfit=rows.reduce((s,r)=>s+r.profit,0),ownerShare=Math.floor(totalProfit*percentBps/10000);
- const settlement=w.records.find(r=>r.kind==='ownerSettlement'&&Number(r.data.year)===year);
+ const settlement=w.records.find(r=>r.kind==='ownerSettlement'&&(String(r.data.fiscalYearStart||'')===fy.start||(!r.data.fiscalYearStart&&Number(r.data.year)===year)));
  return {year,fyStart:fy.start,fyEnd:fy.end,fiscalYearId:fy.id||'',fiscalLabel:fy.label||'',percentBps,policyDate:policy?.data.effectiveFrom||'',rows,totalProfit,ownerShare,paid:Number(settlement?.data.totalOwner||0),settlementDate:settlement?.data.paidOn||'',status:settlement?'paid':'pending',remaining:Math.max(0,ownerShare-Number(settlement?.data.totalOwner||0))};
 }
 export function distributionEntitlement(w:Workspace,project:RecordItem){

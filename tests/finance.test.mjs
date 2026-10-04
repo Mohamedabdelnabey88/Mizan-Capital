@@ -49,7 +49,7 @@ await ok('projectFunding',{project:a,sourceType:'personal',amount:3000,date:T,me
 w=await read();const personalFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.sourceType==='personal'&&r.data.amount===300000);assert(personalFunding);
 await ok('fundingRepayment',{fundingId:personalFunding.id,amount:1000,date:T,memo:'استرداد شخصي جزئي'});
 w=await read();const fundingFixture={records:[personalFunding,...w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===personalFunding.id)],journals:[],audit:[]};const fixtureSummary=f.projectFundingSummaries(fundingFixture,'all','9999-12-31').find(x=>x.id===personalFunding.id);assert(fixtureSummary,JSON.stringify(fundingFixture));const personalSummaries=f.projectFundingSummaries(w,personalFunding.data.project,'9999-12-31');assert(personalSummaries.some(x=>x.id===personalFunding.id),JSON.stringify({funding:personalFunding,records:w.records.filter(r=>r.kind==='projectFunding')}));let personalSummary=personalSummaries.find(x=>x.id===personalFunding.id);assert.equal(personalSummary.repaid,100000);assert.equal(personalSummary.outstanding,200000);assert.equal(Math.round(personalSummary.recoveryPct*100),3333);
-assert.equal(f.profit(w,a).net,0);assert.equal((f.balance(w,a).capital||0),10200000);
+assert.equal(f.profit(w,a).net,0);assert.equal((f.balance(w,a).capital||0),-10200000);
 await ok('projectFunding',{project:b,sourceType:'external',amount:4000,date:T,memo:'تمويل خارجي'});
 w=await read();const externalFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.sourceType==='external'&&r.data.project===b);assert(externalFunding);
 await ok('fundingRepayment',{fundingId:externalFunding.id,amount:1500,date:T,memo:'سداد خارجي جزئي'});

@@ -1,6 +1,6 @@
 'use client';
 import {useState,useEffect,useMemo,useCallback,type ReactNode} from 'react';
-import {LayoutDashboard,Building2,ArrowLeftRight,Wallet,CalendarDays,Landmark,Users,ShieldCheck,ChartNoAxesCombined,FileText,Settings2,Plus,ChevronLeft,ChevronRight,ArrowUpLeft,ArrowDownLeft,ArrowUpRight,WalletCards,Download,Search,Check,Info,TriangleAlert,RefreshCw,Eye,LockKeyhole,SlidersHorizontal,TrendingUp,ReceiptText,Clock3,MoreHorizontal,Scale,Bell,PanelRightClose,BriefcaseBusiness,X} from 'lucide-react';
+import {LayoutDashboard,Building2,ArrowLeftRight,Wallet,CalendarDays,Landmark,Users,ShieldCheck,ChartNoAxesCombined,FileText,Settings2,Plus,ChevronLeft,ChevronRight,ArrowUpLeft,ArrowDownLeft,ArrowUpRight,WalletCards,Download,Search,Check,Info,TriangleAlert,RefreshCw,Eye,LockKeyhole,SlidersHorizontal,TrendingUp,ReceiptText,Clock3,MoreHorizontal,Scale,Bell,PanelRightClose,BriefcaseBusiness,X,Trash2} from 'lucide-react';
 import {Sidebar,SidebarProvider,SidebarHeader,SidebarContent,SidebarFooter,SidebarMenu,SidebarMenuItem,SidebarMenuButton,SidebarTrigger,useSidebar} from '@/components/ui/sidebar';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Select,SelectTrigger,SelectValue,SelectContent,SelectItem} from '@/components/ui/select';

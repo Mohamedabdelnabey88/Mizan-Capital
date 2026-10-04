@@ -73,6 +73,18 @@ export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,out
  const buckets=Array.from({length:13},(_,i)=>{const week=days.slice(i*7,i*7+7);return {date:week[0].date,income:week.reduce((s,d)=>s+d.income,0),out:week.reduce((s,d)=>s+d.out,0),cash:week[6].cash,min:Math.min(...week.map(d=>d.min))};});
  return {days,buckets,min,ending:cash,shortfall:Math.max(0,reserve-min),firstGap};
 }
+export type ProjectFunding={id:string;project:string;sourceType:'personal'|'project'|'external';sourceProject?:string;amount:number;date:string;memo?:string};
+export type FundingSummary=ProjectFunding&{repaid:number;outstanding:number;recoveryPct:number};
+export function projectFundingSummaries(w:Workspace,project='all',end=today()):FundingSummary[]{
+ const fundings=w.records.filter(r=>r.kind==='projectFunding'&&String(r.data.date)<=end&&(project==='all'||r.data.project===project||r.data.sourceProject===project));
+ return fundings.map(r=>{
+  const d=r.data as ProjectFunding;
+  const repaid=w.records.filter(x=>x.kind==='fundingRepayment'&&x.data.fundingId===r.id&&String(x.data.date)<=end).reduce((s,x)=>s+Number(x.data.amount||0),0);
+  const original=Number(d.amount||0);
+  const paid=Math.min(original,Math.max(0,repaid));
+  return {...d,repaid:paid,outstanding:Math.max(0,original-paid),recoveryPct:original?paid*100/original:0};
+ });
+}
 export function internalFunding(w:Workspace,lender:string,borrower:string,end=today()){
  let funded=0,repaid=0;
  for(const j of w.journals){
@@ -98,8 +110,9 @@ export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=
   if(['income','collect','dailyReport','cardSettlement','expense','paybill','cogs','inventory','salary'].includes(kind))return 'operating';
   if(['asset','invest','dividend','returnCapital','investmentStart','investmentReturn'].includes(kind))return 'investing';
   if(['capital','loan','settle','prepay','distribution','annualOwnerDistribution'].includes(kind))return 'financing';
-  if(['transfer','repayTransfer'].includes(kind)){
+  if(['transfer','repayTransfer','fundingRepayment'].includes(kind)){
    if(kind==='transfer'&&/تمويل شخصي|تمويل خارجي مستحق/.test(j.memo))return 'financing';
+   if(kind==='fundingRepayment')return /تمويل من مشروع آخر/.test(j.memo)?'transfer':'financing';
    return 'transfer';
   }
   return 'other';

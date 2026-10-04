@@ -22,7 +22,16 @@ assert.equal(f.forecast({records:[],journals:[],audit:[]},'all',100,0,0,100).sho
 const sameDay=structuredClone(cashFixture);sameDay.records[1].data.date=f.dayAdd(now,1);assert.equal(f.forecast(sameDay,'a',20000).min,10000);
 const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/test-worker.mjs',compatibilityDate:'2026-05-15',d1Databases:['DB']});
 try{const db=await mf.getD1Database('DB');for(const file of fs.readdirSync('drizzle').filter(s=>s.endsWith('.sql')).sort()){for(const sql of fs.readFileSync('drizzle/'+file,'utf8').split('--> statement-breakpoint').filter(s=>s.trim()))await db.prepare(sql).run();}
-const T=f.today();let checks=0;async function call(action,payload={},owner='test-owner',requestId=crypto.randomUUID()){const res=await mf.dispatchFetch('http://test/api/workspace',{method:'POST',headers:{'content-type':'application/json',...(owner?{'oai-authenticated-user-id':owner}:{})},body:JSON.stringify({action,payload,requestId})});return {status:res.status,...await res.json()};}
+const T=f.today();let checks=0;const fiscalFixture={records:[
+ {id:'fy',kind:'fiscalYear',version:1,data:{start:'2026-04-01',end:'2027-03-31',label:'سنة مالية اختبارية'}},
+ {id:'p',kind:'project',version:1,data:{name:'Fiscal',mode:'operating',ownership:100}},
+],journals:[
+ {id:'j1',date:'2026-05-01',memo:'داخل السنة',kind:'income',lines:[{project:'p',account:'cash',debit:100000,credit:0},{project:'p',account:'revenue',debit:0,credit:100000}]},
+ {id:'j2',date:'2027-02-01',memo:'داخل السنة',kind:'expense',lines:[{project:'p',account:'expense',debit:20000,credit:0},{project:'p',account:'cash',debit:0,credit:20000}]},
+ {id:'j3',date:'2027-04-01',memo:'خارج السنة',kind:'income',lines:[{project:'p',account:'cash',debit:50000,credit:0},{project:'p',account:'revenue',debit:0,credit:50000}]}
+],audit:[]};
+const fy=f.fiscalYearForDate(fiscalFixture,'2026-06-01');assert.equal(fy.start,'2026-04-01');assert.equal(fy.end,'2027-03-31');assert.equal(f.profit(fiscalFixture,'p',fy.start,fy.end).net,80000);assert.equal(f.yearlyProfit(fiscalFixture,2026,'p'),80000);checks+=4;
+async function call(action,payload={},owner='test-owner',requestId=crypto.randomUUID()){const res=await mf.dispatchFetch('http://test/api/workspace',{method:'POST',headers:{'content-type':'application/json',...(owner?{'oai-authenticated-user-id':owner}:{})},body:JSON.stringify({action,payload,requestId})});return {status:res.status,...await res.json()};}
 async function read(owner='test-owner'){const res=await mf.dispatchFetch('http://test/api/workspace',{headers:{'oai-authenticated-user-id':owner}});return res.json();}
 async function ok(action,payload,id){const r=await call(action,payload,'test-owner',id);assert.equal(r.status,200,JSON.stringify(r));checks++;return r;}
 async function fail(action,payload){const r=await call(action,payload);assert.equal(r.status,400,JSON.stringify(r));checks++;}

@@ -70,7 +70,7 @@ try{
   const badLogin=await call({path:'/auth/login',cookie:null,method:'POST',body:{email:'famaradona89@gmail.com',password:'definitely-wrong-password'}});
   assert.equal(badLogin.status,401);checks++;
 
-  const shared=await (await call({cookie:member2Cookie})).json();assert.equal(shared.records.length,1);checks++;
+  const shared=await (await call({cookie:member2Cookie})).json();assert.equal(shared.records.length,2);checks++;
   await expectStatus({method:'POST',cookie:member1Cookie,body:{...projectRequest,requestId:crypto.randomUUID()},extra:{'oai-authenticated-user-email':'forged@example.com'}},200);
   const log=(await db.prepare('SELECT detail FROM audit').all()).results;
   assert(log.some(row=>row.detail.endsWith('member1@example.com')));

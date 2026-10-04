@@ -76,7 +76,7 @@ try{
   assert(log.some(row=>row.detail.endsWith('member1@example.com')));
   assert(!log.some(row=>row.detail.includes('forged@example.com')));checks++;
   const rows=(await db.prepare('SELECT owner FROM records').all()).results;
-  assert.deepEqual(rows.map(r=>r.owner),['cloudflare-owner','cloudflare-owner']);checks++;
+  assert.deepEqual(rows.map(r=>r.owner),['cloudflare-owner','cloudflare-owner','cloudflare-owner','cloudflare-owner']);checks++;
 
   let w=await (await call()).json();const project=w.records[0].id;
   const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());

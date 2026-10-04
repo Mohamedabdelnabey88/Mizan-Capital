@@ -101,10 +101,20 @@ export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,out
 export type ProjectFunding={id:string;project:string;sourceType:'personal'|'project'|'external';sourceProject?:string;amount:number;date:string;memo?:string};
 export type FundingSummary=ProjectFunding&{repaid:number;outstanding:number;recoveryPct:number};
 export function projectFundingSummaries(w:Workspace,project='all',end=today()):FundingSummary[]{
- const fundings=w.records.filter(r=>r.kind==='projectFunding'&&r.data.status!=='cancelled'&&String(r.data.date)<=end&&(project==='all'||r.data.project===project||r.data.sourceProject===project));
- return fundings.map(r=>{
+ const cutoff=String(end);
+ const matches=w.records.filter(r=>{
+  const d=r.data as Partial<ProjectFunding>&{status?:string};
+  if(String(r.kind).trim()!=='projectFunding'||String(d.status||'')==='cancelled')return false;
+  const recordDate=String(d.date||'');
+  if(!recordDate||recordDate>cutoff)return false;
+  return project==='all'||String(d.project||'')===String(project)||String(d.sourceProject||'')===String(project);
+ });
+ return matches.map(r=>{
   const d=r.data as ProjectFunding;
-  const repaid=w.records.filter(x=>x.kind==='fundingRepayment'&&x.data.fundingId===r.id&&String(x.data.date)<=end).reduce((s,x)=>s+Number(x.data.amount||0),0);
+  const repaid=w.records.filter(x=>{
+   const xd=x.data as any;
+   return String(x.kind).trim()==='fundingRepayment'&&String(xd.fundingId||'')===String(r.id)&&String(xd.date||'')<=cutoff;
+  }).reduce((sum,x)=>sum+Number((x.data as any).amount||0),0);
   const original=Number(d.amount||0);
   const paid=Math.min(original,Math.max(0,repaid));
   return {...d,repaid:paid,outstanding:Math.max(0,original-paid),recoveryPct:original?paid*100/original:0};

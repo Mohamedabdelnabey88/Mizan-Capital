@@ -14,7 +14,7 @@ export default {
   const url=new URL(request.url);
   if(!url.pathname.startsWith('/api/')&&!url.pathname.startsWith('/auth/'))return env.ASSETS.fetch(request);
   try{
-   if(url.pathname==='/auth/login')return secured(await login(request,env));
+   if(url.pathname==='/auth/login'){if(request.method==='GET')return secured(Response.redirect(new URL('/login',url).toString(),302));return secured(await login(request,env));}
    if(url.pathname==='/auth/logout')return secured(await logout(request,env));
    if(url.pathname==='/auth/health'){
     const sessions=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('auth_sessions','auth_attempts') ORDER BY name").all();

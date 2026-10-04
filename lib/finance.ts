@@ -119,7 +119,7 @@ export function projectFundingSummaries(w:Workspace,project='all',end=today()):F
   }).reduce((sum,x)=>sum+Number((x.data as any).amount||0),0);
   const original=Number(d.amount||0);
   const paid=Math.min(original,Math.max(0,repaid));
-  return {...d,repaid:paid,outstanding:Math.max(0,original-paid),recoveryPct:original?paid*100/original:0};
+  return {...d,id:r.id,repaid:paid,outstanding:Math.max(0,original-paid),recoveryPct:original?paid*100/original:0};
  });
 }
 export function internalFunding(w:Workspace,lender:string,borrower:string,end=today()){

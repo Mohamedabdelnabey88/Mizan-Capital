@@ -1,0 +1,31 @@
+name: One-time project plan UI upgrade
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  upgrade:
+    if: !contains(github.event.head_commit.message, '[plan-ui-bot]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply plan vs actual UI
+        run: node scripts/upgrade-plan-ui.mjs
+      - name: Commit upgrade
+        run: |
+          git config user.name "mizan-plan-bot"
+          git config user.email "165729478+Mohamedabdelnabey88@users.noreply.github.com"
+          git add app/page.tsx
+          git diff --cached --quiet || git commit -m "feat: clarify plan vs actual UI [plan-ui-bot]"
+          git push
+      - name: Remove one-time workflow
+        run: |
+          git rm .github/workflows/upgrade-plan-ui.yml || true
+          git commit -m "chore: remove one-time plan UI workflow [plan-ui-bot]" || true
+          git push || true

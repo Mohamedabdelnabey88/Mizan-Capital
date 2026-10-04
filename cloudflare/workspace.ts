@@ -116,7 +116,7 @@ else if(action==='investmentReturn'){
 }
 else if(action==='setTaxPolicy'){
  const effectiveFrom=date(p.effectiveFrom||today());
- const enabled=!!p.enabled; const rateBps=percentBps(p.rate||0,'نسبة الضريبة');
+ const enabled=p.enabled===true||p.enabled===1||p.enabled==='1'||p.enabled==='true'; const rateBps=percentBps(p.rate||0,'نسبة الضريبة');
  const defaultMode=['none','inclusive','exclusive'].includes(p.defaultMode)?p.defaultMode:'none';
  const existing=w.records.find(x=>x.kind==='taxPolicy'&&String(x.data.effectiveFrom||'')===effectiveFrom);
  const data={enabled,rateBps,defaultMode,salesTax:p.salesTax!==false,purchaseTax:p.purchaseTax!==false,effectiveFrom};

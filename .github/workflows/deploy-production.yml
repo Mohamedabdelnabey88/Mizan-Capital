@@ -6,6 +6,10 @@ on:
     paths:
       - ".github/workflows/deploy-production.yml"
       - "cloudflare/**"
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "public/**"
       - "drizzle/**"
       - "package.json"
       - "pnpm-lock.yaml"

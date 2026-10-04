@@ -150,6 +150,32 @@ else if(action==='annualOwnerDistribution'){
  description='اعتماد توزيع المالك السنوي لعام '+year;
 }
 else if(action==='projectFunding'){const target=project(p.project);const amount=cents(p.amount);const dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغ التمويل.');const source=['personal','project','external'].includes(p.sourceType)?p.sourceType:'personal';let lines:Line[];let sourceLabel='تمويل شخصي';if(source==='project'){if(!p.sourceProject||p.sourceProject===p.project)throw Error('اختر مشروعًا آخر كمصدر للتمويل.');project(p.sourceProject);lines=[...pair(p.sourceProject,'inter_receivable','cash',amount),...pair(p.project,'cash','inter_payable',amount)];sourceLabel='تمويل من مشروع آخر';}else if(source==='external'){lines=pair(p.project,'cash','payable',amount);sourceLabel='تمويل خارجي مستحق';}else{lines=pair(p.project,'cash','capital',amount);}const rid=put('projectFunding',{project:p.project,sourceType:source,sourceProject:source==='project'?p.sourceProject:'',amount,date:dt,memo:str(p.memo||sourceLabel,300)});journal('transfer',sourceLabel+' — '+target.data.name,dt,lines,'projectFunding:'+rid);description='تمويل '+target.data.name+' — '+sourceLabel;}
+else if(action==='fundingRepayment'){
+ const funding=w.records.find(x=>x.kind==='projectFunding'&&x.id===p.fundingId);
+ if(!funding)throw Error('لم يتم العثور على عملية التمويل الأصلية.');
+ const fd=funding.data as any;
+ const recipient=project(fd.project),amount=cents(p.amount),dt=date(p.date||today());
+ if(!amount)throw Error('أدخل مبلغ الاسترداد.');
+ if(dt<date(fd.date))throw Error('تاريخ الاسترداد لا يمكن أن يسبق تاريخ التمويل.');
+ const prior=w.records.filter(x=>x.kind==='fundingRepayment'&&x.data.fundingId===funding.id).reduce((s,x)=>s+Number(x.data.amount||0),0);
+ const outstanding=Math.max(0,Number(fd.amount||0)-prior);
+ if(amount>outstanding)throw Error('مبلغ الاسترداد يتجاوز رأس المال المتبقي لهذا التمويل.');
+ let lines:Line[],memo='';
+ if(fd.sourceType==='project'){
+   const lender=project(fd.sourceProject);
+   lines=[...pair(recipient.id,'inter_payable','cash',amount),...pair(lender.id,'cash','inter_receivable',amount)];
+   memo='استرداد تمويل مشروع → مشروع';
+ }else if(fd.sourceType==='external'){
+   lines=pair(recipient.id,'payable','cash',amount);
+   memo='استرداد تمويل خارجي';
+ }else{
+   lines=pair(recipient.id,'capital','cash',amount);
+   memo='استرداد رأس مال المالك';
+ }
+ const rid=put('fundingRepayment',{fundingId:funding.id,project:recipient.id,sourceType:fd.sourceType,sourceProject:fd.sourceProject||'',amount,date:dt,memo:str(p.memo||memo,300)});
+ journal('fundingRepayment',memo+' — '+recipient.data.name,dt,lines,'fundingRepayment:'+rid);
+ description='استرداد مرتبط بالتمويل الأصلي: '+funding.id;
+}
 else if(action==='employee'){project(p.project);const salary=cents(p.salary),start=date(p.firstDate),count=Math.trunc(num(p.months??12,1,24));if(!salary)throw Error('أدخل راتبًا أكبر من صفر.');const rid=put('employee',{name:str(p.name),job:str(p.job),project:p.project,salary,baseSalary:cents(p.baseSalary??p.salary),housingAllowance:cents(p.housingAllowance||0),transportAllowance:cents(p.transportAllowance||0),otherAllowance:cents(p.otherAllowance||0),incentiveType:['none','fixed','percent'].includes(p.incentiveType)?p.incentiveType:'none',incentiveValue:Number(p.incentiveValue||0),hireDate:start,contractEnd:p.contractEnd?date(p.contractEnd):'',firstDate:start,months:count,status:'active'});for(let i=0;i<count;i++)due({project:p.project,title:'راتب '+p.name,amount:salary,date:monthAdd(start,i),direction:'out',category:'salary',employee:rid,certainty:100});description='إضافة موظف وجدولة راتبه: '+p.name;}
 else if(action==='employeeUpdate'){const r=find(p.id,'employee');const salary=cents(p.salary),effective=date(p.effectiveFrom||today());if(!salary)throw Error('أدخل راتبًا أكبر من صفر.');if(r.data.status!=='active'&&p.status==='active')throw Error('لا يمكن إعادة تنشيط الموظف بهذا المسار؛ أنشئ تاريخ خدمة جديدًا.');const pendingSalary=w.records.filter(x=>x.kind==='obligation'&&x.data.employee===r.id&&x.data.status==='pending'&&x.data.date>=effective);for(const o of pendingSalary)update(o,{...o.data,status:'replaced',reason:'تعديل ملف الموظف/الأجر'});const next={...r.data,name:str(p.name),job:str(p.job),salary,baseSalary:cents(p.baseSalary??p.salary),housingAllowance:cents(p.housingAllowance||0),transportAllowance:cents(p.transportAllowance||0),otherAllowance:cents(p.otherAllowance||0),incentiveType:['none','fixed','percent'].includes(p.incentiveType)?p.incentiveType:'none',incentiveValue:Number(p.incentiveValue||0),hireDate:p.hireDate?date(p.hireDate):r.data.hireDate,contractEnd:p.contractEnd?date(p.contractEnd):'',status:p.status||r.data.status};update(r,next);const months=Math.trunc(num(p.months??12,1,24));for(let i=0;i<months;i++)due({project:r.data.project,title:'راتب '+next.name,amount:salary,date:monthAdd(effective,i),direction:'out',category:'salary',employee:r.id,certainty:100});description='تحديث ملف وأجر الموظف: '+next.name;}
 else if(action==='payrollAdjustment'){const r=find(p.employee,'employee');if(r.data.status!=='active')throw Error('الموظف غير نشط.');const type=['bonus','commission','overtime','allowance'].includes(p.type)?p.type:'bonus';const amount=cents(p.amount);const d=date(p.date||today());if(!amount)throw Error('قيمة الحافز/الإضافة يجب أن تكون أكبر من صفر.');const title=str(p.title||({bonus:'حافز',commission:'عمولة',overtime:'عمل إضافي',allowance:'بدل إضافي'} as any)[type]);const rid=put('payrollAdjustment',{employee:r.id,project:r.data.project,type,title,amount,date:d,reason:str(p.reason||title,300),status:'approved'});due({project:r.data.project,title:title+' — '+r.data.name,amount,date:d,direction:'out',category:'salary',employee:r.id,payrollAdjustment:rid,certainty:100});description='إضافة '+title+' للموظف: '+r.data.name;}

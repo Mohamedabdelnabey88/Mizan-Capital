@@ -60,14 +60,16 @@ else if(action==='deleteProject'){
  const confirmName=str(p.confirmName||'',120);
  if(confirmName!==String(r.data.name||''))throw Error('اكتب اسم المشروع كاملًا لتأكيد الحذف.');
  const linkedRecords=w.records.filter(x=>x.id!==projectId&&x.data&&Object.values(x.data).some(v=>v===projectId));
- const linkedJournals=w.journals.filter(j=>j.lines.some(l=>l.project===projectId)||String(j.source||'').includes(projectId)||String(j.reversal||'').includes(projectId));
  const linkedEmployeeIds=new Set(w.records.filter(x=>x.kind==='employee'&&x.data.project===projectId).map(x=>x.id));
  const employeeRecords=w.records.filter(x=>linkedEmployeeIds.has(x.data?.employee));
  const allRecordIds=new Set([projectId,...linkedRecords.map(x=>x.id),...employeeRecords.map(x=>x.id)]);
- const finalRecords=w.records.filter(x=>allRecordIds.has(x.id));
- for(const x of finalRecords)ops.push(db.prepare('DELETE FROM records WHERE id=? AND owner=?').bind(x.id,owner));
- for(const j of linkedJournals)ops.push(db.prepare('DELETE FROM journals WHERE id=? AND owner=?').bind(j.id,owner));
- description='حذف مشروع بالكامل مع سجلاته المرتبطة: '+r.data.name;
+ const projectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===projectId));
+ for(const original of projectJournals){
+   if(w.journals.some(j=>j.reversal===original.id))continue;
+   journal('reversal','عكس قيد حذف المشروع: '+str(r.data.name||'',120)+' — '+str(p.reason||'حذف مشروع',200),date(p.date||today()),original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
+ }
+ for(const x of w.records.filter(x=>allRecordIds.has(x.id)))ops.push(db.prepare('DELETE FROM records WHERE id=? AND owner=?').bind(x.id,owner));
+ description='حذف مشروع بالكامل مع عكس قيوده والحفاظ على سجل التدقيق: '+r.data.name;
 }
 else if(action==='projectSettings'){const r=find(p.id,'project');if(p.version!==r.version)throw Error('تغيرت البيانات. حدث الصفحة.');const oldPlan=projectPlansSnapshot(w,r.id);const planChanged=['expectedMonthlyRevenue','expectedDailyRevenue','expectedMonthlyExpense','expectedNetMonthly'].some(k=>String(p[k]??'')!=='');update(r,{...r.data,name:str(p.name),reserve:cents(p.reserve),payout:num(p.payout,0,100),expectedNetMonthly:p.expectedNetMonthly?halala(p.expectedNetMonthly,'صافي الدخل الشهري المتوقع'):0,partner:p.partner?str(p.partner):''});if(r.data.mode==='operating'&&planChanged){put('projectPlan',{project:r.id,effectiveFrom:date(p.planEffectiveFrom||today()),revenueMonthlyMicro:planMoneyMicro(p.expectedMonthlyRevenue||0,'الإيراد الشهري المتوقع'),revenueDailyMicro:planMoneyMicro(p.expectedDailyRevenue||0,'الإيراد اليومي المتوقع'),expenseMonthlyMicro:planMoneyMicro(p.expectedMonthlyExpense||0,'المصروف الشهري المتوقع'),expenseDailyMicro:0,netMonthlyMicro:planMoneyMicro(p.expectedNetMonthly||0,'صافي الدخل الشهري المتوقع'),source:'plan_revision',label:'خطة معدلة'});}description='تعديل إعدادات مشروع: '+r.data.name;}
 else if(action==='setFiscalYear'){const start=date(p.start);const end=date(p.end);if(start>=end)throw Error('بداية السنة المالية يجب أن تسبق نهايتها.');if((start.slice(0,4)==='')||(end.slice(0,4)===''))throw Error('تواريخ السنة المالية غير صحيحة.');const overlap=w.records.find(x=>x.kind==='fiscalYear'&&String(x.data.start)<=end&&String(x.data.end)>=start&&!(String(x.data.start)===start&&String(x.data.end)===end));if(overlap)throw Error('الفترة تتداخل مع سنة مالية مسجلة بالفعل.');const same=w.records.find(x=>x.kind==='fiscalYear'&&String(x.data.start)===start&&String(x.data.end)===end);const data={start,end,label:str(p.label||('السنة المالية '+start+' إلى '+end),120)};if(same)update(same,data);else put('fiscalYear',data);description='تحديد السنة المالية من '+start+' إلى '+end;}

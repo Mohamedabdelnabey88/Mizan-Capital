@@ -101,7 +101,7 @@ export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,out
 export type ProjectFunding={id:string;project:string;sourceType:'personal'|'project'|'external';sourceProject?:string;amount:number;date:string;memo?:string};
 export type FundingSummary=ProjectFunding&{repaid:number;outstanding:number;recoveryPct:number};
 export function projectFundingSummaries(w:Workspace,project='all',end=today()):FundingSummary[]{
- const fundings=w.records.filter(r=>r.kind==='projectFunding'&&String(r.data.date)<=end&&(project==='all'||r.data.project===project||r.data.sourceProject===project));
+ const fundings=w.records.filter(r=>r.kind==='projectFunding'&&r.data.status!=='cancelled'&&String(r.data.date)<=end&&(project==='all'||r.data.project===project||r.data.sourceProject===project));
  return fundings.map(r=>{
   const d=r.data as ProjectFunding;
   const repaid=w.records.filter(x=>x.kind==='fundingRepayment'&&x.data.fundingId===r.id&&String(x.data.date)<=end).reduce((s,x)=>s+Number(x.data.amount||0),0);

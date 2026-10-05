@@ -164,5 +164,14 @@ assert.equal(f.accountingControlTotals(w,T,T,'all').cashFlowDifference,0);
 await fail('annualOwnerDistribution',{year:Number(T.slice(0,4)),paymentAccount:'bank'});
 checks+=12;
 
+// Five-decimal monetary precision: input parsing/schedule must retain micro precision before halala posting.
+const exactSchedule=f.loanScheduleFromPaymentExact(1000.12345,100.12345,10,T);
+assert.equal(exactSchedule.length,10);
+assert(exactSchedule.every(x=>Number.isSafeInteger(x.principalMicro)&&Number.isSafeInteger(x.interestMicro)&&Number.isSafeInteger(x.amountMicro)));
+assert.equal(exactSchedule.reduce((s,x)=>s+x.principalMicro,0),1000.12345*100000);
+assert.equal(exactSchedule.at(-1).principalMicro,1000.12345*100000-exactSchedule.slice(0,-1).reduce((s,x)=>s+x.principalMicro,0));
+assert(exactSchedule.every(x=>Math.abs(x.amountMicro-x.principalMicro-x.interestMicro)===0));
+checks+=4;
+
 await ok('closePeriod',{id:b,date:T});await fail('entry',{project:b,kind:'income',amount:100,date:T,memo:'فترة مقفلة'});w=await read();for(const j of w.journals)f.validateLines(j.lines);const bal=f.balance(w);assert.equal(Object.values(bal).reduce((s,v)=>s+v,0),0);const forecast=f.forecast(w);assert.equal(forecast.buckets.length,13);console.log(JSON.stringify({passed:true,mutationChecks:checks,records:w.records.length,journals:w.journals.length,verified:['identity isolation','balanced journals','idempotency','internal transfers','profit versus cash','loan repayment','early settlement','opening debt','payroll dates','reversal uniqueness','period lock','cash forecast']}));
 }finally{await mf.dispose();}

@@ -39,6 +39,9 @@ jobs:
       - name: Accounting tests
         run: pnpm test
 
+      - name: Cloudflare worker and auth tests
+        run: pnpm test:cloudflare
+
       - name: Export tests
         run: pnpm test:export
 

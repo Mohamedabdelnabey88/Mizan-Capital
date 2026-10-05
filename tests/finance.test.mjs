@@ -128,5 +128,41 @@ assert(remainingProjectJournals.filter(j=>!j.reversal).every(j=>w.journals.some(
 assert.equal(Object.values(f.balance(w)).reduce((sum,v)=>sum+v,0),0);
 checks+=4;
 
+// Annual owner settlement: entitlement must be based on fiscal-year profit, allocated exactly once, and remain a distribution (not an expense).
+await ok('project',{name:'مالك 1',activity:'اختبار',mode:'operating',ownership:100,reserve:0,payout:100});
+await ok('project',{name:'مالك 2',activity:'اختبار',mode:'operating',ownership:100,reserve:0,payout:100});
+w=await read();
+const ownerP1=w.records.find(r=>r.kind==='project'&&r.data.name==='مالك 1').id;
+const ownerP2=w.records.find(r=>r.kind==='project'&&r.data.name==='مالك 2').id;
+await ok('entry',{project:ownerP1,kind:'income',amount:10000,date:T,memo:'ربح المالك 1'});
+await ok('entry',{project:ownerP1,kind:'expense',amount:2000,date:T,memo:'مصروف المالك 1'});
+await ok('entry',{project:ownerP2,kind:'income',amount:5000,date:T,memo:'ربح المالك 2'});
+await ok('entry',{project:ownerP2,kind:'expense',amount:1000,date:T,memo:'مصروف المالك 2'});
+await ok('setOwnerPolicy',{percent:20,effectiveFrom:T});
+w=await read();
+const ownerBefore1=f.balance(w,ownerP1),ownerBefore2=f.balance(w,ownerP2);
+assert.equal(f.profit(w,ownerP1,T,T).net,800000);
+assert.equal(f.profit(w,ownerP2,T,T).net,400000);
+const ownerProfitBefore=f.profit(w,'all',T,T).net;
+await ok('annualOwnerDistribution',{year:Number(T.slice(0,4)),paymentAccount:'bank'});
+w=await read();
+const settlement=w.records.find(r=>r.kind==='ownerSettlement'&&r.data.fiscalYearStart===T.slice(0,4)+'-01-01');
+assert(settlement);
+assert.equal(settlement.data.totalProfit,1200000);
+assert.equal(settlement.data.totalOwner,240000);
+assert.deepEqual(settlement.data.allocations.sort((x,y)=>x.project.localeCompare(y.project)),[
+  {project:ownerP1,amount:160000},
+  {project:ownerP2,amount:80000},
+].sort((x,y)=>x.project.localeCompare(y.project)));
+assert.equal(f.profit(w,'all',T,T).net,ownerProfitBefore);
+assert.equal(f.balance(w,ownerP1).bank,ownerBefore1.bank-160000);
+assert.equal(f.balance(w,ownerP2).bank,ownerBefore2.bank-80000);
+assert.equal(f.balance(w,ownerP1).distribution,160000);
+assert.equal(f.balance(w,ownerP2).distribution,80000);
+assert.equal(f.accountingControlTotals(w,T,T,'all').balanceCheck,0);
+assert.equal(f.accountingControlTotals(w,T,T,'all').cashFlowDifference,0);
+await fail('annualOwnerDistribution',{year:Number(T.slice(0,4)),paymentAccount:'bank'});
+checks+=12;
+
 await ok('closePeriod',{id:b,date:T});await fail('entry',{project:b,kind:'income',amount:100,date:T,memo:'فترة مقفلة'});w=await read();for(const j of w.journals)f.validateLines(j.lines);const bal=f.balance(w);assert.equal(Object.values(bal).reduce((s,v)=>s+v,0),0);const forecast=f.forecast(w);assert.equal(forecast.buckets.length,13);console.log(JSON.stringify({passed:true,mutationChecks:checks,records:w.records.length,journals:w.journals.length,verified:['identity isolation','balanced journals','idempotency','internal transfers','profit versus cash','loan repayment','early settlement','opening debt','payroll dates','reversal uniqueness','period lock','cash forecast']}));
 }finally{await mf.dispose();}

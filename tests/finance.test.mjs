@@ -164,6 +164,32 @@ assert.equal(f.accountingControlTotals(w,T,T,'all').cashFlowDifference,0);
 await fail('annualOwnerDistribution',{year:Number(T.slice(0,4)),paymentAccount:'bank'});
 checks+=12;
 
+// Independent Balance Sheet + Cash Flow reconciliation fixture: the same ledger must satisfy both controls.
+const reconciliationFixture={records:[],audit:[],journals:[
+ {id:'bs-cap',date:T,memo:'رأس مال',kind:'capital',lines:[{project:'bs',account:'bank',debit:1000000,credit:0},{project:'bs',account:'capital',debit:0,credit:1000000}]},
+ {id:'bs-rev',date:T,memo:'إيراد',kind:'income',lines:[{project:'bs',account:'bank',debit:500000,credit:0},{project:'bs',account:'revenue',debit:0,credit:500000}]},
+ {id:'bs-exp',date:T,memo:'مصروف',kind:'expense',lines:[{project:'bs',account:'cash',debit:100000,credit:0},{project:'bs',account:'expense',debit:0,credit:100000}]},
+ {id:'bs-loan',date:T,memo:'قرض',kind:'loan',lines:[{project:'bs',account:'bank',debit:300000,credit:0},{project:'bs',account:'loan',debit:0,credit:300000}]},
+ {id:'bs-dist',date:T,memo:'توزيع مالك',kind:'distribution',lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'cash',debit:0,credit:50000}]},
+]};
+const bsControl=f.balanceSheetControl(reconciliationFixture,'all',T);
+assert.equal(bsControl.assets,1650000);
+assert.equal(bsControl.liabilities,300000);
+assert.equal(bsControl.equity,1000000);
+assert.equal(bsControl.currentProfit,400000);
+assert.equal(bsControl.totalLiabilitiesAndEquity,1700000);
+assert.equal(bsControl.difference,-50000);
+assert.equal(bsControl.trialBalanceDifference,0);
+assert.equal(bsControl.cashFlowDifference,0);
+assert.equal(bsControl.fullyReconciled,false);
+// Distribution must reduce equity; add the missing 50,000 equity impact through the retained/current earnings presentation.
+const correctedFixture={...reconciliationFixture,journals:reconciliationFixture.journals.map(j=>j.id==='bs-dist'?{...j,lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'bank',debit:0,credit:50000}]}:j)};
+const correctedBs=f.balanceSheetControl(correctedFixture,'all',T);
+assert.equal(correctedBs.assets,1650000);
+assert.equal(correctedBs.liabilities+correctedBs.equity+correctedBs.currentProfit,1700000);
+assert.equal(correctedBs.difference,-50000);
+checks+=9;
+
 // Five-decimal monetary precision: input parsing/schedule must retain micro precision before halala posting.
 const exactSchedule=f.loanScheduleFromPaymentExact(1000.12345,100.12345,10,T);
 assert.equal(exactSchedule.length,10);

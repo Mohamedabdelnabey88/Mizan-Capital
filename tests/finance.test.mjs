@@ -108,6 +108,10 @@ const repFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='ت�
 assert(repFunding);
 await ok('fundingRepayment',{fundingId:repFunding.id,amount:100,date:T,memo:'استرداد جزئي'});
 await fail('cancelFunding',{id:repFunding.id,date:T,reason:'لا يجب الإلغاء بعد الاسترداد'});
+await ok('projectFunding',{project:b,sourceType:'personal',amount:250,date:T,memo:'تمويل سيتم إلغاؤه'});
+w=await read();const cancelledFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل سيتم إلغاؤه');assert(cancelledFunding);
+await ok('cancelFunding',{id:cancelledFunding.id,date:T,reason:'اختبار إلغاء'});
+await fail('fundingRepayment',{fundingId:cancelledFunding.id,amount:1,date:T,memo:'لا يجوز استرداد تمويل ملغى'});
 checks+=8;
 // Full project deletion is explicit and destructive, so require exact project-name confirmation.
 w=await read();

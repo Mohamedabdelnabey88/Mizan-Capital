@@ -198,6 +198,7 @@ else if(action==='fundingRepayment'){
  const funding=w.records.find(x=>x.kind==='projectFunding'&&x.id===p.fundingId);
  if(!funding)throw Error('لم يتم العثور على عملية التمويل الأصلية.');
  const fd=funding.data as any;
+ if(fd.status==='cancelled')throw Error('لا يمكن استرداد تمويل ملغى.');
  const recipient=project(fd.project),amount=cents(p.amount),dt=date(p.date||today());
  if(!amount)throw Error('أدخل مبلغ الاسترداد.');
  if(dt<date(fd.date))throw Error('تاريخ الاسترداد لا يمكن أن يسبق تاريخ التمويل.');
@@ -256,8 +257,13 @@ else throw Error('عملية غير معروفة.');
 if(inserts.length)ops.push(db.prepare("INSERT INTO records(id,owner,kind,data,created) SELECT json_extract(value,'$.id'),?,json_extract(value,'$.kind'),json_extract(value,'$.data'),? FROM json_each(?)").bind(owner,time,JSON.stringify(inserts)));
 if(patches.size){
  ops.push(db.prepare("UPDATE records SET data=json_extract(patch.value,'$.data'),version=records.version+1 FROM json_each(?) AS patch WHERE records.id=json_extract(patch.value,'$.id') AND records.owner=? AND records.version=json_extract(patch.value,'$.version')").bind(JSON.stringify([...patches.values()]),owner));
- ops.push(db.prepare("SELECT json(CASE WHEN changes()=? THEN 'true' ELSE 'conflict' END)").bind(patches.size));
+ // A stale patch must abort the whole D1 batch. The conditional duplicate command below intentionally creates a UNIQUE violation only when the version check fails, rolling back journals/records/audit together.
+ ops.push(db.prepare("INSERT INTO commands(id,owner,created) SELECT ?,?,? WHERE changes()<>?").bind(id,owner,time,patches.size));
 }
-for(const [pid,version]of ledgerLocks){ops.push(db.prepare('UPDATE records SET version=version+1 WHERE id=? AND owner=? AND version=?').bind(pid,owner,version));ops.push(db.prepare("SELECT json(CASE WHEN changes()=1 THEN 'true' ELSE 'conflict' END)"));}
+for(const [pid,version]of ledgerLocks){
+ ops.push(db.prepare('UPDATE records SET version=version+1 WHERE id=? AND owner=? AND version=?').bind(pid,owner,version));
+ // Same atomic conflict guard for project ledger locks.
+ ops.push(db.prepare("INSERT INTO commands(id,owner,created) SELECT ?,?,? WHERE changes()<>1").bind(id,owner,time));
+}
 ops.push(db.prepare('INSERT INTO audit(id,owner,action,detail,created) VALUES(?,?,?,?,?)').bind(uid(),owner,action,req.headers.get('oai-authenticated-user-email')?description+' — '+req.headers.get('oai-authenticated-user-email'):description,time));ops.push(db.prepare('INSERT INTO commands(id,owner,created) VALUES(?,?,?)').bind(id,owner,time));try{await db.batch(ops);}catch(e:any){if(await db.prepare('SELECT id FROM commands WHERE id=? AND owner=?').bind(id,owner).first())return Response.json({ok:true,replayed:true});if(/UNIQUE|malformed JSON/.test(e.message))throw Error('تغيرت البيانات أو تم تسجيل العملية مسبقًا. حدث الصفحة.');throw e;}return Response.json({ok:true});
 }catch(e:any){console.error('workspace operation:',e.message);return Response.json({error:e.message==='AUTH'?'سجل الدخول أولًا.':(/D1|SQLITE|syntax|no such/.test(e.message)?'تعذر حفظ العملية. لم يتم اعتمادها. حاول مجددًا.':e.message||'تعذر حفظ العملية.')},{status:e.message==='AUTH'?401:400});}}

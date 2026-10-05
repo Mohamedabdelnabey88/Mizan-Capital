@@ -18,7 +18,8 @@
     "dev:cloudflare": "wrangler dev --config wrangler.jsonc",
     "db:migrate:cloudflare": "wrangler d1 migrations apply mizan-capital-db --remote --config wrangler.jsonc",
     "deploy:cloudflare": "pnpm db:migrate:cloudflare && wrangler deploy --config wrangler.jsonc",
-    "test:cloudflare": "node tests/cloudflare.test.mjs"
+    "test:cloudflare": "node tests/cloudflare.test.mjs",
+    "test:export": "node tests/export.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

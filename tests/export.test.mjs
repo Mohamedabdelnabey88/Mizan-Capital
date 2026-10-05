@@ -26,7 +26,7 @@ while(p+4<=b.length){
   const nameLen=u16(p+26), extraLen=u16(p+28), size=u32(p+18);
   const name=dec.decode(b.slice(p+30,p+30+nameLen));
   names.push(name);
-  assert.equal(u16(p+8),0,'workbook must use Store ZIP entries');
+  assert.equal(u16(p+8),0x800,'ZIP entries must declare UTF-8 filenames');
   assert.equal(u32(p+14),size);
   assert.equal(u32(p+22),size);
   p+=30+nameLen+extraLen+size;

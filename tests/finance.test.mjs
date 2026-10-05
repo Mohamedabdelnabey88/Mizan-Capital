@@ -134,9 +134,9 @@ await ok('project',{name:'مالك 2',activity:'اختبار',mode:'operating',o
 w=await read();
 const ownerP1=w.records.find(r=>r.kind==='project'&&r.data.name==='مالك 1').id;
 const ownerP2=w.records.find(r=>r.kind==='project'&&r.data.name==='مالك 2').id;
-await ok('entry',{project:ownerP1,kind:'income',amount:10000,date:T,memo:'ربح المالك 1'});
+await ok('dailyReport',{project:ownerP1,date:T,manager:'مدير المالك 1',gross:10000,channels:{cash:0,bank:10000,mada:0,visa:0,mastercard:0,receivable:0},memo:'إيراد المالك 1'});
 await ok('entry',{project:ownerP1,kind:'expense',amount:2000,date:T,memo:'مصروف المالك 1'});
-await ok('entry',{project:ownerP2,kind:'income',amount:5000,date:T,memo:'ربح المالك 2'});
+await ok('dailyReport',{project:ownerP2,date:T,manager:'مدير المالك 2',gross:5000,channels:{cash:0,bank:5000,mada:0,visa:0,mastercard:0,receivable:0},memo:'إيراد المالك 2'});
 await ok('entry',{project:ownerP2,kind:'expense',amount:1000,date:T,memo:'مصروف المالك 2'});
 await ok('setOwnerPolicy',{percent:20,effectiveFrom:T});
 w=await read();

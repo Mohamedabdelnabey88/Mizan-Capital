@@ -1,5 +1,5 @@
 import type {Workspace} from '@/lib/finance';
-import {dayAdd} from '@/lib/finance';
+import {dayAdd,accounts} from '@/lib/finance';
 
 export type ProjectPlanMetrics={
   projectId:string;start:string;end:string;
@@ -29,10 +29,12 @@ export function projectPerformance(w:Workspace,projectId:string,start:string,end
     const expectedRevenue=plan?(Number(plan.revenueDailyMicro||0)||Math.round(Number(plan.revenueMonthlyMicro||0)/dim)):0;
     const expectedExpense=plan?(Number(plan.expenseDailyMicro||0)||Math.round(Number(plan.expenseMonthlyMicro||0)/dim)):0;
     const expectedNet=plan?(Number(plan.netDailyMicro||0)||((Number(plan.revenueDailyMicro||0)||Math.round(Number(plan.revenueMonthlyMicro||0)/dim))-(Number(plan.expenseDailyMicro||0)||Math.round(Number(plan.expenseMonthlyMicro||0)/dim)))):Math.round(fallbackNet/dim);
-    const rows=w.records.filter(r=>r.kind==='dailyReport'&&r.data.project===projectId&&r.data.date===d&&r.data.status==='approved'&&!r.data.correctedBy);
-    const actualRevenue=rows.reduce((s,r)=>s+Number(r.data.gross||0)*1000,0);
-    const reported=rows.length>0;
-    days.push({date:d,expectedRevenueMicro:expectedRevenue,expectedExpenseMicro:expectedExpense,expectedNetMicro:expectedNet,actualRevenueMicro:actualRevenue,actualExpenseMicro:0,actualNetMicro:actualRevenue,varianceMicro:actualRevenue-expectedRevenue,reported,status:reported?'approved':'unreported'});
+    const dayJournals=w.journals.filter(j=>j.date===d);
+    const actualRevenue=dayJournals.reduce((s,j)=>s+j.lines.filter(l=>l.project===projectId&&accounts[l.account]?.type==='income').reduce((x,l)=>x+(l.credit-l.debit)*1000,0),0);
+    const actualExpense=dayJournals.reduce((s,j)=>s+j.lines.filter(l=>l.project===projectId&&accounts[l.account]?.type==='expense').reduce((x,l)=>x+(l.debit-l.credit)*1000,0),0);
+    const reported=dayJournals.some(j=>j.kind==='dailyReport'&&j.lines.some(l=>l.project===projectId&&accounts[l.account]?.type==='income'));
+    const actualNet=actualRevenue-actualExpense;
+    days.push({date:d,expectedRevenueMicro:expectedRevenue,expectedExpenseMicro:expectedExpense,expectedNetMicro:expectedNet,actualRevenueMicro:actualRevenue,actualExpenseMicro:actualExpense,actualNetMicro:actualNet,varianceMicro:actualNet-expectedNet,reported,status:reported?'approved':'unreported'});
   }
   const sum=(k:keyof ProjectPlanMetrics['days'][number])=>days.reduce((s,d)=>s+Number(d[k]||0),0);
   const expectedRevenueMicro=sum('expectedRevenueMicro'),expectedExpenseMicro=sum('expectedExpenseMicro'),expectedNetMicro=sum('expectedNetMicro');

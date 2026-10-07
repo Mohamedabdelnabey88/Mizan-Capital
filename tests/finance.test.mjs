@@ -172,7 +172,7 @@ const reconciliationFixture={records:[],audit:[],journals:[
  {id:'bs-rev',date:T,memo:'إيراد',kind:'income',lines:[{project:'bs',account:'bank',debit:500000,credit:0},{project:'bs',account:'revenue',debit:0,credit:500000}]},
  {id:'bs-exp',date:T,memo:'مصروف',kind:'expense',lines:[{project:'bs',account:'cash',debit:100000,credit:0},{project:'bs',account:'expense',debit:0,credit:100000}]},
  {id:'bs-loan',date:T,memo:'قرض',kind:'loan',lines:[{project:'bs',account:'bank',debit:300000,credit:0},{project:'bs',account:'loan',debit:0,credit:300000}]},
- {id:'bs-dist',date:T,memo:'توزيع مالك',kind:'distribution',lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'cash',debit:0,credit:50000}]},
+ {id:'bs-dist',date:T,memo:'توزيع مالك',kind:'distribution',lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'bank',debit:0,credit:50000}]},
 ]};
 const bsControl=f.balanceSheetControl(reconciliationFixture,'all',T);
 assert.equal(bsControl.assets,1650000);

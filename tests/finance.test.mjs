@@ -190,6 +190,10 @@ assert.equal(correctedBs.liabilities+correctedBs.equity+correctedBs.currentProfi
 assert.equal(correctedBs.difference,-50000);
 checks+=9;
 
+// Balance Sheet reconciliation: assets = liabilities + equity + current profit, and both control ledgers must close at zero.
+const bsFixture={records:[],audit:[],journals:[{id:'bs-cap',date:T,memo:'capital',kind:'capital',lines:[{project:'bs',account:'bank',debit:1000000,credit:0},{project:'bs',account:'capital',debit:0,credit:1000000}]},{id:'bs-rev',date:T,memo:'revenue',kind:'income',lines:[{project:'bs',account:'bank',debit:500000,credit:0},{project:'bs',account:'revenue',debit:0,credit:500000}]},{id:'bs-exp',date:T,memo:'expense',kind:'expense',lines:[{project:'bs',account:'cash',debit:100000,credit:0},{project:'bs',account:'expense',debit:0,credit:100000}]},{id:'bs-loan',date:T,memo:'loan',kind:'loan',lines:[{project:'bs',account:'bank',debit:300000,credit:0},{project:'bs',account:'loan',debit:0,credit:300000}]},{id:'bs-dist',date:T,memo:'distribution',kind:'distribution',lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'bank',debit:0,credit:50000}]}]};
+const bs=f.balanceSheetControl(bsFixture,'all',T);assert.equal(bs.assets,1650000);assert.equal(bs.liabilities,300000);assert.equal(bs.equity,950000);assert.equal(bs.currentProfit,400000);assert.equal(bs.difference,0);assert.equal(bs.trialBalanceDifference,0);assert.equal(bs.cashFlowDifference,0);assert.equal(bs.fullyReconciled,true);checks+=8;
+
 // Five-decimal monetary precision: input parsing/schedule must retain micro precision before halala posting.
 const exactSchedule=f.loanScheduleFromPaymentExact(1000.12345,100.12345,10,T);
 assert.equal(exactSchedule.length,10);

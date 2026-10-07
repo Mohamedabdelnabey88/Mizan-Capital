@@ -83,6 +83,7 @@ await ok('obligation',{project:gapProject,title:'دفع مبكر',amount:900,dat
 await ok('obligation',{project:gapProject,title:'تحصيل لاحق',amount:1000,date:f.dayAdd(T,5),direction:'in',category:'revenue'});
 await fail('entry',{project:gapProject,kind:'distribution',amount:1,date:T,memo:'العجز قبل الإيراد'});
 await assert.rejects(()=>db.prepare('UPDATE journals SET memo=? WHERE owner=?').bind('corrupt','test-owner').run(),/posted_entry_immutable/);await assert.rejects(()=>db.prepare('DELETE FROM journals WHERE owner=?').bind('test-owner').run(),/posted_entry_immutable/);checks+=2;
+await ok('deleteProject',{id:gapProject,confirmName:'عجز يومي',reason:'تنظيف fixture التوقعات قبل اختبار توزيع المالك'});
 // Funding correction: canceling a mistaken funding must reverse its journal, preserve audit history, and restore balances.
 await ok('projectFunding',{project:a,sourceType:'personal',amount:1234.56,date:T,memo:'تمويل تجريبي خاطئ'});
 w=await read();

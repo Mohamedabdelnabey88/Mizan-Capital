@@ -197,5 +197,19 @@ assert.equal(exactSchedule.at(-1).principalMicro,1000.12345*100000-exactSchedule
 assert(exactSchedule.every(x=>Math.abs(x.amountMicro-x.principalMicro-x.interestMicro)===0));
 checks+=4;
 
+// Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
+w=await read();
+const integratedControl=f.balanceSheetControl(w,'all',T);
+assert.equal(integratedControl.trialBalanceDifference,0);
+assert.equal(integratedControl.cashFlowDifference,0);
+assert.equal(integratedControl.difference,0);
+assert.equal(integratedControl.fullyReconciled,true);
+for(const p of w.records.filter(r=>r.kind==='project')){
+  const control=f.balanceSheetControl(w,p.id,T);
+  assert.equal(control.trialBalanceDifference,0,'trial balance mismatch for project '+p.id);
+  assert.equal(control.cashFlowDifference,0,'cash flow mismatch for project '+p.id);
+  assert.equal(control.difference,0,'balance sheet mismatch for project '+p.id);
+}
+checks+=4+w.records.filter(r=>r.kind==='project').length*3;
 await ok('closePeriod',{id:b,date:T});await fail('entry',{project:b,kind:'income',amount:100,date:T,memo:'فترة مقفلة'});w=await read();for(const j of w.journals)f.validateLines(j.lines);const bal=f.balance(w);assert.equal(Object.values(bal).reduce((s,v)=>s+v,0),0);const forecast=f.forecast(w);assert.equal(forecast.buckets.length,13);console.log(JSON.stringify({passed:true,mutationChecks:checks,records:w.records.length,journals:w.journals.length,verified:['identity isolation','balanced journals','idempotency','internal transfers','profit versus cash','loan repayment','early settlement','opening debt','payroll dates','reversal uniqueness','period lock','cash forecast']}));
 }finally{await mf.dispose();}

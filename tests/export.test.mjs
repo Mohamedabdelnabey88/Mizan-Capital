@@ -28,7 +28,9 @@ while(p+4<=b.length){
   names.push(name);
   assert.equal(u16(p+6),0x800,'ZIP entries must declare UTF-8 filenames');
   assert.equal(u16(p+8),0,'ZIP entries must use store compression in this deterministic writer');
-  assert.equal(u32(p+14),size);
+  assert.notEqual(u32(p+14),0,'ZIP entries must contain a CRC32 checksum');
+  assert.equal(u32(p+18),size);
+  assert.equal(u32(p+22),size);
   assert.equal(u32(p+22),size);
   p+=30+nameLen+extraLen+size;
  } else if(sig===0x02014b50){

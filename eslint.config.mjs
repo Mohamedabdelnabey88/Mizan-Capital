@@ -28,6 +28,7 @@ const eslintConfig = defineConfig([
       // Keep the strict rules for application code elsewhere while these legacy dynamic boundaries are refactored incrementally.
       "@typescript-eslint/no-explicit-any": "warn",
       "react/jsx-key": "warn",
+      "react-hooks/set-state-in-effect": "warn",
     },
   },
   {

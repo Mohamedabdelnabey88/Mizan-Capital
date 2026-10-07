@@ -76,12 +76,14 @@ const income=w.journals.find(j=>j.memo==='إيراد');await ok('reverse',{id:in
 await fail('entry',{project:a,kind:'manual',debit:'distribution',credit:'cash',amount:100,date:T,memo:'تجاوز'});
 
 await ok('project',{name:'تزامن',activity:'اختبار',mode:'operating',ownership:100,reserve:0,payout:100});w=await read();const cp=w.records.find(r=>r.data.name==='تزامن').id;await ok('entry',{project:cp,kind:'income',amount:10000,date:T,memo:'إيراد للتزامن'});const races=await Promise.all([call('entry',{project:cp,kind:'distribution',amount:7500,date:T,memo:'سحب أول'}),call('entry',{project:cp,kind:'distribution',amount:7500,date:T,memo:'سحب ثان'})]);assert.equal(races.filter(r=>r.status===200).length,1);w=await read();assert.equal(f.balance(w,cp).distribution,750000);assert.equal(f.balance(w,cp).cash,250000);checks++;
+await ok('deleteProject',{id:cp,confirmName:'تزامن',reason:'تنظيف fixture التزامن قبل اختبار توزيع المالك'});
 await ok('project',{name:'عجز يومي',activity:'اختبار',mode:'operating',ownership:100,reserve:200,payout:100});w=await read();const gapProject=w.records.find(r=>r.data.name==='عجز يومي').id;
 await ok('entry',{project:gapProject,kind:'income',amount:1000,date:T,memo:'ربح نقدي'});
 await ok('obligation',{project:gapProject,title:'دفع مبكر',amount:900,date:f.dayAdd(T,1),direction:'out',category:'expense'});
 await ok('obligation',{project:gapProject,title:'تحصيل لاحق',amount:1000,date:f.dayAdd(T,5),direction:'in',category:'revenue'});
 await fail('entry',{project:gapProject,kind:'distribution',amount:1,date:T,memo:'العجز قبل الإيراد'});
 await assert.rejects(()=>db.prepare('UPDATE journals SET memo=? WHERE owner=?').bind('corrupt','test-owner').run(),/posted_entry_immutable/);await assert.rejects(()=>db.prepare('DELETE FROM journals WHERE owner=?').bind('test-owner').run(),/posted_entry_immutable/);checks+=2;
+await ok('deleteProject',{id:gapProject,confirmName:'عجز يومي',reason:'تنظيف fixture التوقعات قبل اختبار توزيع المالك'});
 // Funding correction: canceling a mistaken funding must reverse its journal, preserve audit history, and restore balances.
 await ok('projectFunding',{project:a,sourceType:'personal',amount:1234.56,date:T,memo:'تمويل تجريبي خاطئ'});
 w=await read();
@@ -168,9 +170,9 @@ checks+=12;
 const reconciliationFixture={records:[],audit:[],journals:[
  {id:'bs-cap',date:T,memo:'رأس مال',kind:'capital',lines:[{project:'bs',account:'bank',debit:1000000,credit:0},{project:'bs',account:'capital',debit:0,credit:1000000}]},
  {id:'bs-rev',date:T,memo:'إيراد',kind:'income',lines:[{project:'bs',account:'bank',debit:500000,credit:0},{project:'bs',account:'revenue',debit:0,credit:500000}]},
- {id:'bs-exp',date:T,memo:'مصروف',kind:'expense',lines:[{project:'bs',account:'cash',debit:100000,credit:0},{project:'bs',account:'expense',debit:0,credit:100000}]},
+ {id:'bs-exp',date:T,memo:'مصروف',kind:'expense',lines:[{project:'bs',account:'cash',debit:0,credit:100000},{project:'bs',account:'expense',debit:100000,credit:0}]},
  {id:'bs-loan',date:T,memo:'قرض',kind:'loan',lines:[{project:'bs',account:'bank',debit:300000,credit:0},{project:'bs',account:'loan',debit:0,credit:300000}]},
- {id:'bs-dist',date:T,memo:'توزيع مالك',kind:'distribution',lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'cash',debit:0,credit:50000}]},
+ {id:'bs-dist',date:T,memo:'توزيع مالك',kind:'distribution',lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'bank',debit:0,credit:50000}]},
 ]};
 const bsControl=f.balanceSheetControl(reconciliationFixture,'all',T);
 assert.equal(bsControl.assets,1650000);
@@ -185,7 +187,7 @@ assert.equal(bsControl.fullyReconciled,true);
 checks+=8;
 
 // Balance Sheet reconciliation: assets = liabilities + equity + current profit, and both control ledgers must close at zero.
-const bsFixture={records:[],audit:[],journals:[{id:'bs-cap',date:T,memo:'capital',kind:'capital',lines:[{project:'bs',account:'bank',debit:1000000,credit:0},{project:'bs',account:'capital',debit:0,credit:1000000}]},{id:'bs-rev',date:T,memo:'revenue',kind:'income',lines:[{project:'bs',account:'bank',debit:500000,credit:0},{project:'bs',account:'revenue',debit:0,credit:500000}]},{id:'bs-exp',date:T,memo:'expense',kind:'expense',lines:[{project:'bs',account:'cash',debit:100000,credit:0},{project:'bs',account:'expense',debit:0,credit:100000}]},{id:'bs-loan',date:T,memo:'loan',kind:'loan',lines:[{project:'bs',account:'bank',debit:300000,credit:0},{project:'bs',account:'loan',debit:0,credit:300000}]},{id:'bs-dist',date:T,memo:'distribution',kind:'distribution',lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'bank',debit:0,credit:50000}]}]};
+const bsFixture={records:[],audit:[],journals:[{id:'bs-cap',date:T,memo:'capital',kind:'capital',lines:[{project:'bs',account:'bank',debit:1000000,credit:0},{project:'bs',account:'capital',debit:0,credit:1000000}]},{id:'bs-rev',date:T,memo:'revenue',kind:'income',lines:[{project:'bs',account:'bank',debit:500000,credit:0},{project:'bs',account:'revenue',debit:0,credit:500000}]},{id:'bs-exp',date:T,memo:'expense',kind:'expense',lines:[{project:'bs',account:'cash',debit:0,credit:100000},{project:'bs',account:'expense',debit:100000,credit:0}]},{id:'bs-loan',date:T,memo:'loan',kind:'loan',lines:[{project:'bs',account:'bank',debit:300000,credit:0},{project:'bs',account:'loan',debit:0,credit:300000}]},{id:'bs-dist',date:T,memo:'distribution',kind:'distribution',lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'bank',debit:0,credit:50000}]}]};
 const bs=f.balanceSheetControl(bsFixture,'all',T);assert.equal(bs.assets,1650000);assert.equal(bs.liabilities,300000);assert.equal(bs.equity,950000);assert.equal(bs.currentProfit,400000);assert.equal(bs.difference,0);assert.equal(bs.trialBalanceDifference,0);assert.equal(bs.cashFlowDifference,0);assert.equal(bs.fullyReconciled,true);checks+=8;
 
 // Five-decimal monetary precision: input parsing/schedule must retain micro precision before halala posting.
@@ -197,5 +199,19 @@ assert.equal(exactSchedule.at(-1).principalMicro,1000.12345*100000-exactSchedule
 assert(exactSchedule.every(x=>Math.abs(x.amountMicro-x.principalMicro-x.interestMicro)===0));
 checks+=4;
 
+// Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
+w=await read();
+const integratedControl=f.balanceSheetControl(w,'all',T);
+assert.equal(integratedControl.trialBalanceDifference,0);
+assert.equal(integratedControl.cashFlowDifference,0);
+assert.equal(integratedControl.difference,0);
+assert.equal(integratedControl.fullyReconciled,true);
+for(const p of w.records.filter(r=>r.kind==='project')){
+  const control=f.balanceSheetControl(w,p.id,T);
+  assert.equal(control.trialBalanceDifference,0,'trial balance mismatch for project '+p.id);
+  assert.equal(control.cashFlowDifference,0,'cash flow mismatch for project '+p.id);
+  assert.equal(control.difference,0,'balance sheet mismatch for project '+p.id);
+}
+checks+=4+w.records.filter(r=>r.kind==='project').length*3;
 await ok('closePeriod',{id:b,date:T});await fail('entry',{project:b,kind:'income',amount:100,date:T,memo:'فترة مقفلة'});w=await read();for(const j of w.journals)f.validateLines(j.lines);const bal=f.balance(w);assert.equal(Object.values(bal).reduce((s,v)=>s+v,0),0);const forecast=f.forecast(w);assert.equal(forecast.buckets.length,13);console.log(JSON.stringify({passed:true,mutationChecks:checks,records:w.records.length,journals:w.journals.length,verified:['identity isolation','balanced journals','idempotency','internal transfers','profit versus cash','loan repayment','early settlement','opening debt','payroll dates','reversal uniqueness','period lock','cash forecast']}));
 }finally{await mf.dispose();}

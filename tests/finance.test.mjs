@@ -175,20 +175,14 @@ const reconciliationFixture={records:[],audit:[],journals:[
 const bsControl=f.balanceSheetControl(reconciliationFixture,'all',T);
 assert.equal(bsControl.assets,1650000);
 assert.equal(bsControl.liabilities,300000);
-assert.equal(bsControl.equity,1000000);
+assert.equal(bsControl.equity,950000);
 assert.equal(bsControl.currentProfit,400000);
-assert.equal(bsControl.totalLiabilitiesAndEquity,1700000);
-assert.equal(bsControl.difference,-50000);
+assert.equal(bsControl.totalLiabilitiesAndEquity,1650000);
+assert.equal(bsControl.difference,0);
 assert.equal(bsControl.trialBalanceDifference,0);
 assert.equal(bsControl.cashFlowDifference,0);
-assert.equal(bsControl.fullyReconciled,false);
-// Distribution must reduce equity; add the missing 50,000 equity impact through the retained/current earnings presentation.
-const correctedFixture={...reconciliationFixture,journals:reconciliationFixture.journals.map(j=>j.id==='bs-dist'?{...j,lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'bank',debit:0,credit:50000}]}:j)};
-const correctedBs=f.balanceSheetControl(correctedFixture,'all',T);
-assert.equal(correctedBs.assets,1650000);
-assert.equal(correctedBs.liabilities+correctedBs.equity+correctedBs.currentProfit,1700000);
-assert.equal(correctedBs.difference,-50000);
-checks+=9;
+assert.equal(bsControl.fullyReconciled,true);
+checks+=8;
 
 // Balance Sheet reconciliation: assets = liabilities + equity + current profit, and both control ledgers must close at zero.
 const bsFixture={records:[],audit:[],journals:[{id:'bs-cap',date:T,memo:'capital',kind:'capital',lines:[{project:'bs',account:'bank',debit:1000000,credit:0},{project:'bs',account:'capital',debit:0,credit:1000000}]},{id:'bs-rev',date:T,memo:'revenue',kind:'income',lines:[{project:'bs',account:'bank',debit:500000,credit:0},{project:'bs',account:'revenue',debit:0,credit:500000}]},{id:'bs-exp',date:T,memo:'expense',kind:'expense',lines:[{project:'bs',account:'cash',debit:100000,credit:0},{project:'bs',account:'expense',debit:0,credit:100000}]},{id:'bs-loan',date:T,memo:'loan',kind:'loan',lines:[{project:'bs',account:'bank',debit:300000,credit:0},{project:'bs',account:'loan',debit:0,credit:300000}]},{id:'bs-dist',date:T,memo:'distribution',kind:'distribution',lines:[{project:'bs',account:'distribution',debit:50000,credit:0},{project:'bs',account:'bank',debit:0,credit:50000}]}]};

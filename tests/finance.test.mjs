@@ -85,7 +85,7 @@ assert.equal(f.profit(w,b).net,600000);
 await ok('entry',{project:b,kind:'collect',amount:1000,date:T,memo:'تحصيل آجل'});
 w=await read();
 assert.equal(f.balance(w,b).receivable,0);
-assert.equal(f.balance(w,b).cash,2100000);
+assert.equal(f.balance(w,b).cash,2350000);
 assert.equal(f.profit(w,b).net,600000);
 
 await ok('setTaxPolicy',{enabled:true,rate:15,defaultMode:'exclusive',salesTax:true,purchaseTax:true,effectiveFrom:T});

@@ -121,7 +121,14 @@ assert(settledExpenseTrace);
 assert.equal(f.traceTransaction(w,settledExpenseTrace.id).profitDelta,0);
 assert.equal(f.actualCashFlow(w,a,T,T).rows.at(-1).operatingOut>=300000,true);
 await fail('settle',{id:due.id,date:T});
-checks+=7;
+// An obligation created for a future date must accrue when that date arrives, on the next write, exactly once.
+await ok('obligation',{project:a,title:'استحقاق يحين لاحقًا',amount:2000,date:f.dayAdd(T,1),direction:'out',category:'expense',certainty:100});
+w=await read();const delayed=w.records.find(r=>r.kind==='obligation'&&r.data.title==='استحقاق يحين لاحقًا');assert(delayed);assert.equal(w.journals.some(j=>j.source==='obligation-accrual:'+delayed.id),false);
+await db.prepare("UPDATE records SET data=json_set(data,'$.date',?) WHERE id=? AND owner=?").bind(T,delayed.id,'test-owner').run();
+await ok('project',{name:'محفز ترحيل الاستحقاق',activity:'اختبار',mode:'operating',ownership:100,reserve:0,payout:0});
+w=await read();assert.equal(w.journals.filter(j=>j.source==='obligation-accrual:'+delayed.id).length,1);
+const delayedBeforeProfit=f.profit(w,a).net;await ok('settle',{id:delayed.id,date:T});w=await read();assert.equal(w.journals.filter(j=>j.source==='obligation-accrual:'+delayed.id).length,1);const delayedSettlement=w.journals.find(j=>j.source==='obligation:'+delayed.id);assert(delayedSettlement);assert.equal(f.traceTransaction(w,delayedSettlement.id).profitDelta,0);assert.equal(f.profit(w,a).net,delayedBeforeProfit);
+checks+=13;
 
 // Five-decimal inputs must remain exact through the 5-decimal planning path.
 await ok('project',{name:'دقة 5 منازل',activity:'اختبار دقة',mode:'operating',ownership:100,reserve:0,payout:0,expectedMonthlyRevenue:'12345.67891',expectedMonthlyExpense:'1.23456',expectedNetMonthly:'12344.44435'});

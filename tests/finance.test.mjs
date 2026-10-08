@@ -199,6 +199,28 @@ assert.equal(exactSchedule.at(-1).principalMicro,1000.12345*100000-exactSchedule
 assert(exactSchedule.every(x=>Math.abs(x.amountMicro-x.principalMicro-x.interestMicro)===0));
 checks+=4;
 
+// Flexible project rent: one annual contract may be paid once or in multiple dated installments.
+await ok('project',{name:'مشروع إيجار',activity:'اختبار الإيجار',mode:'operating',ownership:100,reserve:0,payout:0});
+w=await read();
+const leaseProject=w.records.filter(r=>r.kind==='project').at(-1).id;
+await ok('lease',{project:leaseProject,title:'إيجار سنوي متعدد الدفعات',totalAmount:120000,startDate:'2026-01-01',endDate:'2026-12-31',scheduleType:'custom',installments:'2026-01-15,40000\n2026-05-15,30000\n2026-09-15,50000',certainty:100});
+await ok('lease',{project:leaseProject,title:'إيجار السنة التالية دفعة واحدة',totalAmount:60000,startDate:'2027-01-01',endDate:'2027-12-31',scheduleType:'once',paymentDate:'2027-01-05',certainty:100});
+w=await read();
+const leaseRows=w.records.filter(r=>r.kind==='obligation'&&r.data.leaseId);
+const currentLease=leaseRows.filter(r=>r.data.leaseTotal===12000000);
+assert.equal(currentLease.length,3);
+assert.equal(currentLease.reduce((s,r)=>s+r.data.amount,0),12000000);
+assert.deepEqual(currentLease.map(r=>r.data.date),['2026-01-15','2026-05-15','2026-09-15']);
+const futureLease=leaseRows.filter(r=>r.data.leaseTotal===6000000);
+assert.equal(futureLease.length,1);
+assert.equal(futureLease[0].data.amount,6000000);
+await ok('settle',{id:currentLease[0].id,date:T});
+w=await read();
+assert.equal(f.profit(w,leaseProject,'2026-01-01',T).net,-4000000);
+assert.equal(f.balance(w,leaseProject).cash||0,-4000000);
+assert.equal(f.actualCashFlow(w,leaseProject,'2026-01-01',T).rows.at(-1).operatingOut,4000000);
+checks+=7;
+
 // Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
 w=await read();
 const integratedControl=f.balanceSheetControl(w,'all',T);

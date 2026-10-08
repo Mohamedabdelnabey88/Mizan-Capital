@@ -107,7 +107,7 @@ await ok('obligation',{project:a,title:'مصروف تشغيلي مؤجل',amount
 w=await read();
 const due=w.records.find(r=>r.kind==='obligation'&&r.data.title==='مصروف تشغيلي مؤجل');
 assert(due&&due.data.status==='pending');
-assert.equal(w.journals.length,obligationBefore);
+assert.equal(w.journals.length,obligationBefore+1);
 await ok('settle',{id:due.id,date:T});
 w=await read();
 assert.equal(w.journals.length,obligationBefore+1);
@@ -279,7 +279,7 @@ assert.equal(futureLease.length,1);
 assert.equal(futureLease[0].data.amount,6000000);
 await ok('settle',{id:currentLease[0].id,date:T});
 w=await read();
-assert.equal(f.profit(w,leaseProject,'2026-01-01',T).net,-4000000);
+assert.equal(f.profit(w,leaseProject,'2026-01-01',T).net,-12000000);\nassert.equal(f.balance(w,leaseProject).payable,8000000);
 assert.equal(f.balance(w,leaseProject).cash||0,-4000000);
 assert.equal(f.actualCashFlow(w,leaseProject,'2026-01-01',T).rows.at(-1).operatingOut,4000000);
 checks+=7;

@@ -281,9 +281,7 @@ checks+=4;
 await ok('project',{name:'مشروع إيجار',activity:'اختبار الإيجار',mode:'operating',ownership:100,reserve:0,payout:0});
 w=await read();
 const leaseProject=w.records.filter(r=>r.kind==='project').at(-1).id;
-await ok('lease',{project:leaseProject,title:'إيجار سنوي متعدد الدفعات',totalAmount:120000,startDate:'2026-01-01',endDate:'2026-12-31',scheduleType:'custom',installments:'2026-01-15,40000
-2026-05-15,30000
-2026-09-15,50000',certainty:100});
+await ok('lease',{project:leaseProject,title:'إيجار سنوي متعدد الدفعات',totalAmount:120000,startDate:'2026-01-01',endDate:'2026-12-31',scheduleType:'custom',installments:'2026-01-15,40000\\n2026-05-15,30000\\n2026-09-15,50000',certainty:100});
 await ok('lease',{project:leaseProject,title:'إيجار السنة التالية دفعة واحدة',totalAmount:60000,startDate:'2027-01-01',endDate:'2027-12-31',scheduleType:'once',paymentDate:'2027-01-05',certainty:100});
 w=await read();
 const leaseRows=w.records.filter(r=>r.kind==='obligation'&&r.data.leaseId);

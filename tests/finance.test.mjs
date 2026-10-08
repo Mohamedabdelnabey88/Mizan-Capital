@@ -95,7 +95,7 @@ w=await read();
 const taxBalance=f.balance(w,a);
 assert.equal(taxBalance.tax_payable,15000);
 assert.equal(taxBalance.tax_receivable,7500);
-assert.equal(f.profit(w,a).net, f.profit(w,a).net); // accounting identity smoke check
+const taxProfitBefore=f.profit(w,a).net;\nconst taxRevenueTrace=w.journals.find(j=>j.memo==='إيراد خاضع للضريبة');\nconst taxExpenseTrace=w.journals.find(j=>j.memo==='مصروف خاضع للضريبة');\nassert.equal(f.traceTransaction(w,taxRevenueTrace.id).profitDelta,100000);\nassert.equal(f.traceTransaction(w,taxExpenseTrace.id).profitDelta,-50000);\nassert.equal(f.profit(w,a).net,taxProfitBefore);
 const taxTrace=w.journals.find(j=>j.memo==='إيراد خاضع للضريبة');
 assert(taxTrace.lines.some(l=>l.account==='tax_payable'&&l.credit===15000));
 const taxExpense=w.journals.find(j=>j.memo==='مصروف خاضع للضريبة');
@@ -111,7 +111,7 @@ assert.equal(w.journals.length,obligationBefore);
 await ok('settle',{id:due.id,date:T});
 w=await read();
 assert.equal(w.journals.length,obligationBefore+1);
-assert.equal(f.balance(w,a).expense, f.balance(w,a).expense);
+const settledExpenseTrace=w.journals.find(j=>j.source==='obligation:'+due.id);\nassert(settledExpenseTrace);\nassert.equal(f.traceTransaction(w,settledExpenseTrace.id).profitDelta,-300000);
 assert.equal(f.actualCashFlow(w,a,T,T).rows.at(-1).operatingOut>=300000,true);
 await fail('settle',{id:due.id,date:T});
 checks+=7;

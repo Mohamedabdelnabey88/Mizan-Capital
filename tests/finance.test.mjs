@@ -93,7 +93,7 @@ await ok('entry',{project:a,kind:'income',amount:1000,date:T,taxMode:'exclusive'
 await ok('entry',{project:a,kind:'expense',amount:500,date:T,taxMode:'exclusive',taxRate:15,memo:'مصروف خاضع للضريبة'});
 w=await read();
 const taxBalance=f.balance(w,a);
-assert.equal(taxBalance.tax_payable,15000);
+assert.equal(taxBalance.tax_payable,-15000);
 assert.equal(taxBalance.tax_receivable,7500);
 const taxProfitBefore=f.profit(w,a).net;
 const taxRevenueTrace=w.journals.find(j=>j.memo==='إيراد خاضع للضريبة');

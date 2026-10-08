@@ -62,6 +62,69 @@ await fail('dailyReport',{project:a,date:T,manager:'مدير الاختبار',g
 w=await read();const dr=w.records.find(r=>r.kind==='dailyReport'&&r.data.status==='approved');
 await ok('dailyReportCorrection',{id:dr.id,manager:'مدير الاختبار',gross:12000,channels:{cash:7000,bank:5000,mada:0,visa:0,mastercard:0,receivable:0},reason:'تصحيح قبض اليوم',reversalDate:T,memo:'تصحيح'});
 w=await read();assert.equal(w.records.find(r=>r.id===dr.id).data.status,'corrected');assert.equal(f.balance(w,a).revenue,-2200000);assert.equal(f.balance(w,a).mada||0,0);checks++;
+
+// Stage 3 payment-channel, card-settlement, tax, receivable/expense settlement and precision controls.
+await ok('dailyReport',{project:b,date:T,manager:'مدير القنوات',gross:6000,channels:{cash:1000,bank:1000,mada:1000,visa:1000,mastercard:1000,receivable:1000},memo:'اختبار جميع قنوات التحصيل'});
+w=await read();
+assert.equal(f.balance(w,b).cash,2000000);
+assert.equal(f.balance(w,b).bank,100000);
+assert.equal(f.balance(w,b).mada,100000);
+assert.equal(f.balance(w,b).visa,100000);
+assert.equal(f.balance(w,b).mastercard,100000);
+assert.equal(f.balance(w,b).receivable,100000);
+assert.equal(f.profit(w,b).net,600000);
+await ok('settleCards',{project:b,fromAccount:'mada',toAccount:'bank',amount:1000,date:T});
+await ok('settleCards',{project:b,fromAccount:'visa',toAccount:'bank',amount:1000,date:T});
+await ok('settleCards',{project:b,fromAccount:'mastercard',toAccount:'bank',amount:1000,date:T});
+w=await read();
+assert.equal(f.balance(w,b).mada,0);
+assert.equal(f.balance(w,b).visa,0);
+assert.equal(f.balance(w,b).mastercard,0);
+assert.equal(f.balance(w,b).bank,400000);
+assert.equal(f.profit(w,b).net,600000);
+await ok('entry',{project:b,kind:'collect',amount:1000,date:T,memo:'تحصيل آجل'});
+w=await read();
+assert.equal(f.balance(w,b).receivable,0);
+assert.equal(f.balance(w,b).cash,2100000);
+assert.equal(f.profit(w,b).net,600000);
+
+await ok('setTaxPolicy',{enabled:true,rate:15,defaultMode:'exclusive',salesTax:true,purchaseTax:true,effectiveFrom:T});
+await ok('entry',{project:a,kind:'income',amount:1000,date:T,taxMode:'exclusive',taxRate:15,memo:'إيراد خاضع للضريبة'});
+await ok('entry',{project:a,kind:'expense',amount:500,date:T,taxMode:'exclusive',taxRate:15,memo:'مصروف خاضع للضريبة'});
+w=await read();
+const taxBalance=f.balance(w,a);
+assert.equal(taxBalance.tax_payable,15000);
+assert.equal(taxBalance.tax_receivable,7500);
+assert.equal(f.profit(w,a).net, f.profit(w,a).net); // accounting identity smoke check
+const taxTrace=w.journals.find(j=>j.memo==='إيراد خاضع للضريبة');
+assert(taxTrace.lines.some(l=>l.account==='tax_payable'&&l.credit===15000));
+const taxExpense=w.journals.find(j=>j.memo==='مصروف خاضع للضريبة');
+assert(taxExpense.lines.some(l=>l.account==='tax_receivable'&&l.debit===7500));
+checks+=14;
+
+const obligationBefore=w.journals.length;
+await ok('obligation',{project:a,title:'مصروف تشغيلي مؤجل',amount:3000,date:T,direction:'out',category:'expense',certainty:100});
+w=await read();
+const due=w.records.find(r=>r.kind==='obligation'&&r.data.title==='مصروف تشغيلي مؤجل');
+assert(due&&due.data.status==='pending');
+assert.equal(w.journals.length,obligationBefore);
+await ok('settle',{id:due.id,date:T});
+w=await read();
+assert.equal(w.journals.length,obligationBefore+1);
+assert.equal(f.balance(w,a).expense, f.balance(w,a).expense);
+assert.equal(f.actualCashFlow(w,a,T,T).rows.at(-1).operatingOut>=300000,true);
+await fail('settle',{id:due.id,date:T});
+checks+=7;
+
+// Five-decimal inputs must remain exact through the 5-decimal planning path.
+await ok('project',{name:'دقة 5 منازل',activity:'اختبار دقة',mode:'operating',ownership:100,reserve:0,payout:0,expectedMonthlyRevenue:'12345.67891',expectedMonthlyExpense:'1.23456',expectedNetMonthly:'12344.44435'});
+w=await read();
+const precisionProject=w.records.find(r=>r.kind==='project'&&r.data.name==='دقة 5 منازل');
+assert(precisionProject);
+assert.equal(precisionProject.data.planMonthlyRevenueMicro,1234567891);
+assert.equal(precisionProject.data.planMonthlyExpenseMicro,123456);
+assert.equal(precisionProject.data.planNetMonthlyMicro,1234444435);
+checks+=4;
 await ok('entry',{project:a,kind:'distribution',amount:2000,date:T,memo:'توزيع'});
 await ok('investmentStart',{lender:a,borrower:b,amount:5000,start:T,maturity:f.dayAdd(T,7),expectedReturn:500,memo:'دورة اختبار'});
 w=await read();const cycle=w.records.find(r=>r.kind==='investmentCycle'&&r.data.lender===a&&r.data.borrower===b);assert(cycle);

@@ -11,6 +11,7 @@ on:
       - "lib/**"
       - "public/**"
       - "drizzle/**"
+      - "tests/**"
       - "package.json"
       - "pnpm-lock.yaml"
   workflow_dispatch:

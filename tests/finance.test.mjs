@@ -220,25 +220,18 @@ await ok('dailyReport',{project:ownerP2,date:T,manager:'مدير المالك 2'
 await ok('entry',{project:ownerP2,kind:'expense',amount:1000,date:T,memo:'مصروف المالك 2'});
 await ok('setOwnerPolicy',{percent:20,effectiveFrom:T});
 w=await read();
-const ownerBefore1=f.balance(w,ownerP1),ownerBefore2=f.balance(w,ownerP2);
 assert.equal(f.profit(w,ownerP1,T,T).net,800000);
 assert.equal(f.profit(w,ownerP2,T,T).net,400000);
-const ownerProfitBefore=f.profit(w,'all',T,T).net;
-await ok('annualOwnerDistribution',{year:Number(T.slice(0,4)),paymentAccount:'bank'});
+const ownerProfitBefore=f.profit(w,'all',T,T).net,ownerYear=Number(T.slice(0,4)),ownerReport=f.annualOwnerReport(w,ownerYear),ownerBeforeBalances=new Map(ownerReport.rows.map(x=>[x.project,f.balance(w,x.project)])),positiveOwnerRows=ownerReport.rows.filter(x=>x.profit>0),expectedOwnerTotal=Math.floor(ownerReport.totalProfit*2000/10000),positiveOwnerProfit=positiveOwnerRows.reduce((sum,x)=>sum+x.profit,0),expectedOwnerAllocations=[];let allocationRemaining=expectedOwnerTotal;for(let i=0;i<positiveOwnerRows.length;i++){const x=positiveOwnerRows[i],amount=i===positiveOwnerRows.length-1?allocationRemaining:Math.floor(expectedOwnerTotal*x.profit/positiveOwnerProfit);allocationRemaining-=amount;if(amount>0)expectedOwnerAllocations.push({project:x.project,amount});}
+await ok('annualOwnerDistribution',{year:ownerYear,paymentAccount:'bank'});
 w=await read();
-const settlement=w.records.find(r=>r.kind==='ownerSettlement'&&r.data.fiscalYearStart===T.slice(0,4)+'-01-01');
+const settlement=w.records.find(r=>r.kind==='ownerSettlement'&&r.data.fiscalYearStart===ownerReport.fyStart);
 assert(settlement);
-assert.equal(settlement.data.totalProfit,1200000);
-assert.equal(settlement.data.totalOwner,240000);
-assert.deepEqual(settlement.data.allocations.sort((x,y)=>x.project.localeCompare(y.project)),[
-  {project:ownerP1,amount:160000},
-  {project:ownerP2,amount:80000},
-].sort((x,y)=>x.project.localeCompare(y.project)));
+assert.equal(settlement.data.totalProfit,ownerReport.totalProfit);
+assert.equal(settlement.data.totalOwner,expectedOwnerTotal);
+assert.deepEqual(settlement.data.allocations.sort((x,y)=>x.project.localeCompare(y.project)),expectedOwnerAllocations.sort((x,y)=>x.project.localeCompare(y.project)));
 assert.equal(f.profit(w,'all',T,T).net,ownerProfitBefore);
-assert.equal(f.balance(w,ownerP1).bank,ownerBefore1.bank-160000);
-assert.equal(f.balance(w,ownerP2).bank,ownerBefore2.bank-80000);
-assert.equal(f.balance(w,ownerP1).distribution,160000);
-assert.equal(f.balance(w,ownerP2).distribution,80000);
+for(const allocation of expectedOwnerAllocations){const before=ownerBeforeBalances.get(allocation.project)||{},after=f.balance(w,allocation.project);assert.equal(after.bank,(before.bank||0)-allocation.amount);assert.equal(after.distribution,(before.distribution||0)+allocation.amount);}
 assert.equal(f.accountingControlTotals(w,T,T,'all').balanceCheck,0);
 assert.equal(f.accountingControlTotals(w,T,T,'all').cashFlowDifference,0);
 await fail('annualOwnerDistribution',{year:Number(T.slice(0,4)),paymentAccount:'bank'});

@@ -79,7 +79,7 @@ await ok('project',{name:'تزامن',activity:'اختبار',mode:'operating',o
 await ok('deleteProject',{id:cp,confirmName:'تزامن',reason:'تنظيف fixture التزامن قبل اختبار توزيع المالك'});
 await ok('project',{name:'عجز يومي',activity:'اختبار',mode:'operating',ownership:100,reserve:200,payout:100});w=await read();const gapProject=w.records.find(r=>r.data.name==='عجز يومي').id;
 await ok('entry',{project:gapProject,kind:'income',amount:1000,date:T,memo:'ربح نقدي'});
-await ok('obligation',{project:gapProject,title:'دفع مبكر',amount:900,date:f.dayAdd(T,1),direction:'out',category:'expense'});
+await ok('obligation',{project:gapProject,title:'دفع مبكر',amount:900,date:'2026-10-09',direction:'out',category:'expense'});
 await ok('obligation',{project:gapProject,title:'تحصيل لاحق',amount:1000,date:f.dayAdd(T,5),direction:'in',category:'revenue'});
 await fail('entry',{project:gapProject,kind:'distribution',amount:1,date:T,memo:'العجز قبل الإيراد'});
 await assert.rejects(()=>db.prepare('UPDATE journals SET memo=? WHERE owner=?').bind('corrupt','test-owner').run(),/posted_entry_immutable/);await assert.rejects(()=>db.prepare('DELETE FROM journals WHERE owner=?').bind('test-owner').run(),/posted_entry_immutable/);checks+=2;

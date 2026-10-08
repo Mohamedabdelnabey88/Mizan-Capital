@@ -170,7 +170,7 @@ else if(action==='settleCards'){
 }
 else if(action==='investmentStart'){
  const lender=project(p.lender),borrower=project(p.borrower);if(lender.id===borrower.id)throw Error('اختر مشروعين مختلفين.');
- const amount=halala(p.amount,'رأس مال الاستثمار');if(amount===0)throw Error('رأس مال الاستثمار يجب أن يكون أكبر من صفر.');const start=date(p.start||today()),maturity=date(p.maturity);if(maturity<start)throw Error('تاريخ نهاية الدورة يجب أن يكون بعد بدايتها.');
+ const amount=halala(p.amount,'رأس مال الاستثمار');if(amount===0)throw Error('رأس مال الاستثمار يجب أن يكون أكبر من صفر.');const start=date(p.start||today()),maturity=date(p.maturity);if(maturity<start)throw Error('تاريخ نهاية الدورة يجب أن يكون بعد بدايتها.');const available=balance(w,lender.id,start).cash||0;if(amount>available)throw Error('سيولة المشروع المستثمر لا تكفي لتمويل هذه الدورة في التاريخ المحدد.');
  const expectedReturn=p.expectedReturn?halala(p.expectedReturn,'العائد المتوقع'):0;
  const rid=put('investmentCycle',{lender:lender.id,borrower:borrower.id,principal:amount,start,maturity,expectedReturn,actualReturn:0,status:'active',memo:str(p.memo||'دورة استثمار داخلية')});
  journal('investmentStart','بدء دورة استثمار داخلية',start,[{project:lender.id,account:'investment',debit:amount,credit:0},{project:lender.id,account:'cash',debit:0,credit:amount},{project:borrower.id,account:'cash',debit:amount,credit:0},{project:borrower.id,account:'inter_payable',debit:0,credit:amount}],'investment-cycle:'+rid);

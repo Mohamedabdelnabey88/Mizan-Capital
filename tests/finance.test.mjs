@@ -238,7 +238,7 @@ checks+=4+w.records.filter(r=>r.kind==='project').length*3;
 // Settlement controls: a liability cannot be paid before its due date, and bank settlement must hit bank (not cash).
 await ok('obligation',{project:leaseProject,title:'اختبار سداد بنكي',amount:1000,date:T,direction:'out',category:'expense'});
 w=await read();const bankDue=w.records.find(r=>r.kind==='obligation'&&r.data.title==='اختبار سداد بنكي');assert(bankDue);
-const bankBefore=f.balance(w,leaseProject);await ok('settle',{id:bankDue.id,date:T,paymentAccount:'bank'});w=await read();const bankAfter=f.balance(w,leaseProject);assert.equal(bankAfter.bank,bankBefore.bank-100000);assert.equal(bankAfter.cash||0,bankBefore.cash||0);
+const bankBefore=f.balance(w,leaseProject);await ok('settle',{id:bankDue.id,date:T,paymentAccount:'bank'});w=await read();const bankAfter=f.balance(w,leaseProject);assert.equal(bankAfter.bank,(bankBefore.bank||0)-100000);assert.equal(bankAfter.cash||0,bankBefore.cash||0);
 await ok('obligation',{project:leaseProject,title:'اختبار تاريخ التسوية',amount:500,date:f.dayAdd(T,1),direction:'out',category:'expense'});w=await read();const futureDue=w.records.find(r=>r.kind==='obligation'&&r.data.title==='اختبار تاريخ التسوية');assert(futureDue);await fail('settle',{id:futureDue.id,date:T,paymentAccount:'cash'});
 checks+=3;
 

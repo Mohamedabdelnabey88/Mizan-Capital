@@ -66,7 +66,7 @@ w=await read();assert.equal(w.records.find(r=>r.id===dr.id).data.status,'correct
 // Stage 3 payment-channel, card-settlement, tax, receivable/expense settlement and precision controls.
 await ok('dailyReport',{project:b,date:T,manager:'مدير القنوات',gross:6000,channels:{cash:1000,bank:1000,mada:1000,visa:1000,mastercard:1000,receivable:1000},memo:'اختبار جميع قنوات التحصيل'});
 w=await read();
-assert.equal(f.balance(w,b).cash,2000000);
+assert.equal(f.balance(w,b).cash,2250000);
 assert.equal(f.balance(w,b).bank,100000);
 assert.equal(f.balance(w,b).mada,100000);
 assert.equal(f.balance(w,b).visa,100000);

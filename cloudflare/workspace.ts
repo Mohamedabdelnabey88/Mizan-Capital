@@ -45,7 +45,7 @@ const due=(data:any,rid=uid())=>put('obligation',{status:'pending',...data},rid)
 let description=action;
 if(action==='deleteRecord'){
  const r=find(p.id);
- const financialKinds=new Set(['projectFunding','fundingRepayment','dailyReport','dailyReportCorrection','entry','obligation','settlement','loan','loanSchedule','journal','ownerSettlement','ownerDistribution','investmentCycle','investmentReturn','payroll','payrollAdjustment','closing','fiscalYear']);
+ const financialKinds=new Set(['projectFunding','fundingRepayment','dailyReport','dailyReportCorrection','entry','obligation','lease','settlement','loan','loanSchedule','journal','ownerSettlement','ownerDistribution','investmentCycle','investmentReturn','payroll','payrollAdjustment','closing','fiscalYear']);
  if(financialKinds.has(r.kind)) throw Error('السجل المالي لا يُحذف نهائيًا حتى لا يختفي أثره من الأستاذ والتقارير. استخدم عكس القيد أو التصحيح من الشاشة المناسبة.');
  const refs=w.records.filter(x=>x.id!==r.id&&JSON.stringify(x.data).includes(r.id));
  const journalRefs=w.journals.filter(j=>j.source===r.id||j.reversal===r.id||JSON.stringify(j.lines).includes(r.id));
@@ -76,6 +76,53 @@ else if(action==='setFiscalYear'){const start=date(p.start);const end=date(p.end
 else if(action==='closePeriod'){const r=project(p.id);const d=date(p.date);if(d>today()||d<(r.data.closedThrough||''))throw Error('يمكن فقط إقفال فترة منتهية بعد آخر إقفال.');update(r,{...r.data,closedThrough:d});description='إقفال فترة '+r.data.name+' حتى '+d;}
 else if(action==='entry'){const pr=project(p.project),a=cents(p.amount);if(!a)throw Error('المبلغ يجب أن يكون أكبر من صفر.');const policy=taxPolicyFor(w,date(p.date));const taxMode=['none','inclusive','exclusive'].includes(p.taxMode)?p.taxMode:(policy.enabled?policy.defaultMode:'none');const taxRate=percentBps(p.taxRate??(Number(policy.rateBps||0)/100),'نسبة الضريبة');const mappings:Record<string,string[]>={income:['cash','revenue'],invoice:['receivable','revenue'],collect:['cash','receivable'],expense:['expense','cash'],bill:['expense','payable'],paybill:['payable','cash'],capital:['cash','capital'],asset:['fixed','cash'],inventory:['inventory','cash'],cogs:['cogs','inventory'],depreciation:['depreciation','accumulated'],invest:['investment','cash'],dividend:['cash','dividend'],returnCapital:['cash','investment'],distribution:['distribution','cash'],cardSettlement:['bank','mada'],investmentStart:['investment','cash'],investmentReturn:['cash','investment']};let lines:Line[]=[];if(p.kind==='transfer'){project(p.target);if(p.target===p.project)throw Error('اختر مشروعين مختلفين.');lines=[...pair(p.project,'inter_receivable','cash',a),...pair(p.target,'cash','inter_payable',a)];}else if(p.kind==='repayTransfer'){project(p.target);if(p.target===p.project)throw Error('اختر مشروعين مختلفين.');if(a>Math.min(internalFunding(w,p.target,p.project,date(p.date)),internalFunding(w,p.target,p.project)))throw Error('المبلغ يتجاوز التمويل المستحق للمشروع المحدد.');lines=[...pair(p.project,'inter_payable','cash',a),...pair(p.target,'cash','inter_receivable',a)];}else if(p.kind==='manual'){if(p.debit===p.credit)throw Error('طرفا القيد يجب أن يكونا مختلفين.');if(['inter_receivable','inter_payable','distribution','loan','investment'].includes(p.debit)||['inter_receivable','inter_payable','distribution','loan','investment'].includes(p.credit))throw Error('لهذه الحسابات استخدم التحويل أو التوزيع أو التمويل أو الاستثمار المخصص لحفظ ترابط السجلات.');lines=pair(p.project,str(p.debit),str(p.credit),a);}else{if(!mappings[p.kind])throw Error('نوع حركة غير معروف.');const isSale=['income','invoice'].includes(p.kind),isPurchase=['expense','bill','asset','inventory'].includes(p.kind);if(taxMode!=='none'&&!policy.enabled)throw Error('الضريبة غير مفعلة في سياسة الفترة؛ فعّلها أو اختر بدون ضريبة.');if(taxMode!=='none'&&!((isSale&&policy.salesTax)||(isPurchase&&policy.purchaseTax)))throw Error('هذه الحركة لا تستخدم الضريبة حسب السياسة الحالية.');if(taxMode==='none')lines=pair(p.project,mappings[p.kind][0],mappings[p.kind][1],a);else{const t=taxParts(a,taxMode,taxRate);const cashAccount=mappings[p.kind][0],counter=mappings[p.kind][1];if(isSale)lines=[{project:p.project,account:cashAccount,debit:t.total,credit:0},{project:p.project,account:counter,debit:0,credit:t.base},...(t.tax?[{project:p.project,account:'tax_payable',debit:0,credit:t.tax}]:[])];else if(isPurchase)lines=[{project:p.project,account:counter,debit:t.base,credit:0},...(t.tax?[{project:p.project,account:'tax_receivable',debit:t.tax,credit:0}]:[]),{project:p.project,account:cashAccount,debit:0,credit:t.total}];else lines=pair(p.project,cashAccount,counter,a);}}if(p.kind==='distribution'){if(date(p.date)!==today())throw Error('توزيع الأرباح متاح بتاريخ اليوم لضمان فحص السيولة الحالية.');const entitlement=distributionEntitlement(w,pr);const f=forecast(w,p.project,pr.data.reserve,0,0,a);if(a>entitlement||f.min<pr.data.reserve)throw Error('السحب يتجاوز استحقاق المالك أو ينزل السيولة المتوقعة تحت الاحتياطي. راجع مركز القرار.');}if(['invest','dividend','returnCapital'].includes(p.kind)){find(p.investment,'project');if(find(p.investment).data.mode!=='investment')throw Error('اختر استثمارًا خارجيًا.');if(p.kind==='returnCapital'){const invested=w.journals.filter(j=>j.source?.startsWith('investment:'+p.investment+':')).flatMap(j=>j.lines).filter(l=>l.project===p.project&&l.account==='investment').reduce((s,l)=>s+l.debit-l.credit,0);if(a>invested)throw Error('الاسترداد يتجاوز رأس المال المسجل لهذا الاستثمار.');}}journal(p.kind,str(p.memo,500),date(p.date),lines,p.investment?'investment:'+p.investment+':'+id:null);description='تسجيل حركة مالية: '+p.memo;}
 else if(action==='reverse'){const j=w.journals.find(x=>x.id===p.id);if(!j||j.reversal||j.source)throw Error('يمكن عكس القيود المباشرة فقط. القيود المرتبطة بالتزامات تحتاج تسوية مخصصة.');if(w.journals.some(x=>x.reversal===j.id))throw Error('تم عكس هذا القيد بالفعل.');journal('reversal','عكس: '+j.memo+' — '+str(p.reason,200),date(p.date),j.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,j.id);description='عكس قيد مع الاحتفاظ بالأصل';}
+else if(action==='lease'){
+ const pr=project(p.project);
+ const total=cents(p.totalAmount);
+ const start=date(p.startDate);
+ const end=date(p.endDate);
+ if(end<start)throw Error('تاريخ نهاية عقد الإيجار لا يمكن أن يسبق بدايته.');
+ if(!total)throw Error('أدخل إجمالي قيمة الإيجار.');
+ const mode=['once','monthly','quarterly','semiannual','custom'].includes(p.scheduleType)?p.scheduleType:'once';
+ const leaseId=uid();
+ let installments:{date:string;amount:number}[]=[];
+ if(mode==='custom'){
+   const raw=str(p.installments||'',12000);
+   installments=raw.split('\n').map((line:string)=>{
+     const parts=line.split(',').map(x=>x.trim());
+     if(parts.length!==2)throw Error('صيغة دفعات الإيجار المخصصة: التاريخ,المبلغ');
+     return {date:date(parts[0]),amount:cents(parts[1])};
+   }).filter(x=>x.amount>0);
+   if(!installments.length)throw Error('أدخل دفعة إيجار مخصصة واحدة على الأقل.');
+ }else{
+   const paymentDate=date(p.paymentDate||start);
+   if(mode==='once')installments=[{date:paymentDate,amount:total}];
+   else{
+     const step=mode==='monthly'?1:mode==='quarterly'?3:6;
+     const count=Math.max(1,Math.floor((Number(end.slice(0,4))-Number(start.slice(0,4)))*12+(Number(end.slice(5,7))-Number(start.slice(5,7)))/step)+1);
+     const base=Math.floor(total/count);
+     let remaining=total;
+     for(let i=0;i<count;i++){
+       const d=monthAdd(paymentDate,i*step);
+       if(d>end&&i>0)break;
+       const amount=i===count-1?remaining:base;
+       if(amount>0){installments.push({date:d,amount});remaining-=amount;}
+     }
+     if(remaining>0){
+       const last=installments.at(-1);
+       if(last)last.amount+=remaining;
+       else installments=[{date:paymentDate,amount:total}];
+     }
+   }
+ }
+ const scheduledTotal=installments.reduce((s,x)=>s+x.amount,0);
+ if(scheduledTotal!==total)throw Error('مجموع دفعات الإيجار يجب أن يساوي إجمالي العقد بالهللة.');
+ if(installments.some(x=>x.date<start||x.date>end))throw Error('تواريخ دفعات الإيجار يجب أن تقع داخل مدة العقد.');
+ installments.sort((a,b)=>a.date.localeCompare(b.date));
+ const lease=put('lease',{project:pr.id,title:str(p.title||'إيجار المشروع',200),totalAmount:total,startDate:start,endDate:end,scheduleType:mode,status:'active',installments});
+ for(let i=0;i<installments.length;i++)due({project:pr.id,title:'إيجار — '+str(p.title||pr.data.name,120)+' / '+(i+1),amount:installments[i].amount,date:installments[i].date,direction:'out',category:'expense',certainty:num(p.certainty??100,0,100),leaseId,leaseInstallment:i+1,leaseTotal:total});
+ description='إضافة عقد إيجار وجدولة '+installments.length+' دفعة: '+pr.data.name;
+}
 else if(action==='obligation'){project(p.project);const a=cents(p.amount);if(!a)throw Error('أدخل مبلغًا أكبر من صفر.');const start=date(p.date),count=Math.trunc(num(p.count||1,1,365)),repeat=p.repeat||'once';if(!['once','daily','monthly','yearly'].includes(repeat))throw Error('تكرار غير صحيح.');if(!['in','out'].includes(p.direction))throw Error('حدد اتجاه الحركة.');const category=str(p.category);if(!accounts[category]||['cash','inter_receivable','inter_payable','loan','investment','distribution'].includes(category))throw Error('اختر حسابًا مقابلًا صالحًا.');for(let i=0;i<(repeat==='once'?1:count);i++){due({project:p.project,title:str(p.title),amount:a,date:repeat==='daily'?dayAdd(start,i):monthAdd(start,repeat==='yearly'?i*12:i),direction:p.direction,category,certainty:num(p.certainty??100,0,100)});}description='جدولة: '+p.title;}
 else if(action==='settle'){const r=find(p.id,'obligation'),d=r.data;if(d.status!=='pending')throw Error('الاستحقاق تمت معالجته بالفعل.');const dt=date(p.date);let lines:Line[];if(d.loan){lines=[...(d.principal?[{project:d.project,account:'loan',debit:d.principal,credit:0}]:[]),...(d.interest?[{project:d.project,account:'interest',debit:d.interest,credit:0}]:[]),{project:d.project,account:'cash',debit:0,credit:d.amount}];}else lines=pair(d.project,d.direction==='in'?'cash':d.category,d.direction==='in'?d.category:'cash',d.amount);journal('settle',d.title,dt,lines,'obligation:'+r.id);update(r,{...d,status:'paid',paidOn:dt});description='تسوية استحقاق: '+d.title;}
 else if(action==='cancelDue'){const r=find(p.id,'obligation');if(r.data.status!=='pending'||r.data.loan)throw Error('هذا الاستحقاق لا يمكن إلغاؤه من هنا.');update(r,{...r.data,status:'cancelled',reason:str(p.reason)});description='إلغاء استحقاق: '+r.data.title;}

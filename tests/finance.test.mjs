@@ -133,6 +133,7 @@ assert.equal(precisionProject.data.planMonthlyExpenseMicro,123456);
 assert.equal(precisionProject.data.planNetMonthlyMicro,1234444435);
 checks+=4;
 await ok('entry',{project:a,kind:'distribution',amount:2000,date:T,memo:'توزيع'});
+await fail('investmentStart',{lender:a,borrower:b,amount:99999999,start:T,maturity:f.dayAdd(T,7),expectedReturn:500,memo:'اختبار منع تمويل يتجاوز السيولة'});
 await ok('investmentStart',{lender:a,borrower:b,amount:5000,start:T,maturity:f.dayAdd(T,7),expectedReturn:500,memo:'دورة اختبار'});
 w=await read();const cycle=w.records.find(r=>r.kind==='investmentCycle'&&r.data.lender===a&&r.data.borrower===b);assert(cycle);
 await ok('investmentReturn',{id:cycle.id,date:T,actualReturn:500});w=await read();assert.equal(f.balance(w,b).cash,2100000);assert.equal(f.balance(w,b).interest,50000);assert.equal(f.balance(w,a).dividend,-50000);checks++;

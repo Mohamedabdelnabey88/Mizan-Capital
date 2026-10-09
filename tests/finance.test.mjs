@@ -300,7 +300,8 @@ assert.equal(f.profit(w,leaseProject,'2026-01-01',T).net,-8975342);
 assert.equal(f.balance(w,leaseProject).payable,0);
 assert.equal(f.balance(w,leaseProject).rent_payable,-8000000);
 assert.equal(f.balance(w,leaseProject).prepaid_rent,3024658);
-assert.equal(f.balance(w,leaseProject).cash||0,-4000000);
+assert.equal(f.balance(w,leaseProject).cash||0,0);
+assert.equal(f.balance(w,leaseProject).bank||0,-4000000);
 assert.equal(f.actualCashFlow(w,leaseProject,'2026-01-01',T).rows.at(-1).operatingOut,4000000);
 // Paying a future lease installment before the service period creates a prepaid-rent asset, not an early expense.
 await ok('settle',{id:futureLease[0].id,date:T});

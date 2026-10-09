@@ -315,6 +315,21 @@ assert.equal(fundingReport.funding[0].repaid,50000);
 assert.equal(fundingReport.funding[0].outstanding,150000);
 checks+=6;
 
+// Reversed ledger entries must not remain in the outstanding funding report.
+const reversedFundingFixture={records:[],audit:[],journals:[
+ {id:'rf-transfer',date:T,memo:'تمويل داخلي',kind:'transfer',lines:[{project:'lender',account:'inter_receivable',debit:200000,credit:0},{project:'lender',account:'cash',debit:0,credit:200000},{project:'borrower',account:'inter_payable',debit:0,credit:200000},{project:'borrower',account:'cash',debit:200000,credit:0}]},
+ {id:'rf-reversal',date:T,memo:'عكس التمويل',kind:'reversal',reversal:'rf-transfer',lines:[{project:'lender',account:'inter_receivable',debit:0,credit:200000},{project:'lender',account:'cash',debit:200000,credit:0},{project:'borrower',account:'inter_payable',debit:200000,credit:0},{project:'borrower',account:'cash',debit:0,credit:200000}]}
+]};
+assert.equal(f.investmentFundingReport(reversedFundingFixture,'all',T,T).funding.length,0);
+const cancelledRepaymentFixture={records:[
+ {id:'funding-record',kind:'projectFunding',version:1,data:{project:'borrower',sourceType:'project',sourceProject:'lender',amount:200000,date:T}},
+ {id:'cancelled-repayment',kind:'fundingRepayment',version:1,data:{fundingId:'funding-record',amount:50000,date:T,status:'cancelled'}}
+],journals:[],audit:[]};
+const cancelledSummary=f.projectFundingSummaries(cancelledRepaymentFixture,'all',T)[0];
+assert.equal(cancelledSummary.repaid,0);
+assert.equal(cancelledSummary.outstanding,200000);
+checks+=3;
+
 // Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
 w=await read();
 const integratedControl=f.balanceSheetControl(w,'all',T);

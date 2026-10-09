@@ -296,15 +296,16 @@ assert.equal(futureLease[0].data.amount,6000000);
 await ok('settle',{id:currentLease[0].id,date:T});
 w=await read();
 assert.equal(f.profit(w,leaseProject,'2026-01-01',T).net,-8975342);
-assert.equal(f.balance(w,leaseProject).payable,-4975342);
-assert.equal(f.balance(w,leaseProject).prepaid_rent||0,0);
+assert.equal(f.balance(w,leaseProject).payable,0);
+assert.equal(f.balance(w,leaseProject).rent_payable,-8000000);
+assert.equal(f.balance(w,leaseProject).prepaid_rent,3024658);
 assert.equal(f.balance(w,leaseProject).cash||0,-4000000);
 assert.equal(f.actualCashFlow(w,leaseProject,'2026-01-01',T).rows.at(-1).operatingOut,4000000);
 // Paying a future lease installment before the service period creates a prepaid-rent asset, not an early expense.
 await ok('settle',{id:futureLease[0].id,date:T});
 w=await read();
 assert.equal(f.profit(w,leaseProject,'2027-01-01','2027-12-31').net,0);
-assert.equal(f.balance(w,leaseProject).prepaid_rent,6000000);
+assert.equal(f.balance(w,leaseProject).prepaid_rent,9024658);
 checks+=10;
 
 // Internal funding report must apply repayments to the original lender/borrower pair, not create a reversed pair.

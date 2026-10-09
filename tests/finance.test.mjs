@@ -56,6 +56,14 @@ await ok('fundingRepayment',{fundingId:externalFunding.id,amount:1500,date:T,mem
 w=await read();let externalSummary=f.projectFundingSummaries(w,b,T).find(x=>x.id===externalFunding.id);assert.equal(externalSummary.repaid,150000);assert.equal(externalSummary.outstanding,250000);assert.equal(f.profit(w,b).net,0);
 await fail('fundingRepayment',{fundingId:externalFunding.id,amount:2501,date:T,memo:'تجاوز'});
 assert.equal(f.actualCashFlow(w,b,T,T).rows[0].financingIn,400000);assert.equal(f.actualCashFlow(w,b,T,T).rows[0].financingOut,150000);
+const internalFlowFixture={records:[],journals:[
+ {id:'internal-funding',date:T,memo:'تمويل من مشروع آخر — b',kind:'transfer',lines:[{project:'a',account:'cash',debit:0,credit:10000},{project:'a',account:'inter_receivable',debit:10000,credit:0},{project:'b',account:'cash',debit:10000,credit:0},{project:'b',account:'inter_payable',debit:0,credit:10000}]},
+ {id:'internal-repayment',date:T,memo:'استرداد تمويل مشروع → مشروع — b',kind:'fundingRepayment',lines:[{project:'b',account:'inter_payable',debit:2000,credit:0},{project:'b',account:'cash',debit:0,credit:2000},{project:'a',account:'cash',debit:2000,credit:0},{project:'a',account:'inter_receivable',debit:0,credit:2000}]}
+],audit:[]};
+const internalLenderFlow=f.actualCashFlow(internalFlowFixture,'a',T,T).rows[0];
+assert.equal(internalLenderFlow.transferOut,10000);assert.equal(internalLenderFlow.transferIn,2000);assert.equal(internalLenderFlow.financingIn,0);assert.equal(internalLenderFlow.financingOut,0);
+checks+=4;
+
 await ok('entry',{project:a,kind:'income',amount:10000,date:T,memo:'إيراد'});await fail('entry',{project:a,kind:'distribution',amount:4000,date:T,memo:'فوق الاستحقاق'});
 await ok('dailyReport',{project:a,date:T,manager:'مدير الاختبار',gross:10000,channels:{cash:5000,bank:0,mada:5000,visa:0,mastercard:0,receivable:0},memo:'تقرير يومي أول'});
 await fail('dailyReport',{project:a,date:T,manager:'مدير الاختبار',gross:10000,channels:{cash:10000},memo:'تقرير مكرر'});

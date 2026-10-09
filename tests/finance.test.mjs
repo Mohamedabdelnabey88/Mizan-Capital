@@ -304,7 +304,7 @@ checks+=7;
 // Internal funding report must apply repayments to the original lender/borrower pair, not create a reversed pair.
 const fundingReportFixture={records:[],audit:[],journals:[
  {id:'fr-transfer',date:T,memo:'تمويل داخلي',kind:'transfer',lines:[{project:'lender',account:'inter_receivable',debit:200000,credit:0},{project:'lender',account:'cash',debit:0,credit:200000},{project:'borrower',account:'inter_payable',debit:0,credit:200000},{project:'borrower',account:'cash',debit:200000,credit:0}]},
- {id:'fr-repay',date:T,memo:'استرداد تمويل مشروع',kind:'repayTransfer',lines:[{project:'lender',account:'inter_receivable',debit:0,credit:50000},{project:'lender',account:'cash',debit:50000,credit:0},{project:'borrower',account:'inter_payable',debit:50000,credit:0},{project:'borrower',account:'cash',debit:0,credit:50000}]}
+ {id:'fr-repay',date:T,memo:'استرداد تمويل مشروع → مشروع',kind:'fundingRepayment',lines:[{project:'lender',account:'inter_receivable',debit:0,credit:50000},{project:'lender',account:'cash',debit:50000,credit:0},{project:'borrower',account:'inter_payable',debit:50000,credit:0},{project:'borrower',account:'cash',debit:0,credit:50000}]}
 ]};
 const fundingReport=f.investmentFundingReport(fundingReportFixture,'all',T,T);
 assert.equal(fundingReport.funding.length,1,JSON.stringify(fundingReport.funding));

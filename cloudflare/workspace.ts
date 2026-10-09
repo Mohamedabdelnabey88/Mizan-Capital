@@ -191,7 +191,7 @@ else if(action==='lease'){
  if(scheduledTotal!==total)throw Error('مجموع دفعات الإيجار يجب أن يساوي إجمالي العقد بالهللة.');
  if(installments.some(x=>x.date<start||x.date>end))throw Error('تواريخ دفعات الإيجار يجب أن تقع داخل مدة العقد.');
  installments.sort((a,b)=>a.date.localeCompare(b.date));
- const lease=put('lease',{project:pr.id,title:str(p.title||'إيجار المشروع',200),totalAmount:total,startDate:start,endDate:end,scheduleType:mode,status:'active',accountingModel:'period-accrual-v2',paymentAccount:['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'bank',installments});
+ const lease=put('lease',{project:pr.id,title:str(p.title||'إيجار المشروع',200),totalAmount:total,startDate:start,endDate:end,scheduleType:mode,status:'active',accountingModel:'period-accrual-v2',paymentAccount:['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'bank',installments},leaseId);
  for(let i=0;i<installments.length;i++){const installment=installments[i],obligationId=uid();due({project:pr.id,title:'إيجار — '+str(p.title||pr.data.name,120)+' / '+(i+1),amount:installment.amount,date:installment.date,direction:'out',category:'expense',certainty:num(p.certainty??100,0,100),leaseId,leaseInstallment:i+1,leaseTotal:total},obligationId);}
  description='إضافة عقد إيجار وجدولة '+installments.length+' دفعة: '+pr.data.name;
 }

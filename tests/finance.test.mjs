@@ -288,6 +288,7 @@ w=await read();
 const leaseRows=w.records.filter(r=>r.kind==='obligation'&&r.data.leaseId);
 const currentLease=leaseRows.filter(r=>r.data.leaseTotal===12000000);
 assert.equal(currentLease.length,3);
+assert(w.records.some(r=>r.kind==='lease'&&r.id===currentLease[0].data.leaseId),'lease installments must reference the actual lease record');
 assert.equal(currentLease.reduce((s,r)=>s+r.data.amount,0),12000000);
 assert.deepEqual(currentLease.map(r=>r.data.date),['2026-01-15','2026-05-15','2026-09-15']);
 const futureLease=leaseRows.filter(r=>r.data.leaseTotal===6000000);

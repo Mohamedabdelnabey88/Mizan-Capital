@@ -14,4 +14,8 @@ assert(source.includes("const pdfTrialRows=Object.entries(reportBalance)"), 'PDF
 for (const required of ["const balanceAssetAccounts=", "const balanceLiabilityAccounts=", "const balanceAssetsTotal=", "const balanceLiabilitiesTotal=", "const balanceEquityTotal=", "إجمالي الأصول", "إجمالي الالتزامات وحقوق الملكية", "فرق المطابقة (المفترض صفر)", "k==='inter_receivable'||k==='inter_payable'"]) {
   assert(source.includes(required), `Excel balance sheet reconciliation is missing: ${required}`);
 }
+
+assert(source.includes('moneyCell(x.transferIn),moneyCell(x.transferOut),moneyCell(x.otherIn),moneyCell(x.otherOut),moneyCell(x.net,5)'), 'Excel cash flow must include transfer and other movement categories');
+assert(source.includes('تحويلات داخل') && source.includes('تحويلات خارج') && source.includes('أخرى داخل') && source.includes('أخرى خارج'), 'UI, PDF and Excel cash flow reports must expose all cash categories');
+assert(source.includes("fmt(x.transferIn)+'</td><td>'+fmt(x.transferOut)+'</td><td>'+fmt(x.otherIn)+'</td><td>'+fmt(x.otherOut)"), 'PDF cash flow must include transfer and other movements');
 console.log(JSON.stringify({passed:true,checked:['daily reports UI','PDF daily report section','Excel daily report sheet','Excel balance sheet totals and internal-funding elimination']}));

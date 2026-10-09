@@ -21,7 +21,7 @@ async function materializeDueAccruals(db:D1Database,owner:string,skipId='',settl
   validateLines(lines);const kind=d.direction==='out'?'bill':'invoice',memo=(d.direction==='out'?'إثبات مصروف مستحق: ':'إثبات إيراد مستحق: ')+String(d.title||'استحقاق');
   ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(uid(),owner,d.date,memo,kind,JSON.stringify(lines),source,time));known.add(source);
  }
- // Recognize rent over the covered service period, monthly in arrears. The last covered period absorbs rounding residuals.
+ // Recognize contractual installments separately from monthly rent expense.
  const dayNo=(s:string)=>Math.floor(Date.parse(s+'T00:00:00Z')/86400000);
  const iso=(n:number)=>new Date(n*86400000).toISOString().slice(0,10);
  const monthEnd=(s:string)=>{const d=new Date(s+'T12:00:00Z');return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).toISOString().slice(0,10);};
@@ -30,30 +30,47 @@ async function materializeDueAccruals(db:D1Database,owner:string,skipId='',settl
   if(!projectId||!start||!end||!Number.isSafeInteger(total)||total<=0||end<start)continue;
   const pr=w.records.find(x=>x.kind==='project'&&x.id===projectId);if(!pr)continue;
   const totalDays=dayNo(end)-dayNo(start)+1;if(totalDays<=0)continue;
-  const leaseObligations=w.records.filter(x=>x.kind==='obligation'&&x.data.leaseId===lease.id);
+  const leaseObligations=w.records.filter(x=>x.kind==='obligation'&&x.data.leaseId===lease.id).sort((a,b)=>String(a.data.date).localeCompare(String(b.data.date)));
   let cursor=start;
   while(cursor<=end){
    const periodEnd=monthEnd(cursor)<end?monthEnd(cursor):end;
-   if(periodEnd>today())break;
-   const source='lease-accrual:'+lease.id+':'+periodEnd;
-   if(!known.has(source)&&!(pr.data.closedThrough&&periodEnd<=pr.data.closedThrough)){
-    const coveredDays=dayNo(periodEnd)-dayNo(start)+1;
-    const cumulative=periodEnd===end?total:Math.round(total*coveredDays/totalDays);
-    const previous=w.journals.filter(j=>String(j.source||'').startsWith('lease-accrual:'+lease.id+':')&&j.date<periodEnd).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===projectId&&l.account==='expense').reduce((a,l)=>a+l.debit-l.credit,0),0);
-    const amount=cumulative-previous;
-    if(amount>0){
-     const paidToDate=leaseObligations.filter(x=>x.data.status==='paid'&&String(x.data.paidOn||'')<=periodEnd).reduce((sum,x)=>sum+Number(x.data.amount||0),0);
-     const prepaidAvailable=Math.max(0,paidToDate-previous),prepaid=Math.min(amount,prepaidAvailable),payable=amount-prepaid;
-     const lines:Line[]=[{project:projectId,account:'expense',debit:amount,credit:0}];
-     if(prepaid>0)lines.push({project:projectId,account:'prepaid_rent',debit:0,credit:prepaid});
-     if(payable>0)lines.push({project:projectId,account:'payable',debit:0,credit:payable});
-     validateLines(lines);
-     const memo='إثبات مصروف إيجار عن الفترة حتى '+periodEnd,journalId=uid();
-     ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,periodEnd,memo,'bill',JSON.stringify(lines),source,time));
-     w.journals.push({id:journalId,date:periodEnd,memo,kind:'bill',lines,source,created:time});
-     known.add(source);
-    }
+   const cutoff=periodEnd<today()?periodEnd:today();
+   // A payment obligation due before the cutoff becomes a liability. First reclassify any rent expense already accrued; the rest represents prepaid use-of-property rights.
+   for(const obligation of leaseObligations){
+    const od=obligation.data,dueDate=String(od.date||''),dueSource='lease-due:'+obligation.id;
+    if(od.status!=='pending'||dueDate>cutoff||known.has(dueSource)||(pr.data.closedThrough&&dueDate<=pr.data.closedThrough))continue;
+    if(obligation.id===skipId&&settlementDate&&settlementDate<dueDate)continue;
+    const accruedLiability=w.journals.filter(j=>String(j.source||'').startsWith('lease-accrual:'+lease.id+':')&&j.date<dueDate).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===projectId&&l.account==='payable').reduce((a,l)=>a+l.credit-l.debit,0),0);
+    const reclassify=Math.min(Number(od.amount||0),Math.max(0,accruedLiability)),prepaid=Number(od.amount||0)-reclassify;
+    const lines:Line[]=[];
+    if(reclassify>0)lines.push({project:projectId,account:'payable',debit:reclassify,credit:0});
+    if(prepaid>0)lines.push({project:projectId,account:'prepaid_rent',debit:prepaid,credit:0});
+    lines.push({project:projectId,account:'rent_payable',debit:0,credit:Number(od.amount||0)});
+    validateLines(lines);
+    const memo='إثبات استحقاق دفعة إيجار: '+String(od.title||d.title||'إيجار'),journalId=uid();
+    ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,dueDate,memo,'bill',JSON.stringify(lines),dueSource,time));
+    w.journals.push({id:journalId,date:dueDate,memo,kind:'bill',lines,source:dueSource,created:time});known.add(dueSource);
    }
+   // Recognize the covered days only after the period has ended. The final service period absorbs all rounding residue.
+   if(periodEnd<=today()){
+    const source='lease-accrual:'+lease.id+':'+periodEnd;
+    if(!known.has(source)&&!(pr.data.closedThrough&&periodEnd<=pr.data.closedThrough)){
+     const coveredDays=dayNo(periodEnd)-dayNo(start)+1;
+     const cumulative=periodEnd===end?total:Math.round(total*coveredDays/totalDays);
+     const previous=w.journals.filter(j=>String(j.source||'').startsWith('lease-accrual:'+lease.id+':')&&j.date<periodEnd).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===projectId&&l.account==='expense').reduce((a,l)=>a+l.debit-l.credit,0),0);
+     const amount=cumulative-previous;
+     if(amount>0){
+      const prepaidAvailable=Math.max(0,balance(w,projectId,periodEnd).prepaid_rent||0),prepaid=Math.min(amount,prepaidAvailable),payable=amount-prepaid;
+      const lines:Line[]=[{project:projectId,account:'expense',debit:amount,credit:0}];
+      if(prepaid>0)lines.push({project:projectId,account:'prepaid_rent',debit:0,credit:prepaid});
+      if(payable>0)lines.push({project:projectId,account:'payable',debit:0,credit:payable});
+      validateLines(lines);
+      const memo='إثبات مصروف إيجار عن الفترة حتى '+periodEnd,journalId=uid();
+      ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,periodEnd,memo,'bill',JSON.stringify(lines),source,time));
+      w.journals.push({id:journalId,date:periodEnd,memo,kind:'bill',lines,source,created:time});known.add(source);
+     }
+    }
+   }else break;
    cursor=iso(dayNo(periodEnd)+1);
   }
  }
@@ -177,7 +194,7 @@ else if(action==='lease'){
  description='إضافة عقد إيجار وجدولة '+installments.length+' دفعة: '+pr.data.name;
 }
 else if(action==='obligation'){project(p.project);const a=cents(p.amount);if(!a)throw Error('أدخل مبلغًا أكبر من صفر.');const start=date(p.date),count=Math.trunc(num(p.count||1,1,365)),repeat=p.repeat||'once';if(!['once','daily','monthly','yearly'].includes(repeat))throw Error('تكرار غير صحيح.');if(!['in','out'].includes(p.direction))throw Error('حدد اتجاه الحركة.');const category=str(p.category);const categoryType=accounts[category]?.type;if(!accounts[category]||!['income','expense'].includes(categoryType))throw Error('اختر حساب إيراد أو مصروف صالحًا.');for(let i=0;i<(repeat==='once'?1:count);i++){const dueDate=repeat==='daily'?dayAdd(start,i):monthAdd(start,repeat==='yearly'?i*12:i);const rid=uid();due({project:p.project,title:str(p.title),amount:a,date:dueDate,direction:p.direction,category,certainty:num(p.certainty??100,0,100)},rid);if(dueDate<=today())journal(p.direction==='out'?'bill':'invoice',p.direction==='out'?'إثبات مصروف مستحق: ':'إثبات إيراد مستحق: '+str(p.title),dueDate,directionLines(p.project,p.direction,category,a),'obligation-accrual:'+rid);}description='جدولة وإثبات الاستحقاقات المستحقة: '+p.title;}
-else if(action==='settle'){const r=find(p.id,'obligation'),d=r.data;if(d.status!=='pending')throw Error('الاستحقاق تمت معالجته بالفعل.');const dt=date(p.date);let lines:Line[];if(d.loan){const pay=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';lines=[...(d.principal?[{project:d.project,account:'loan',debit:d.principal,credit:0}]:[]),...(d.interest?[{project:d.project,account:'interest',debit:d.interest,credit:0}]:[]),{project:d.project,account:pay,debit:0,credit:d.amount}];}else {const lease=w.records.find(x=>x.kind==='lease'&&x.id===d.leaseId);const pay=lease&&['cash','bank'].includes(p.paymentAccount||lease.data.paymentAccount)?(p.paymentAccount||lease.data.paymentAccount):'cash';const accrual=w.journals.find(j=>j.source==='obligation-accrual:'+r.id);if(lease&&d.direction==='out'){const recognized=w.journals.filter(j=>String(j.source||'').startsWith('lease-accrual:'+lease.id+':')&&j.date<=dt).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===d.project&&l.account==='expense').reduce((a,l)=>a+l.debit-l.credit,0),0);const paidBefore=w.records.filter(x=>x.kind==='obligation'&&x.data.leaseId===lease.id&&x.id!==r.id&&x.data.status==='paid'&&String(x.data.paidOn||'')<=dt).reduce((sum,x)=>sum+Number(x.data.amount||0),0);const payable=Math.min(d.amount,Math.max(0,recognized-paidBefore));const prepaid=d.amount-payable;lines=[...(payable?[{project:d.project,account:'payable',debit:payable,credit:0}]:[]),...(prepaid?[{project:d.project,account:'prepaid_rent',debit:prepaid,credit:0}]:[]),{project:d.project,account:pay,debit:0,credit:d.amount}];}else lines=accrual?pair(d.project,d.direction==='in'?'cash':'payable',d.direction==='in'?'receivable':pay,d.amount):pair(d.project,d.direction==='in'?'cash':d.category,d.direction==='in'?d.category:pay,d.amount);}journal('settle',d.title,dt,lines,'obligation:'+r.id);update(r,{...d,status:'paid',paidOn:dt});if(d.leaseId){const lease=w.records.find(x=>x.kind==='lease'&&x.id===d.leaseId);if(lease){const remaining=w.records.some(x=>x.kind==='obligation'&&x.data.leaseId===d.leaseId&&x.id!==r.id&&x.data.status==='pending');if(!remaining)update(lease,{...lease.data,status:'completed'});}}description='تسوية استحقاق: '+d.title;}
+else if(action==='settle'){const r=find(p.id,'obligation'),d=r.data;if(d.status!=='pending')throw Error('الاستحقاق تمت معالجته بالفعل.');const dt=date(p.date);let lines:Line[];if(d.loan){const pay=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';lines=[...(d.principal?[{project:d.project,account:'loan',debit:d.principal,credit:0}]:[]),...(d.interest?[{project:d.project,account:'interest',debit:d.interest,credit:0}]:[]),{project:d.project,account:pay,debit:0,credit:d.amount}];}else {const lease=w.records.find(x=>x.kind==='lease'&&x.id===d.leaseId);const pay=lease&&['cash','bank'].includes(p.paymentAccount||lease.data.paymentAccount)?(p.paymentAccount||lease.data.paymentAccount):'cash';const accrual=w.journals.find(j=>j.source==='obligation-accrual:'+r.id);if(lease&&d.direction==='out'){const dueJournal=w.journals.find(j=>j.source==='lease-due:'+r.id);if(dueJournal&&dt<d.date)throw Error('تاريخ السداد يسبق تاريخ الاستحقاق المسجل؛ راجع تاريخ السداد قبل التسوية.');lines=dueJournal?pair(d.project,'rent_payable',pay,d.amount):pair(d.project,'prepaid_rent',pay,d.amount);}else lines=accrual?pair(d.project,d.direction==='in'?'cash':'payable',d.direction==='in'?'receivable':pay,d.amount):pair(d.project,d.direction==='in'?'cash':d.category,d.direction==='in'?d.category:pay,d.amount);}journal('settle',d.title,dt,lines,'obligation:'+r.id);update(r,{...d,status:'paid',paidOn:dt});if(d.leaseId){const lease=w.records.find(x=>x.kind==='lease'&&x.id===d.leaseId);if(lease){const remaining=w.records.some(x=>x.kind==='obligation'&&x.data.leaseId===d.leaseId&&x.id!==r.id&&x.data.status==='pending');if(!remaining)update(lease,{...lease.data,status:'completed'});}}description='تسوية استحقاق: '+d.title;}
 else if(action==='cancelDue'){const r=find(p.id,'obligation');if(r.data.status!=='pending'||r.data.loan)throw Error('هذا الاستحقاق لا يمكن إلغاؤه من هنا.');update(r,{...r.data,status:'cancelled',reason:str(p.reason)});description='إلغاء استحقاق: '+r.data.title;}
 else if(action==='dailyReport'){
  const pr=project(p.project),d=date(p.date);if(d>today())throw Error('التقرير اليومي لا يمكن أن يكون مستقبليًا.');

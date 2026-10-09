@@ -62,7 +62,9 @@ const internalFlowFixture={records:[],journals:[
 ],audit:[]};
 const internalLenderFlow=f.actualCashFlow(internalFlowFixture,'a',T,T).rows[0];
 assert.equal(internalLenderFlow.transferOut,10000);assert.equal(internalLenderFlow.transferIn,2000);assert.equal(internalLenderFlow.financingIn,0);assert.equal(internalLenderFlow.financingOut,0);
-checks+=4;
+const internalFundingReport=f.investmentFundingReport(internalFlowFixture,'all',T,T).funding[0];
+assert.deepEqual({lender:internalFundingReport.lender,borrower:internalFundingReport.borrower,funded:internalFundingReport.funded,repaid:internalFundingReport.repaid,outstanding:internalFundingReport.outstanding},{lender:'a',borrower:'b',funded:10000,repaid:2000,outstanding:8000});
+checks+=5;
 
 await ok('entry',{project:a,kind:'income',amount:10000,date:T,memo:'إيراد'});await fail('entry',{project:a,kind:'distribution',amount:4000,date:T,memo:'فوق الاستحقاق'});
 await ok('dailyReport',{project:a,date:T,manager:'مدير الاختبار',gross:10000,channels:{cash:5000,bank:0,mada:5000,visa:0,mastercard:0,receivable:0},memo:'تقرير يومي أول'});

@@ -301,6 +301,20 @@ assert.equal(f.balance(w,leaseProject).cash||0,-4000000);
 assert.equal(f.actualCashFlow(w,leaseProject,'2026-01-01',T).rows.at(-1).operatingOut,4000000);
 checks+=7;
 
+// Internal funding report must apply repayments to the original lender/borrower pair, not create a reversed pair.
+const fundingReportFixture={records:[],audit:[],journals:[
+ {id:'fr-transfer',date:T,memo:'تمويل داخلي',kind:'transfer',lines:[{project:'lender',account:'inter_receivable',debit:200000,credit:0},{project:'lender',account:'cash',debit:0,credit:200000},{project:'borrower',account:'inter_payable',debit:0,credit:200000},{project:'borrower',account:'cash',debit:200000,credit:0}]},
+ {id:'fr-repay',date:T,memo:'استرداد تمويل مشروع',kind:'repayTransfer',lines:[{project:'lender',account:'inter_receivable',debit:0,credit:50000},{project:'lender',account:'cash',debit:50000,credit:0},{project:'borrower',account:'inter_payable',debit:50000,credit:0},{project:'borrower',account:'cash',debit:0,credit:50000}]}
+]};
+const fundingReport=f.investmentFundingReport(fundingReportFixture,'all',T,T);
+assert.equal(fundingReport.funding.length,1,JSON.stringify(fundingReport.funding));
+assert.equal(fundingReport.funding[0].lender,'lender');
+assert.equal(fundingReport.funding[0].borrower,'borrower');
+assert.equal(fundingReport.funding[0].funded,200000);
+assert.equal(fundingReport.funding[0].repaid,50000);
+assert.equal(fundingReport.funding[0].outstanding,150000);
+checks+=6;
+
 // Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
 w=await read();
 const integratedControl=f.balanceSheetControl(w,'all',T);

@@ -288,6 +288,7 @@ w=await read();
 const leaseRows=w.records.filter(r=>r.kind==='obligation'&&r.data.leaseId);
 const currentLease=leaseRows.filter(r=>r.data.leaseTotal===12000000);
 assert.equal(currentLease.length,3);
+assert(w.records.some(r=>r.kind==='lease'&&r.id===currentLease[0].data.leaseId),'lease installments must reference the actual lease record');
 assert.equal(currentLease.reduce((s,r)=>s+r.data.amount,0),12000000);
 assert.deepEqual(currentLease.map(r=>r.data.date),['2026-01-15','2026-05-15','2026-09-15']);
 const futureLease=leaseRows.filter(r=>r.data.leaseTotal===6000000);
@@ -295,11 +296,19 @@ assert.equal(futureLease.length,1);
 assert.equal(futureLease[0].data.amount,6000000);
 await ok('settle',{id:currentLease[0].id,date:T});
 w=await read();
-assert.equal(f.profit(w,leaseProject,'2026-01-01',T).net,-12000000);
-assert.equal(f.balance(w,leaseProject).payable,-8000000);
-assert.equal(f.balance(w,leaseProject).cash||0,-4000000);
+assert.equal(f.profit(w,leaseProject,'2026-01-01',T).net,-8975342);
+assert.equal(f.balance(w,leaseProject).payable,0);
+assert.equal(f.balance(w,leaseProject).rent_payable,-8000000);
+assert.equal(f.balance(w,leaseProject).prepaid_rent,3024658);
+assert.equal(f.balance(w,leaseProject).cash||0,0);
+assert.equal(f.balance(w,leaseProject).bank||0,-4000000);
 assert.equal(f.actualCashFlow(w,leaseProject,'2026-01-01',T).rows.at(-1).operatingOut,4000000);
-checks+=7;
+// Paying a future lease installment before the service period creates a prepaid-rent asset, not an early expense.
+await ok('settle',{id:futureLease[0].id,date:T});
+w=await read();
+assert.equal(f.profit(w,leaseProject,'2027-01-01','2027-12-31').net,0);
+assert.equal(f.balance(w,leaseProject).prepaid_rent,9024658);
+checks+=10;
 
 // Internal funding report must apply repayments to the original lender/borrower pair, not create a reversed pair.
 const fundingReportFixture={records:[],audit:[],journals:[

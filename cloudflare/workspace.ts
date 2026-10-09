@@ -7,7 +7,77 @@ function str(v:any,n=200){if(typeof v!=='string'||!v.trim()||v.length>n)throw Er
 function date(v:any){const s=str(v,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||isNaN(Date.parse(s+'T12:00Z'))||new Date(s+'T12:00Z').toISOString().slice(0,10)!==s)throw Error('تاريخ غير صحيح.');return s;}
 function num(v:any,min:number,max:number){const n=Number(v);if(!Number.isFinite(n)||n<min||n>max)throw Error('قيمة رقمية خارج النطاق المسموح.');return n;}
 async function snapshot(db:D1Database,owner:string):Promise<Workspace>{const [a,b,c]=await Promise.all([db.prepare('SELECT * FROM records WHERE owner=? ORDER BY created').bind(owner).all(),db.prepare('SELECT * FROM journals WHERE owner=? ORDER BY date DESC,created DESC').bind(owner).all(),db.prepare('SELECT * FROM audit WHERE owner=? ORDER BY created DESC LIMIT 200').bind(owner).all()]);const base:any={records:a.results.map((r:any)=>({...r,data:JSON.parse(r.data)})),journals:b.results.map((r:any)=>({...r,lines:JSON.parse(r.lines)})),audit:c.results};for(const pr of base.records.filter((r:any)=>r.kind==='project')){const plans=base.records.filter((r:any)=>r.kind==='projectPlan'&&r.data.project===pr.id).sort((x:any,y:any)=>String(x.data.effectiveFrom).localeCompare(String(y.data.effectiveFrom)));const lp=plans.at(-1)?.data;if(lp){pr.data.planMonthlyRevenueMicro=Number(lp.revenueMonthlyMicro||0);pr.data.planDailyRevenueMicro=Number(lp.revenueDailyMicro||0);pr.data.planMonthlyExpenseMicro=Number(lp.expenseMonthlyMicro||0);pr.data.planNetMonthlyMicro=Number(lp.netMonthlyMicro||0);pr.data.planEffectiveFrom=lp.effectiveFrom;}}const fy=fiscalYearForDate(base);base.projectPerformance=Object.fromEntries(base.records.filter((r:any)=>r.kind==='project'&&r.data.mode==='operating').map((r:any)=>[r.id,projectPerformance(base,r.id,fy.start,fy.end)]));return base;}
-async function materializeDueAccruals(db:D1Database,owner:string,skipId='',settlementDate=''){const w=await snapshot(db,owner),time=new Date().toISOString(),known=new Set(w.journals.map(j=>j.source).filter(Boolean)),ops:D1PreparedStatement[]=[];for(const r of w.records){if(r.kind!=='obligation'||r.data.status!=='pending')continue;const d=r.data,source='obligation-accrual:'+r.id;if(d.date>today()||known.has(source)||!['income','expense'].includes(accounts[d.category]?.type))continue;if(r.id===skipId&&settlementDate&&settlementDate<d.date)continue;const pr=w.records.find(x=>x.kind==='project'&&x.id===d.project);if(!pr||(pr.data.closedThrough&&d.date<=pr.data.closedThrough))continue;const lines:Line[]=d.direction==='out'?[{project:d.project,account:d.category,debit:d.amount,credit:0},{project:d.project,account:'payable',debit:0,credit:d.amount}]:[{project:d.project,account:'receivable',debit:d.amount,credit:0},{project:d.project,account:d.category,debit:0,credit:d.amount}];validateLines(lines);const kind=d.direction==='out'?'bill':'invoice',memo=(d.direction==='out'?'إثبات مصروف مستحق: ':'إثبات إيراد مستحق: ')+String(d.title||'استحقاق');ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(uid(),owner,d.date,memo,kind,JSON.stringify(lines),source,time));known.add(source);}if(ops.length)await db.batch(ops);}
+async function materializeDueAccruals(db:D1Database,owner:string,skipId='',settlementDate=''){
+ const w=await snapshot(db,owner),time=new Date().toISOString(),known=new Set(w.journals.map(j=>j.source).filter(Boolean)),ops:D1PreparedStatement[]=[];
+ // Non-lease obligations continue to accrue on their due date. Lease installments are payment schedules, not expense-recognition schedules.
+ for(const r of w.records){
+  if(r.kind!=='obligation'||r.data.status!=='pending')continue;
+  const d=r.data,linkedLease=d.leaseId?w.records.find(x=>x.kind==='lease'&&x.id===d.leaseId):null;
+  if(linkedLease?.data.accountingModel==='period-accrual-v2')continue;
+  const source='obligation-accrual:'+r.id;
+  if(d.date>today()||known.has(source)||!['income','expense'].includes(accounts[d.category]?.type))continue;
+  if(r.id===skipId&&settlementDate&&settlementDate<d.date)continue;
+  const pr=w.records.find(x=>x.kind==='project'&&x.id===d.project);
+  if(!pr||(pr.data.closedThrough&&d.date<=pr.data.closedThrough))continue;
+  const lines:Line[]=d.direction==='out'?[{project:d.project,account:d.category,debit:d.amount,credit:0},{project:d.project,account:'payable',debit:0,credit:d.amount}]:[{project:d.project,account:'receivable',debit:d.amount,credit:0},{project:d.project,account:d.category,debit:0,credit:d.amount}];
+  validateLines(lines);const kind=d.direction==='out'?'bill':'invoice',memo=(d.direction==='out'?'إثبات مصروف مستحق: ':'إثبات إيراد مستحق: ')+String(d.title||'استحقاق');
+  ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(uid(),owner,d.date,memo,kind,JSON.stringify(lines),source,time));known.add(source);
+ }
+ // Recognize contractual installments separately from monthly rent expense.
+ const dayNo=(s:string)=>Math.floor(Date.parse(s+'T00:00:00Z')/86400000);
+ const iso=(n:number)=>new Date(n*86400000).toISOString().slice(0,10);
+ const monthEnd=(s:string)=>{const d=new Date(s+'T12:00:00Z');return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).toISOString().slice(0,10);};
+ for(const lease of w.records.filter(r=>r.kind==='lease'&&r.data.accountingModel==='period-accrual-v2'&&r.data.status!=='cancelled')){
+  const d=lease.data,projectId=String(d.project||''),start=String(d.startDate||''),end=String(d.endDate||''),total=Number(d.totalAmount||0);
+  if(!projectId||!start||!end||!Number.isSafeInteger(total)||total<=0||end<start)continue;
+  const pr=w.records.find(x=>x.kind==='project'&&x.id===projectId);if(!pr)continue;
+  const totalDays=dayNo(end)-dayNo(start)+1;if(totalDays<=0)continue;
+  const leaseObligations=w.records.filter(x=>x.kind==='obligation'&&x.data.leaseId===lease.id).sort((a,b)=>String(a.data.date).localeCompare(String(b.data.date)));
+  let cursor=start;
+  while(cursor<=end){
+   const periodEnd=monthEnd(cursor)<end?monthEnd(cursor):end;
+   const cutoff=periodEnd<today()?periodEnd:today();
+   // A payment obligation due before the cutoff becomes a liability. First reclassify any rent expense already accrued; the rest represents prepaid use-of-property rights.
+   for(const obligation of leaseObligations){
+    const od=obligation.data,dueDate=String(od.date||''),dueSource='lease-due:'+obligation.id;
+    if(od.status!=='pending'||dueDate>cutoff||known.has(dueSource)||(pr.data.closedThrough&&dueDate<=pr.data.closedThrough))continue;
+    if(obligation.id===skipId&&settlementDate&&settlementDate<dueDate)continue;
+    const accruedLiability=w.journals.filter(j=>String(j.source||'').startsWith('lease-accrual:'+lease.id+':')&&j.date<dueDate).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===projectId&&l.account==='payable').reduce((a,l)=>a+l.credit-l.debit,0),0);
+    const reclassify=Math.min(Number(od.amount||0),Math.max(0,accruedLiability)),prepaid=Number(od.amount||0)-reclassify;
+    const lines:Line[]=[];
+    if(reclassify>0)lines.push({project:projectId,account:'payable',debit:reclassify,credit:0});
+    if(prepaid>0)lines.push({project:projectId,account:'prepaid_rent',debit:prepaid,credit:0});
+    lines.push({project:projectId,account:'rent_payable',debit:0,credit:Number(od.amount||0)});
+    validateLines(lines);
+    const memo='إثبات استحقاق دفعة إيجار: '+String(od.title||d.title||'إيجار'),journalId=uid();
+    ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,dueDate,memo,'bill',JSON.stringify(lines),dueSource,time));
+    w.journals.push({id:journalId,date:dueDate,memo,kind:'bill',lines,source:dueSource,created:time});known.add(dueSource);
+   }
+   // Recognize the covered days only after the period has ended. The final service period absorbs all rounding residue.
+   if(periodEnd<=today()){
+    const source='lease-accrual:'+lease.id+':'+periodEnd;
+    if(!known.has(source)&&!(pr.data.closedThrough&&periodEnd<=pr.data.closedThrough)){
+     const coveredDays=dayNo(periodEnd)-dayNo(start)+1;
+     const cumulative=periodEnd===end?total:Math.round(total*coveredDays/totalDays);
+     const previous=w.journals.filter(j=>String(j.source||'').startsWith('lease-accrual:'+lease.id+':')&&j.date<periodEnd).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===projectId&&l.account==='expense').reduce((a,l)=>a+l.debit-l.credit,0),0);
+     const amount=cumulative-previous;
+     if(amount>0){
+      const prepaidAvailable=Math.max(0,balance(w,projectId,periodEnd).prepaid_rent||0),prepaid=Math.min(amount,prepaidAvailable),payable=amount-prepaid;
+      const lines:Line[]=[{project:projectId,account:'expense',debit:amount,credit:0}];
+      if(prepaid>0)lines.push({project:projectId,account:'prepaid_rent',debit:0,credit:prepaid});
+      if(payable>0)lines.push({project:projectId,account:'payable',debit:0,credit:payable});
+      validateLines(lines);
+      const memo='إثبات مصروف إيجار عن الفترة حتى '+periodEnd,journalId=uid();
+      ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,periodEnd,memo,'bill',JSON.stringify(lines),source,time));
+      w.journals.push({id:journalId,date:periodEnd,memo,kind:'bill',lines,source,created:time});known.add(source);
+     }
+    }
+   }else break;
+   cursor=iso(dayNo(periodEnd)+1);
+  }
+ }
+ if(ops.length)await db.batch(ops);
+}
 function identify(req:Request){const owner=req.headers.get('oai-authenticated-user-id');if(!owner)throw Error('AUTH');return owner;}
 export async function GET(req:Request){try{const owner=identify(req),db=database();await materializeDueAccruals(db,owner);return Response.json(await snapshot(db,owner),{headers:{'Cache-Control':'no-store'}});}catch(e:any){return Response.json({error:e.message==='AUTH'?'سجل الدخول للوصول إلى بياناتك.':'تعذر تحميل البيانات. حاول مجددًا.'},{status:e.message==='AUTH'?401:503});}}
 function operatingRows(w:Workspace,year:number){const fy=fiscalYearForStart(w,year);return w.records.filter(r=>r.kind==='project'&&r.data.mode==='operating').map(r=>({...r.data,id:r.id,net:profit(w,r.id,fy.start,fy.end).net}));}
@@ -121,12 +191,12 @@ else if(action==='lease'){
  if(scheduledTotal!==total)throw Error('مجموع دفعات الإيجار يجب أن يساوي إجمالي العقد بالهللة.');
  if(installments.some(x=>x.date<start||x.date>end))throw Error('تواريخ دفعات الإيجار يجب أن تقع داخل مدة العقد.');
  installments.sort((a,b)=>a.date.localeCompare(b.date));
- const lease=put('lease',{project:pr.id,title:str(p.title||'إيجار المشروع',200),totalAmount:total,startDate:start,endDate:end,scheduleType:mode,status:'active',paymentAccount:['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'bank',installments});
- for(let i=0;i<installments.length;i++){const installment=installments[i],obligationId=uid();due({project:pr.id,title:'إيجار — '+str(p.title||pr.data.name,120)+' / '+(i+1),amount:installment.amount,date:installment.date,direction:'out',category:'expense',certainty:num(p.certainty??100,0,100),leaseId,leaseInstallment:i+1,leaseTotal:total},obligationId);if(installment.date<=today())journal('bill','إثبات مصروف إيجار مستحق: '+str(p.title||pr.data.name,120)+' / '+(i+1),installment.date,directionLines(pr.id,'out','expense',installment.amount),'obligation-accrual:'+obligationId);}
+ const lease=put('lease',{project:pr.id,title:str(p.title||'إيجار المشروع',200),totalAmount:total,startDate:start,endDate:end,scheduleType:mode,status:'active',accountingModel:'period-accrual-v2',paymentAccount:['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'bank',installments},leaseId);
+ for(let i=0;i<installments.length;i++){const installment=installments[i],obligationId=uid();due({project:pr.id,title:'إيجار — '+str(p.title||pr.data.name,120)+' / '+(i+1),amount:installment.amount,date:installment.date,direction:'out',category:'expense',certainty:num(p.certainty??100,0,100),leaseId,leaseInstallment:i+1,leaseTotal:total},obligationId);}
  description='إضافة عقد إيجار وجدولة '+installments.length+' دفعة: '+pr.data.name;
 }
 else if(action==='obligation'){project(p.project);const a=cents(p.amount);if(!a)throw Error('أدخل مبلغًا أكبر من صفر.');const start=date(p.date),count=Math.trunc(num(p.count||1,1,365)),repeat=p.repeat||'once';if(!['once','daily','monthly','yearly'].includes(repeat))throw Error('تكرار غير صحيح.');if(!['in','out'].includes(p.direction))throw Error('حدد اتجاه الحركة.');const category=str(p.category);const categoryType=accounts[category]?.type;if(!accounts[category]||!['income','expense'].includes(categoryType))throw Error('اختر حساب إيراد أو مصروف صالحًا.');for(let i=0;i<(repeat==='once'?1:count);i++){const dueDate=repeat==='daily'?dayAdd(start,i):monthAdd(start,repeat==='yearly'?i*12:i);const rid=uid();due({project:p.project,title:str(p.title),amount:a,date:dueDate,direction:p.direction,category,certainty:num(p.certainty??100,0,100)},rid);if(dueDate<=today())journal(p.direction==='out'?'bill':'invoice',p.direction==='out'?'إثبات مصروف مستحق: ':'إثبات إيراد مستحق: '+str(p.title),dueDate,directionLines(p.project,p.direction,category,a),'obligation-accrual:'+rid);}description='جدولة وإثبات الاستحقاقات المستحقة: '+p.title;}
-else if(action==='settle'){const r=find(p.id,'obligation'),d=r.data;if(d.status!=='pending')throw Error('الاستحقاق تمت معالجته بالفعل.');const dt=date(p.date);let lines:Line[];if(d.loan){const pay=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';lines=[...(d.principal?[{project:d.project,account:'loan',debit:d.principal,credit:0}]:[]),...(d.interest?[{project:d.project,account:'interest',debit:d.interest,credit:0}]:[]),{project:d.project,account:pay,debit:0,credit:d.amount}];}else {const lease=w.records.find(x=>x.kind==='lease'&&x.id===d.leaseId);const pay=lease&&['cash','bank'].includes(p.paymentAccount||lease.data.paymentAccount)?(p.paymentAccount||lease.data.paymentAccount):'cash';const accrual=w.journals.find(j=>j.source==='obligation-accrual:'+r.id);lines=accrual?pair(d.project,d.direction==='in'?'cash':'payable',d.direction==='in'?'receivable':pay,d.amount):pair(d.project,d.direction==='in'?'cash':d.category,d.direction==='in'?d.category:pay,d.amount);}journal('settle',d.title,dt,lines,'obligation:'+r.id);update(r,{...d,status:'paid',paidOn:dt});if(d.leaseId){const lease=w.records.find(x=>x.kind==='lease'&&x.id===d.leaseId);if(lease){const remaining=w.records.some(x=>x.kind==='obligation'&&x.data.leaseId===d.leaseId&&x.id!==r.id&&x.data.status==='pending');if(!remaining)update(lease,{...lease.data,status:'completed'});}}description='تسوية استحقاق: '+d.title;}
+else if(action==='settle'){const r=find(p.id,'obligation'),d=r.data;if(d.status!=='pending')throw Error('الاستحقاق تمت معالجته بالفعل.');const dt=date(p.date);let lines:Line[];if(d.loan){const pay=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';lines=[...(d.principal?[{project:d.project,account:'loan',debit:d.principal,credit:0}]:[]),...(d.interest?[{project:d.project,account:'interest',debit:d.interest,credit:0}]:[]),{project:d.project,account:pay,debit:0,credit:d.amount}];}else {const lease=w.records.find(x=>x.kind==='lease'&&x.id===d.leaseId);const pay=lease&&['cash','bank'].includes(p.paymentAccount||lease.data.paymentAccount)?(p.paymentAccount||lease.data.paymentAccount):'cash';const accrual=w.journals.find(j=>j.source==='obligation-accrual:'+r.id);if(lease&&lease.data.accountingModel==='period-accrual-v2'&&d.direction==='out'){const dueJournal=w.journals.find(j=>j.source==='lease-due:'+r.id);if(dueJournal&&dt<d.date)throw Error('تاريخ السداد يسبق تاريخ الاستحقاق المسجل؛ راجع تاريخ السداد قبل التسوية.');lines=dueJournal?pair(d.project,'rent_payable',pay,d.amount):pair(d.project,'prepaid_rent',pay,d.amount);}else lines=accrual?pair(d.project,d.direction==='in'?'cash':'payable',d.direction==='in'?'receivable':pay,d.amount):pair(d.project,d.direction==='in'?'cash':d.category,d.direction==='in'?d.category:pay,d.amount);}journal('settle',d.title,dt,lines,'obligation:'+r.id);update(r,{...d,status:'paid',paidOn:dt});if(d.leaseId){const lease=w.records.find(x=>x.kind==='lease'&&x.id===d.leaseId);if(lease){const remaining=w.records.some(x=>x.kind==='obligation'&&x.data.leaseId===d.leaseId&&x.id!==r.id&&x.data.status==='pending');if(!remaining)update(lease,{...lease.data,status:'completed'});}}description='تسوية استحقاق: '+d.title;}
 else if(action==='cancelDue'){const r=find(p.id,'obligation');if(r.data.status!=='pending'||r.data.loan)throw Error('هذا الاستحقاق لا يمكن إلغاؤه من هنا.');update(r,{...r.data,status:'cancelled',reason:str(p.reason)});description='إلغاء استحقاق: '+r.data.title;}
 else if(action==='dailyReport'){
  const pr=project(p.project),d=date(p.date);if(d>today())throw Error('التقرير اليومي لا يمكن أن يكون مستقبليًا.');

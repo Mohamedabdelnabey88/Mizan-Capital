@@ -48,7 +48,9 @@ async function materializeDueAccruals(db:D1Database,owner:string,skipId='',settl
      if(prepaid>0)lines.push({project:projectId,account:'prepaid_rent',debit:0,credit:prepaid});
      if(payable>0)lines.push({project:projectId,account:'payable',debit:0,credit:payable});
      validateLines(lines);
-     ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(uid(),owner,periodEnd,'إثبات مصروف إيجار عن الفترة حتى '+periodEnd,'bill',JSON.stringify(lines),source,time));
+     const memo='إثبات مصروف إيجار عن الفترة حتى '+periodEnd,journalId=uid();
+     ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,periodEnd,memo,'bill',JSON.stringify(lines),source,time));
+     w.journals.push({id:journalId,date:periodEnd,memo,kind:'bill',lines,source,created:time});
      known.add(source);
     }
    }

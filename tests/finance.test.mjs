@@ -194,7 +194,7 @@ await ok('projectFunding',{project:a,sourceType:'personal',amount:500,date:T,mem
 w=await read();
 const repFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل تجريبي مع استرداد');
 assert(repFunding);
-await ok('fundingRepayment',{fundingId:repFunding.id,amount:100,date:T,memo:'استرداد جزئي'});
+await ok('fundingRepayment',{fundingId:repFunding.id,amount:100,date:f.dayAdd(T,1),memo:'استرداد مستقبلي لا يخصم من الرصيد حتى تاريخه'});await ok('fundingRepayment',{fundingId:repFunding.id,amount:100,date:T,memo:'استرداد جزئي بتاريخ اليوم'});
 await fail('cancelFunding',{id:repFunding.id,date:T,reason:'لا يجب الإلغاء بعد الاسترداد'});
 await ok('projectFunding',{project:b,sourceType:'personal',amount:250,date:T,memo:'تمويل سيتم إلغاؤه'});
 w=await read();const cancelledFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل سيتم إلغاؤه');assert(cancelledFunding);

@@ -157,8 +157,9 @@ export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=
   if(['capital','loan','prepay','distribution','annualOwnerDistribution'].includes(kind))return 'financing';
   if(kind==='settle')return j.lines.some(l=>l.account==='loan'||l.account==='interest')?'financing':'operating';
   if(['transfer','repayTransfer','fundingRepayment'].includes(kind)){
+   if(j.lines.some(l=>l.account==='inter_receivable'||l.account==='inter_payable'))return 'transfer';
    if(kind==='transfer'&&/تمويل شخصي|تمويل خارجي مستحق/.test(j.memo))return 'financing';
-   if(kind==='fundingRepayment')return /تمويل من مشروع آخر/.test(j.memo)?'transfer':'financing';
+   if(kind==='fundingRepayment')return 'financing';
    return 'transfer';
   }
   return 'other';

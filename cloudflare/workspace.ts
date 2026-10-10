@@ -380,6 +380,9 @@ if(patches.size){
  ops.push(db.prepare("INSERT INTO commands(id,owner,created) SELECT ?,?,? WHERE changes()<>?").bind(id,owner,time,patches.size));
 }
 for(const [pid,version]of ledgerLocks){
+ // A record already updated through the optimistic patch map is version-guarded by that UPDATE.
+ // Do not lock/version-bump it a second time using its now-stale snapshot version.
+ if(patches.has(pid))continue;
  ops.push(db.prepare('UPDATE records SET version=version+1 WHERE id=? AND owner=? AND version=?').bind(pid,owner,version));
  // Same atomic conflict guard for project ledger locks.
  ops.push(db.prepare("INSERT INTO commands(id,owner,created) SELECT ?,?,? WHERE changes()<>1").bind(id,owner,time));

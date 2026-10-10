@@ -78,8 +78,24 @@ try{
   const rows=(await db.prepare('SELECT owner FROM records').all()).results;
   assert.deepEqual(rows.map(r=>r.owner),['cloudflare-owner','cloudflare-owner','cloudflare-owner','cloudflare-owner']);checks++;
 
-  let w=await (await call()).json();const project=w.records[0].id;
+  let w=await (await call()).json();const project=w.records.find(r=>r.kind==='project').id;
   const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const projectRecord=w.records.find(r=>r.id===project);
+  await expectStatus({method:'POST',body:{action:'projectSettings',requestId:crypto.randomUUID(),payload:{id:project,version:projectRecord.version,name:projectRecord.data.name,reserve:0,payout:30,expectedNetProfit:'24000',targetPeriod:'annual',expectedReceiptDate:'',expectedReceiptInstallments:[],planEffectiveFrom:date}}},200);
+  w=await (await call()).json();
+  const annualPlan=w.records.filter(r=>r.kind==='projectPlan'&&r.data.project===project).at(-1);
+  assert.equal(annualPlan.data.targetPeriod,'annual');
+  assert.equal(annualPlan.data.netTargetMicro,2400000000);
+  assert.equal(annualPlan.data.netMonthlyMicro,200000000);checks++;
+  const nextMonth=d=>{const x=new Date(d+'T00:00:00Z');x.setUTCMonth(x.getUTCMonth()+1);return x.toISOString().slice(0,10);};
+  const repeatStart=nextMonth(date),repeatEnd=nextMonth(nextMonth(repeatStart));
+  await expectStatus({method:'POST',body:{action:'obligation',requestId:crypto.randomUUID(),payload:{project,title:'تحصيل شهري تجريبي',amount:2000,date:repeatStart,repeat:'monthly',repeatEnd,direction:'in',category:'revenue',certainty:100}}},200);
+  w=await (await call()).json();
+  const repeated=w.records.filter(r=>r.kind==='obligation'&&r.data.title==='تحصيل شهري تجريبي');
+  assert.equal(repeated.length,3);
+  assert.deepEqual(repeated.map(r=>r.data.date),[repeatStart,nextMonth(repeatStart),repeatEnd]);
+  assert(repeated.every(r=>r.data.amount===200000));
+  assert(!w.journals.some(j=>j.memo.includes('تحصيل شهري تجريبي')));checks+=4;
   await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{project,name:'360 قسطًا',amount:360000,monthlyPayment:1000,months:360,start:date,firstDate:date}}},200);
   w=await (await call()).json();const loan=w.records.find(r=>r.kind==='loan');let due=w.records.filter(r=>r.data.loan===loan.id&&r.data.status==='pending');
   assert.equal(due.length,360);checks++;

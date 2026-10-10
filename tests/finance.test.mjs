@@ -40,6 +40,13 @@ async function ok(action,payload,id){const r=await call(action,payload,'test-own
 async function fail(action,payload){const r=await call(action,payload);assert.equal(r.status,400,JSON.stringify(r));checks++;}
 assert.equal((await call('project',{},'')).status,401);
 await ok('project',{name:'التشغيل',activity:'اختبار',mode:'operating',ownership:100,reserve:1000,payout:30});await ok('project',{name:'الشراكة',activity:'اختبار',mode:'operating',ownership:60,reserve:0,payout:30});let w=await read(),[a,b]=w.records.filter(r=>r.kind==='project').map(r=>r.id);
+// Regression: saving a liquidity/project profit plan updates the project and also guards its ledger.
+// The project must not be version-checked twice in the same atomic D1 batch.
+let projectA=w.records.find(r=>r.id===a&&r.kind==='project');
+await ok('projectSettings',{id:a,version:projectA.version,name:projectA.data.name,reserve:projectA.data.reserve/100,expectedNetMonthly:(projectA.data.expectedNetMonthly||0)/100,expectedNetProfit:'1200',targetPeriod:'monthly',expectedReceiptDate:T,planEffectiveFrom:T,payout:projectA.data.payout,partner:projectA.data.partner||''});
+w=await read();projectA=w.records.find(r=>r.id===a&&r.kind==='project');
+await ok('projectSettings',{id:a,version:projectA.version,name:projectA.data.name,reserve:projectA.data.reserve/100,expectedNetMonthly:(projectA.data.expectedNetMonthly||0)/100,expectedNetProfit:'1500',targetPeriod:'monthly',expectedReceiptDate:T,planEffectiveFrom:T,payout:projectA.data.payout,partner:projectA.data.partner||''});
+w=await read();assert.equal(w.records.filter(r=>r.kind==='projectPlan'&&r.data.project===a).length,3,'initial project plan plus two successful revisions');
 const key=crypto.randomUUID();await ok('entry',{project:a,kind:'capital',amount:100000,date:T,memo:'رأس مال'},key);await ok('entry',{project:a,kind:'capital',amount:100000,date:T,memo:'رأس مال'},key);w=await read();assert.equal(f.balance(w,a).cash,10000000);assert.equal(w.journals.length,1);assert.equal((await read('other-owner')).journals.length,0);assert.equal((await call('entry',{project:a,kind:'income',amount:1,date:T,memo:'اختبار'},'other-owner')).status,400);
 await ok('entry',{project:a,target:b,kind:'transfer',amount:20000,date:T,memo:'تمويل داخلي'});w=await read();assert.equal(f.balance(w).cash,10000000);assert.equal(f.profit(w).net,0);assert.equal(f.balance(w).inter_receivable,-f.balance(w).inter_payable);
 assert.equal(f.internalFunding(w,a,b),2000000);

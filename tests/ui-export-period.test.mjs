@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 const source = await fs.readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
 const scoped = "dailyReports.filter(r=>String(r.data.date)>=from&&String(r.data.date)<=to&&(scope==='all'||r.data.project===scope))";
 const unscoped = "dailyReports.filter(r=>scope==='all'||r.data.project===scope)";
-assert.equal(source.split(scoped).length - 1, 3, 'UI, PDF, and Excel daily reports must all respect the selected date range and project');
+assert.equal(source.split(scoped).length - 1, 4, 'Daily report period KPIs, UI, PDF, and Excel must all respect the selected date range and project');
 assert.equal(source.split(unscoped).length - 1, 0, 'No daily report list/export should ignore the selected date range');
 const oldBalanceRows = "const balanceRows=Object.entries(scopedBalance).filter(([,v])=>v!==0).map(([k,v])=>[{v:accounts[k].name},{v:accounts[k].type},{v:v/100,style:4}] as ExportCell[]);";
 assert.equal(source.includes(oldBalanceRows), false, 'Excel balance sheet must not export raw ledger balances as if they were a balance sheet');

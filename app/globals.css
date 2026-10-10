@@ -189,3 +189,40 @@ input[type=range]{accent-color:#0f766e}
   .app-sidebar [data-slot=sidebar-menu-button][data-active=true]{box-shadow:0 3px 12px #061b2a25}
 }
 @media(prefers-reduced-motion:reduce){.stat-card,.btn,.app-sidebar [data-slot=sidebar-menu-button]{transition:none}}
+
+
+/* Premium project performance cards and monthly revenue close workbench */
+.project-card-premium{position:relative;display:flex;flex-direction:column;gap:0;overflow:hidden;border:1px solid #dce8e4;border-radius:20px;background:linear-gradient(155deg,#fff 0%,#fbfdfc 72%,#f1f8f6 100%);box-shadow:0 8px 26px rgba(18,65,58,.055);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.project-card-premium:before{content:"";position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,#0f766e,#2563eb,#8b5cf6)}
+.project-card-premium:hover{transform:translateY(-2px);border-color:#b8d5ce;box-shadow:0 14px 32px rgba(18,65,58,.09)}
+.project-card-premium .project-card-top{margin-bottom:12px}
+.project-card-title{display:flex;flex-direction:column;gap:5px;margin-bottom:17px}
+.project-card-title h3{font-size:19px;font-weight:750;letter-spacing:-.02em;color:#142f35}
+.project-period-label{font-size:11px;color:#71858a}
+.project-net-highlight{padding:15px;border:1px solid #e1eeea;border-radius:14px;background:linear-gradient(135deg,#f2faf7,#f7f9ff);display:flex;flex-direction:column;gap:10px}
+.project-net-highlight>span{font-size:12px;color:#58716e}
+.project-net-highlight>strong{font-size:27px;line-height:1.2;font-weight:750;font-variant-numeric:tabular-nums}
+.project-net-highlight .ownership-bar{height:6px;background:#e3ebe8}
+.project-net-highlight .ownership-bar i{background:linear-gradient(90deg,#0f766e,#22a699)}
+.project-plan-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px;color:#627a77}
+.project-plan-row b{color:#274c48;font-size:12px}
+.project-amounts-premium{margin:13px 0 16px;gap:10px}
+.project-amounts-premium>div{min-width:0;padding:12px;border-radius:12px;background:#f7f9fa;border:1px solid #edf1f2}
+.project-amounts-premium small{font-size:11px;color:#71818a}
+.project-amounts-premium b{display:block;font-size:17px;line-height:1.4;overflow-wrap:anywhere}
+.project-coverage{padding:12px 0 14px;border-top:1px solid #e9efed;margin-top:auto}
+.project-coverage>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:#647a78}
+.project-coverage>div:first-child b{font-size:12px;color:#244b47}
+.project-coverage-track{height:5px;background:#e8efed;border-radius:99px;overflow:hidden;margin:9px 0 7px}
+.project-coverage-track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#0f766e,#38b2a1)}
+.project-coverage>small{font-size:10px;line-height:1.6;color:#758783;display:block}
+.project-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.project-card-actions .btn{width:100%;justify-content:center;gap:6px;padding-inline:8px;font-size:12px;min-height:38px}
+.monthly-close-toolbar{display:grid;grid-template-columns:minmax(160px,.7fr) minmax(220px,1fr) auto;gap:14px;align-items:end;padding:4px 0 18px}
+.monthly-close-toolbar .field input{width:100%;min-height:42px;border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:white;color:var(--foreground)}
+.monthly-close-summary{display:flex;flex-direction:column;gap:4px;padding:12px 15px;border:1px solid #dbece7;border-radius:12px;background:linear-gradient(135deg,#f0faf6,#f7f9ff);min-width:0}
+.monthly-close-summary>span{font-size:11px;color:#607a74}
+.monthly-close-summary>strong{font-size:23px;line-height:1.3;color:#17685e;font-weight:750}
+.monthly-close-summary>small{font-size:10px;color:#718681}
+@media(max-width:760px){.monthly-close-toolbar{grid-template-columns:1fr}.project-card-actions{grid-template-columns:1fr 1fr}.project-net-highlight>strong{font-size:24px}.project-card-title h3{font-size:17px}}
+@media(prefers-reduced-motion:reduce){.project-card-premium{transition:none}.project-card-premium:hover{transform:none}}

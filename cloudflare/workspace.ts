@@ -36,23 +36,6 @@ async function materializeDueAccruals(db:D1Database,owner:string,skipId='',settl
   let cursor=start;
   while(cursor<=end){
    const periodEnd=monthEnd(cursor)<end?monthEnd(cursor):end;
-   const cutoff=periodEnd<today()?periodEnd:today();
-   // A payment obligation due before the cutoff becomes a liability. First reclassify any rent expense already accrued; the rest represents prepaid use-of-property rights.
-   for(const obligation of leaseObligations){
-    const od=obligation.data,dueDate=String(od.date||''),dueSource='lease-due:'+obligation.id;
-    if(od.status!=='pending'||dueDate>cutoff||known.has(dueSource)||(pr.data.closedThrough&&dueDate<=pr.data.closedThrough))continue;
-    if(obligation.id===skipId&&settlementDate&&settlementDate<dueDate)continue;
-    const accruedLiability=w.journals.filter(j=>String(j.source||'').startsWith('lease-accrual:'+lease.id+':')&&j.date<dueDate).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===projectId&&l.account==='payable').reduce((a,l)=>a+l.credit-l.debit,0),0);
-    const reclassify=Math.min(Number(od.amount||0),Math.max(0,accruedLiability)),prepaid=Number(od.amount||0)-reclassify;
-    const lines:Line[]=[];
-    if(reclassify>0)lines.push({project:projectId,account:'payable',debit:reclassify,credit:0});
-    if(prepaid>0)lines.push({project:projectId,account:'prepaid_rent',debit:prepaid,credit:0});
-    lines.push({project:projectId,account:'rent_payable',debit:0,credit:Number(od.amount||0)});
-    validateLines(lines);
-    const memo='إثبات استحقاق دفعة إيجار: '+String(od.title||d.title||'إيجار'),journalId=uid();
-    ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,dueDate,memo,'bill',JSON.stringify(lines),dueSource,time));
-    w.journals.push({id:journalId,date:dueDate,memo,kind:'bill',lines,source:dueSource,created:time});known.add(dueSource);
-   }
    // Recognize the covered days only after the period has ended. The final service period absorbs all rounding residue.
    if(periodEnd<=today()){
     const source='lease-accrual:'+lease.id+':'+periodEnd;
@@ -74,6 +57,23 @@ async function materializeDueAccruals(db:D1Database,owner:string,skipId='',settl
     }
    }else break;
    cursor=iso(dayNo(periodEnd)+1);
+  }
+
+  // Process due installment invoices only after historical monthly accruals exist, so accrued rent is reclassified instead of misreported as prepaid.
+  for(const obligation of leaseObligations){
+   const od=obligation.data,dueDate=String(od.date||''),dueSource='lease-due:'+obligation.id;
+   if(od.status!=='pending'||dueDate>today()||known.has(dueSource)||(pr.data.closedThrough&&dueDate<=pr.data.closedThrough))continue;
+   if(obligation.id===skipId&&settlementDate&&settlementDate<dueDate)continue;
+   const accruedLiability=w.journals.filter(j=>String(j.source||'').startsWith('lease-accrual:'+lease.id+':')&&j.date<dueDate).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===projectId&&l.account==='payable').reduce((a,l)=>a+l.credit-l.debit,0),0);
+   const reclassify=Math.min(Number(od.amount||0),Math.max(0,accruedLiability)),prepaid=Number(od.amount||0)-reclassify;
+   const lines:Line[]=[];
+   if(reclassify>0)lines.push({project:projectId,account:'payable',debit:reclassify,credit:0});
+   if(prepaid>0)lines.push({project:projectId,account:'prepaid_rent',debit:prepaid,credit:0});
+   lines.push({project:projectId,account:'rent_payable',debit:0,credit:Number(od.amount||0)});
+   validateLines(lines);
+   const memo='إثبات استحقاق دفعة إيجار: '+String(od.title||d.title||'إيجار'),journalId=uid();
+   ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,dueDate,memo,'bill',JSON.stringify(lines),dueSource,time));
+   w.journals.push({id:journalId,date:dueDate,memo,kind:'bill',lines,source:dueSource,created:time});known.add(dueSource);
   }
  }
  if(ops.length)await db.batch(ops);

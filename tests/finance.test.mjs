@@ -318,6 +318,8 @@ checks+=15;
 
 // Internal funding report must apply repayments to the original lender/borrower pair, not create a reversed pair.
 const fundingReportFixture={records:[],audit:[],journals:[
+ {id:'fr-old-transfer',date:'2026-10-01',memo:'تمويل سابق',kind:'transfer',lines:[{project:'lender',account:'inter_receivable',debit:100000,credit:0},{project:'lender',account:'cash',debit:0,credit:100000},{project:'borrower',account:'inter_payable',debit:0,credit:100000},{project:'borrower',account:'cash',debit:100000,credit:0}]},
+ {id:'fr-old-repay',date:'2026-10-02',memo:'سداد سابق',kind:'fundingRepayment',lines:[{project:'lender',account:'inter_receivable',debit:0,credit:25000},{project:'lender',account:'cash',debit:25000,credit:0},{project:'borrower',account:'inter_payable',debit:25000,credit:0},{project:'borrower',account:'cash',debit:0,credit:25000}]},
  {id:'fr-transfer',date:T,memo:'تمويل داخلي',kind:'transfer',lines:[{project:'lender',account:'inter_receivable',debit:200000,credit:0},{project:'lender',account:'cash',debit:0,credit:200000},{project:'borrower',account:'inter_payable',debit:0,credit:200000},{project:'borrower',account:'cash',debit:200000,credit:0}]},
  {id:'fr-repay',date:T,memo:'استرداد تمويل مشروع → مشروع',kind:'fundingRepayment',lines:[{project:'lender',account:'inter_receivable',debit:0,credit:50000},{project:'lender',account:'cash',debit:50000,credit:0},{project:'borrower',account:'inter_payable',debit:50000,credit:0},{project:'borrower',account:'cash',debit:0,credit:50000}]}
 ]};
@@ -327,7 +329,7 @@ assert.equal(fundingReport.funding[0].lender,'lender');
 assert.equal(fundingReport.funding[0].borrower,'borrower');
 assert.equal(fundingReport.funding[0].funded,200000);
 assert.equal(fundingReport.funding[0].repaid,50000);
-assert.equal(fundingReport.funding[0].outstanding,150000);
+assert.equal(fundingReport.funding[0].outstanding,225000,'outstanding must include prior-period funding and repayments while activity columns respect the selected period');
 checks+=6;
 
 // Reversed ledger entries must not remain in the outstanding funding report.

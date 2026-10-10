@@ -18,6 +18,8 @@ const cashFixture={records:[
 const daily=f.forecast(cashFixture,'a',20000);
 assert.equal(daily.min,10000);assert.equal(daily.buckets[0].cash,110000);assert.equal(daily.shortfall,10000);assert.equal(daily.firstGap,f.dayAdd(now,1));
 assert.equal(f.firstAffordableDate(daily,30000,20000),f.dayAdd(now,5));
+const plannedCollection={records:[...cashFixture.records,{id:'plan',kind:'projectPlan',version:1,data:{project:'a',effectiveFrom:now,targetPeriod:'annual',netTargetMicro:40000000,expectedReceiptDate:f.dayAdd(now,8)}}],journals:cashFixture.journals,audit:[]};
+assert.equal(f.forecast(plannedCollection,'a').days.find(d=>d.date===f.dayAdd(now,8)).income,40000,'dated planned net-profit collection is reflected in liquidity forecast without a journal entry');
 assert.equal(f.forecast({records:[],journals:[],audit:[]},'all',100,0,0,100).shortfall,200);
 const sameDay=structuredClone(cashFixture);sameDay.records[1].data.date=f.dayAdd(now,1);assert.equal(f.forecast(sameDay,'a',20000).min,10000);
 const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/test-worker.mjs',compatibilityDate:'2026-05-15',d1Databases:['DB']});

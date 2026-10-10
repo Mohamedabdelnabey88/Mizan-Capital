@@ -20,6 +20,12 @@ assert.equal(daily.min,10000);assert.equal(daily.buckets[0].cash,110000);assert.
 assert.equal(f.firstAffordableDate(daily,30000,20000),f.dayAdd(now,5));
 const plannedCollection={records:[...cashFixture.records,{id:'plan',kind:'projectPlan',version:1,data:{project:'a',effectiveFrom:now,targetPeriod:'annual',netTargetMicro:40000000,expectedReceiptDate:f.dayAdd(now,8)}}],journals:cashFixture.journals,audit:[]};
 assert.equal(f.forecast(plannedCollection,'a').days.find(d=>d.date===f.dayAdd(now,8)).income,40000,'dated planned net-profit collection is reflected in liquidity forecast without a journal entry');
+const splitPlan={records:[{id:'split-plan',kind:'projectPlan',version:1,data:{project:'a',effectiveFrom:now,targetPeriod:'annual',netTargetMicro:2500000000,expectedReceiptInstallments:[{date:f.dayAdd(now,8),amountMicro:1500000000},{date:f.dayAdd(now,12),amountMicro:1000000000}]}}],journals:cashFixture.journals,audit:[]};
+const splitForecast=f.forecast(splitPlan,'a');
+assert.equal(splitForecast.days.find(d=>d.date===f.dayAdd(now,8)).income,1500000,'first planned installment is forecast on its own date in halala');
+assert.equal(splitForecast.days.find(d=>d.date===f.dayAdd(now,12)).income,1000000,'second planned installment is forecast on its own date in halala');
+assert.equal(splitForecast.days.reduce((sum,d)=>sum+d.income,0),2500000,'multiple installments are included once and remain forecast-only');
+assert.equal(splitPlan.journals.length,cashFixture.journals.length,'planned installments do not create journal entries');
 assert.equal(f.forecast({records:[],journals:[],audit:[]},'all',100,0,0,100).shortfall,200);
 const sameDay=structuredClone(cashFixture);sameDay.records[1].data.date=f.dayAdd(now,1);assert.equal(f.forecast(sameDay,'a',20000).min,10000);
 const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/test-worker.mjs',compatibilityDate:'2026-05-15',d1Databases:['DB']});

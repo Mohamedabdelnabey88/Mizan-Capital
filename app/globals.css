@@ -460,3 +460,24 @@ input,textarea,select,[role="combobox"]{font-size:16px}input[type="date"]{font-s
   .dashboard-overview .project-grid{grid-template-columns:minmax(0,1fr)}
   .dashboard-overview .chart-summary{gap:8px}
 }
+
+
+/* Overview detail sections: icon-driven, one panel at a time */
+.dashboard-overview .overview-section-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:2px 0 0}
+.dashboard-overview .overview-section-tile{display:flex;align-items:center;gap:12px;min-width:0;min-height:86px;padding:15px 14px;border:1px solid #e4ebe5;border-radius:15px;background:#fff;color:#253b30;text-align:right;cursor:pointer;transition:border-color .18s ease,background .18s ease,box-shadow .18s ease}
+.dashboard-overview .overview-section-tile:hover{border-color:#b8d2c1;box-shadow:0 4px 14px rgba(27,67,45,.06)}
+.dashboard-overview .overview-section-tile.active{border-color:#248263;background:#f0f7f2;box-shadow:inset 0 0 0 1px rgba(36,130,99,.12)}
+.dashboard-overview .overview-section-icon{display:flex;align-items:center;justify-content:center;flex:0 0 42px;width:42px;height:42px;border-radius:12px;background:#edf4ee;color:#267354}
+.dashboard-overview .overview-section-tile.active .overview-section-icon{background:#dceee2;color:#176747}
+.dashboard-overview .overview-section-copy{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}
+.dashboard-overview .overview-section-copy b{font-size:13px;line-height:1.7;font-weight:700}
+.dashboard-overview .overview-section-copy small{font-size:11px;line-height:1.7;color:#77857b}
+.dashboard-overview .overview-section-tile>svg:last-child{flex:0 0 auto;color:#829188}
+.dashboard-overview .overview-section-content{min-width:0}
+.dashboard-overview .overview-section-content>.panel{margin:0}
+.dashboard-overview .overview-section-empty{display:flex;align-items:flex-start;gap:13px;padding:18px 20px;border:1px dashed #d7e2d8;border-radius:14px;background:#f9fbf8;color:#40554a}
+.dashboard-overview .overview-section-empty .overview-section-icon{flex-basis:42px}
+.dashboard-overview .overview-section-empty b{display:block;font-size:14px;line-height:1.7}
+.dashboard-overview .overview-section-empty p{margin:4px 0 0;color:#718076;font-size:12px;line-height:1.9}
+@media(max-width:1024px){.dashboard-overview .overview-section-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.dashboard-overview .overview-section-nav{grid-template-columns:minmax(0,1fr);gap:9px}.dashboard-overview .overview-section-tile{min-height:74px;padding:12px}.dashboard-overview .overview-section-copy b{font-size:13px}.dashboard-overview .overview-section-copy small{font-size:11px}}

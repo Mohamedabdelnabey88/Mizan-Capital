@@ -627,3 +627,35 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1;background
 @media(max-width:1200px){.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.project-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.period-filter input{width:135px}}
 @media(max-width:950px){.filterbar{gap:10px;padding:11px}.scope-picker{min-width:0}.period-filter{width:100%;display:flex;justify-content:space-between}.period-filter input{flex:1;min-width:0;width:0}.filter-caption{display:none}}
 @media(max-width:640px){.stat-grid{grid-template-columns:1fr;gap:12px}.stat-card{min-height:150px;padding:18px}.stat-card h2{font-size:27px;margin:11px 0 13px}.project-grid{grid-template-columns:1fr;gap:13px}.project-card,.loan-card{padding:18px}.period-filter{gap:5px;padding:7px}.period-filter input{font-size:12px;padding:7px 5px}.period-filter>span{font-size:11px}.filterbar{margin-bottom:18px}.overview-section-nav{grid-template-columns:1fr;gap:10px}}
+
+
+/* Compact, independent project filters inside dashboard metric cards */
+.stat-card{padding:19px 19px 16px;min-height:0}
+.stat-card h2{font-size:clamp(23px,1.75vw,29px);margin:12px 0 13px}
+.project-filter-wrap{position:relative;margin:0 0 13px;min-width:0;font-size:12px}
+.project-filter-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;color:#6d8175;font-size:11px;font-weight:700}
+.project-filter-count{padding:2px 7px;border-radius:999px;background:#edf4ef;color:#3e7558;font-size:10px;font-weight:700}
+.project-filter-control{position:relative}
+.project-filter-trigger{display:flex;align-items:center;gap:8px;width:100%;min-width:0;min-height:37px;padding:7px 9px;border:1px solid #e1e9e3;border-radius:10px;background:#fbfdfb;color:#314d3f;text-align:right;transition:border-color .16s,background .16s,box-shadow .16s}
+.project-filter-trigger:hover,.project-filter-trigger.is-open{border-color:#a9cbb7;background:#fff;box-shadow:0 0 0 3px #3d80670b}
+.project-filter-trigger-icon{display:grid;place-items:center;width:25px;height:25px;flex:0 0 25px;border-radius:7px;background:#eaf3ed;color:#36765a}
+.project-filter-trigger-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}
+.project-filter-chevron{flex:0 0 auto;color:#84968b;transition:transform .16s}
+.project-filter-trigger.is-open .project-filter-chevron{transform:rotate(180deg)}
+.project-filter-menu{position:absolute;z-index:50;top:calc(100% + 7px);right:0;left:0;padding:8px;border:1px solid #dce7df;border-radius:13px;background:#fff;box-shadow:0 16px 38px #173b2a1c;max-height:250px;overflow:auto}
+.project-filter-menu-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 4px 8px;border-bottom:1px solid #edf2ee;margin-bottom:5px;color:#365442;font-size:11px}
+.project-filter-menu-head button{display:flex;align-items:center;gap:4px;padding:4px 6px;border:0;border-radius:6px;background:#f0f6f1;color:#417459;font-size:10px;font-weight:700;white-space:nowrap}
+.project-filter-option{display:flex;align-items:center;gap:8px;padding:8px 7px;border-radius:8px;cursor:pointer;color:#4d6356;font-size:12px;line-height:1.4;transition:background .12s}
+.project-filter-option:hover,.project-filter-option.selected{background:#f0f7f2}
+.project-filter-option input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.project-filter-check{display:grid;place-items:center;flex:0 0 17px;width:17px;height:17px;border:1px solid #ccd9d0;border-radius:5px;background:#fff;color:#fff}
+.project-filter-option.selected .project-filter-check{border-color:#357957;background:#357957}
+.project-filter-option-name{min-width:0;overflow-wrap:anywhere}
+.project-filter-done{width:100%;margin-top:7px;padding:8px;border:0;border-radius:8px;background:#1d5b43;color:white;font-size:12px;font-weight:700}
+.project-filter-selected{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin:6px 0 2px}
+.project-filter-chip{max-width:100%;padding:3px 7px;border:1px solid #e3ece5;border-radius:6px;background:#f6faf7;color:#60776a;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.project-filter-chip.more{font-weight:700;color:#3f7557}
+.project-filter-clear{border:0;background:transparent;color:#8a6b58;font-size:10px;font-weight:700;padding:3px}
+.project-filter-hint{margin-top:5px;color:#87968d;font-size:10px;line-height:1.5}
+.employee-liability-card .stat-top>svg,.external-liability-card .stat-top>svg{width:34px;height:34px;padding:8px}
+@media(max-width:640px){.stat-card{padding:17px}.project-filter-menu{max-height:220px}.project-filter-trigger{min-height:36px}}

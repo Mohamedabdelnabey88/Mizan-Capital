@@ -115,7 +115,14 @@ const pair=(pr:string,debit:string,credit:string,a:number):Line[]=>[{project:pr,
 const directionLines=(pr:string,direction:string,category:string,a:number):Line[]=>direction==='out'?pair(pr,category,'payable',a):pair(pr,'receivable',category,a);
 const due=(data:any,rid=uid())=>put('obligation',{status:'pending',...data},rid);
 let description=action;
-if(action==='deleteRecord'){
+if(action==='deleteFiscalYear'){
+ const r=find(p.id,'fiscalYear');
+ const linkedSettlement=w.records.find(x=>x.kind==='ownerSettlement'&&String(x.data.fiscalYearStart||'')===String(r.data.start||''));
+ if(linkedSettlement)throw Error('لا يمكن حذف هذه الفترة لأنها مرتبطة بتسوية سنوية معتمدة. احتفظ بها للحفاظ على مرجع التسوية وسجل المراجعة.');
+ ops.push(db.prepare('DELETE FROM records WHERE id=? AND owner=?').bind(r.id,owner));
+ description='حذف تعريف فترة مالية: '+String(r.data.label||r.data.start+' إلى '+r.data.end);
+}
+else if(action==='deleteRecord'){
  const r=find(p.id);
  const financialKinds=new Set(['projectFunding','fundingRepayment','dailyReport','dailyReportCorrection','entry','obligation','lease','settlement','loan','loanSchedule','journal','ownerSettlement','ownerDistribution','investmentCycle','investmentReturn','payroll','payrollAdjustment','closing','fiscalYear']);
  if(financialKinds.has(r.kind)) throw Error('السجل المالي لا يُحذف نهائيًا حتى لا يختفي أثره من الأستاذ والتقارير. استخدم عكس القيد أو التصحيح من الشاشة المناسبة.');

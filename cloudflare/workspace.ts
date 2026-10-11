@@ -115,6 +115,15 @@ const pair=(pr:string,debit:string,credit:string,a:number):Line[]=>[{project:pr,
 const directionLines=(pr:string,direction:string,category:string,a:number):Line[]=>direction==='out'?pair(pr,category,'payable',a):pair(pr,'receivable',category,a);
 const due=(data:any,rid=uid())=>put('obligation',{status:'pending',...data},rid);
 let description=action;
+if(action==='saveReportPeriodPreference'){
+ const start=date(p.start),end=date(p.end);
+ if(start>end)throw Error('تاريخ بداية الفترة يجب ألا يتجاوز تاريخ نهايتها.');
+ const existing=w.records.find(x=>x.kind==='appPreference'&&x.data.key==='selectedReportPeriod');
+ const data={key:'selectedReportPeriod',start,end,updatedAt:time};
+ if(existing)update(existing,data);else put('appPreference',data);
+ description='حفظ تفضيل نطاق التقارير';
+}
+
 if(action==='deleteFiscalYear'){
  const r=find(p.id,'fiscalYear');
  const linkedSettlement=w.records.find(x=>x.kind==='ownerSettlement'&&String(x.data.fiscalYearStart||'')===String(r.data.start||''));

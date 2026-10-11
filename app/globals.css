@@ -659,3 +659,14 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1;background
 .project-filter-hint{margin-top:5px;color:#87968d;font-size:10px;line-height:1.5}
 .employee-liability-card .stat-top>svg,.external-liability-card .stat-top>svg{width:34px;height:34px;padding:8px}
 @media(max-width:640px){.stat-card{padding:17px}.project-filter-menu{max-height:220px}.project-filter-trigger{min-height:36px}}
+
+
+/* Financial periods: compact, readable rows rather than oversized cards */
+.fiscal-years-list{display:grid;gap:8px;margin-top:16px}
+.fiscal-year-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:var(--card,#fff);min-width:0}
+.fiscal-year-details{display:grid;gap:5px;min-width:0}
+.fiscal-year-details>span{font-size:13px;color:var(--muted-foreground,#64748b);direction:ltr;text-align:right}
+.fiscal-year-title{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.fiscal-year-title strong{font-size:14px;font-weight:650}
+.fiscal-year-item .inline-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+@media(max-width:640px){.fiscal-year-item{align-items:stretch;flex-direction:column}.fiscal-year-item .inline-actions{width:100%}.fiscal-year-item .inline-actions .btn{flex:1}}

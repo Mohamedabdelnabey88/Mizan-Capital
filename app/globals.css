@@ -670,3 +670,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1;background
 .fiscal-year-title strong{font-size:14px;font-weight:650}
 .fiscal-year-item .inline-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 @media(max-width:640px){.fiscal-year-item{align-items:stretch;flex-direction:column}.fiscal-year-item .inline-actions{width:100%}.fiscal-year-item .inline-actions .btn{flex:1}}
+
+
+.fiscal-year-item .btn.primary{white-space:nowrap}

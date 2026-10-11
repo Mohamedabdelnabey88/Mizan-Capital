@@ -673,3 +673,73 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1;background
 
 
 .fiscal-year-item .btn.primary{white-space:nowrap}
+
+
+/* Device-first responsive pass: phones, tablets, iPadOS and touch screens */
+html,body{max-width:100%;overflow-x:clip}
+body{-webkit-overflow-scrolling:touch}
+[data-slot="sidebar"][data-mobile="true"]{z-index:70}
+[data-slot="sidebar"][data-mobile="true"] [data-slot="sidebar-inner"]{padding-top:max(14px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
+[data-slot="sidebar-trigger"]{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:12px}
+button,.btn,[role="button"],[role="combobox"]{touch-action:manipulation}
+@media (min-width:641px) and (max-width:1024px){
+  .page-content{padding:20px 18px 14px}
+  .topbar{padding-inline:18px;gap:12px}
+  .page-heading{align-items:flex-start;gap:14px}
+  .heading-actions{flex-wrap:wrap;justify-content:flex-start}
+  .filterbar{align-items:stretch;gap:10px}
+  .scope-picker{flex:1 1 240px;min-width:0}
+  .period-filter{flex:1 1 100%;justify-content:space-between}
+  .period-filter input{width:auto;flex:1;min-width:0}
+  .dashboard-middle,.dashboard-bottom,.split-main{grid-template-columns:minmax(0,1fr);gap:16px}
+  .decision-card{display:block}
+  .project-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+  .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .panel-head{padding:19px 18px 13px}
+  .stacked-form{padding-inline:18px}
+  .finance-dialog,[role="dialog"]{max-width:min(720px,calc(100vw - 36px));max-height:calc(100dvh - 36px);overflow-y:auto;overscroll-behavior:contain}
+  [data-slot="table-container"]{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
+@media (max-width:640px){
+  .topbar{padding-top:max(9px,env(safe-area-inset-top));padding-inline:12px}
+  .page-content{padding-inline:12px;padding-bottom:max(14px,env(safe-area-inset-bottom))}
+  .page-heading>:first-child{flex-basis:100%}
+  .heading-actions{width:100%;padding-top:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .heading-actions:empty{display:none}
+  .heading-actions .btn{width:100%;min-width:0}
+  .inline-actions .btn{min-height:44px}
+  .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .stat-card{min-width:0;padding:13px 10px;border-radius:12px}
+  .stat-card h2{font-size:clamp(17px,4.8vw,22px);line-height:1.4;overflow-wrap:anywhere}
+  .stat-top{line-height:1.55}
+  .stat-top>svg{width:30px;height:30px;padding:7px}
+  .stat-foot{font-size:11px;line-height:1.6}
+  .project-grid{grid-template-columns:minmax(0,1fr);gap:11px}
+  .project-card,.loan-card{padding:15px 13px}
+  .project-amounts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .project-amounts b{font-size:clamp(15px,4.2vw,19px)}
+  .panel-head{align-items:flex-start}
+  .panel-head>.inline-actions,.panel-head>.heading-actions{width:100%}
+  .panel-head .btn{min-height:44px}
+  .fiscal-year-item .inline-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fiscal-year-item .inline-actions .btn{min-width:0}
+  .dialog-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .dialog-actions .btn{width:100%;min-width:0}
+  .finance-dialog,[role="dialog"]{width:calc(100vw - 16px);max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);margin:8px;padding-bottom:max(18px,env(safe-area-inset-bottom))}
+  [data-slot="table"]{min-width:640px}
+  [data-slot="table-container"]{scrollbar-width:thin}
+  .page-footer{padding-bottom:max(20px,env(safe-area-inset-bottom))}
+}
+@media (max-width:380px){
+  .page-content{padding-inline:8px}
+  .heading-actions{grid-template-columns:minmax(0,1fr)}
+  .stat-grid{gap:7px}
+  .stat-card{padding:11px 8px}
+  .stat-top{font-size:10px}
+  .stat-top>svg{width:26px;height:26px;padding:6px}
+  .stat-card h2{font-size:17px}
+  .panel-head{padding-inline:11px}
+  .project-amounts{grid-template-columns:minmax(0,1fr)}
+}
+/* Respect reduced-motion preferences on mobile and tablet */
+@media (prefers-reduced-motion:reduce){.stat-card,.project-card,.loan-card,.overview-section-tile{transition:none!important}.stat-card:hover,.project-card:hover,.loan-card:hover,.overview-section-tile:hover{transform:none!important}}

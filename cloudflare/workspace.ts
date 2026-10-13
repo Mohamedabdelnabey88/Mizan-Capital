@@ -124,7 +124,7 @@ if(action==='saveReportPeriodPreference'){
  description='حفظ تفضيل نطاق التقارير';
 }
 
-if(action==='deleteFiscalYear'){
+else if(action==='deleteFiscalYear'){
  const r=find(p.id,'fiscalYear');
  const linkedSettlement=w.records.find(x=>x.kind==='ownerSettlement'&&String(x.data.fiscalYearStart||'')===String(r.data.start||''));
  if(linkedSettlement)throw Error('لا يمكن حذف هذه الفترة لأنها مرتبطة بتسوية سنوية معتمدة. احتفظ بها للحفاظ على مرجع التسوية وسجل المراجعة.');

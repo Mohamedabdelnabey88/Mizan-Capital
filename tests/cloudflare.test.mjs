@@ -59,6 +59,11 @@ try{
   await expectStatus({path:'/api/unknown'},404);
 
   const res=await call();assert.equal(res.status,200);assert.equal(res.headers.get('cache-control'),'no-store');checks++;
+  await expectStatus({method:'POST',body:{action:'saveReportPeriodPreference',requestId:crypto.randomUUID(),payload:{start:'2026-01-01',end:'2026-12-31'}}},200);
+  const preferenceSnapshot=await (await call()).json();
+  const savedPeriod=preferenceSnapshot.records.find(r=>r.kind==='appPreference'&&r.data.key==='selectedReportPeriod');
+  assert(savedPeriod,'report period preference must persist in the workspace database');
+  assert.equal(savedPeriod.data.start,'2026-01-01');assert.equal(savedPeriod.data.end,'2026-12-31');checks+=3;
 
   const projectRequest={action:'project',requestId:crypto.randomUUID(),payload:{name:'اختبار Cloudflare',activity:'اختبار',mode:'operating',ownership:100,reserve:0,payout:30}};
   await expectStatus({method:'POST',body:projectRequest,extra:{'oai-authenticated-user-id':'attacker'}},200);

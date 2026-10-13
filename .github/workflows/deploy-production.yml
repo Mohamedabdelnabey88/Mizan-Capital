@@ -16,6 +16,11 @@ on:
       - "pnpm-lock.yaml"
   workflow_dispatch:
 
+# Prevent overlapping Worker releases from deploying stale commits out of order.
+concurrency:
+  group: mizan-production-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 

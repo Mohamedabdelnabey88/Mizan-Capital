@@ -81,13 +81,13 @@ try{
   const badLogin=await call({path:'/auth/login',cookie:null,method:'POST',body:{email:'famaradona89@gmail.com',password:'definitely-wrong-password'}});
   assert.equal(badLogin.status,401);checks++;
 
-  const shared=await (await call({cookie:member2Cookie})).json();assert.equal(shared.records.length,2);checks++;
+  const shared=await (await call({cookie:member2Cookie})).json();assert.equal(shared.records.length,3);checks++;
   await expectStatus({method:'POST',cookie:member1Cookie,body:{...projectRequest,requestId:crypto.randomUUID()},extra:{'oai-authenticated-user-email':'forged@example.com'}},200);
   const log=(await db.prepare('SELECT detail FROM audit').all()).results;
   assert(log.some(row=>row.detail.endsWith('member1@example.com')));
   assert(!log.some(row=>row.detail.includes('forged@example.com')));checks++;
   const rows=(await db.prepare('SELECT owner FROM records').all()).results;
-  assert.deepEqual(rows.map(r=>r.owner),['cloudflare-owner','cloudflare-owner','cloudflare-owner','cloudflare-owner']);checks++;
+  assert.deepEqual(rows.map(r=>r.owner),['cloudflare-owner','cloudflare-owner','cloudflare-owner','cloudflare-owner','cloudflare-owner']);checks++;
 
   let w=await (await call()).json();const project=w.records.find(r=>r.kind==='project').id;
   const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());

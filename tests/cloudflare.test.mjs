@@ -64,6 +64,12 @@ try{
   const savedPeriod=preferenceSnapshot.records.find(r=>r.kind==='appPreference'&&r.data.key==='selectedReportPeriod');
   assert(savedPeriod,'report period preference must persist in the workspace database');
   assert.equal(savedPeriod.data.start,'2026-01-01');assert.equal(savedPeriod.data.end,'2026-12-31');checks+=3;
+  await expectStatus({method:'POST',body:{action:'saveReportPeriodPreference',requestId:crypto.randomUUID(),payload:{start:'2026-12-31',end:'2026-01-01'}}},400);
+  await expectStatus({method:'POST',body:{action:'saveReportPeriodPreference',requestId:crypto.randomUUID(),payload:{start:'2026-02-01',end:'2026-11-30'}}},200);
+  const updatedPreferenceSnapshot=await (await call()).json();
+  const savedPeriods=updatedPreferenceSnapshot.records.filter(r=>r.kind==='appPreference'&&r.data.key==='selectedReportPeriod');
+  assert.equal(savedPeriods.length,1,'report period preference updates one record instead of duplicating it');
+  assert.equal(savedPeriods[0].data.start,'2026-02-01');assert.equal(savedPeriods[0].data.end,'2026-11-30');checks+=3;
 
   const projectRequest={action:'project',requestId:crypto.randomUUID(),payload:{name:'اختبار Cloudflare',activity:'اختبار',mode:'operating',ownership:100,reserve:0,payout:30}};
   await expectStatus({method:'POST',body:projectRequest,extra:{'oai-authenticated-user-id':'attacker'}},200);

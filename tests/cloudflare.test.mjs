@@ -80,6 +80,13 @@ try{
 
   const badLogin=await call({path:'/auth/login',cookie:null,method:'POST',body:{email:'famaradona89@gmail.com',password:'definitely-wrong-password'}});
   assert.equal(badLogin.status,401);checks++;
+  // Five failed attempts from the same client/email must lock further attempts in the active window.
+  for(let i=0;i<4;i++){
+    const failed=await call({path:'/auth/login',cookie:null,method:'POST',body:{email:'famaradona89@gmail.com',password:'definitely-wrong-password'}});
+    assert.equal(failed.status,401);checks++;
+  }
+  const limited=await call({path:'/auth/login',cookie:null,method:'POST',body:{email:'famaradona89@gmail.com',password:'definitely-wrong-password'}});
+  assert.equal(limited.status,429);checks++;
 
   const shared=await (await call({cookie:member2Cookie})).json();assert.equal(shared.records.length,3);checks++;
   await expectStatus({method:'POST',cookie:member1Cookie,body:{...projectRequest,requestId:crypto.randomUUID()},extra:{'oai-authenticated-user-email':'forged@example.com'}},200);
@@ -119,6 +126,7 @@ try{
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');
   assert.match(logout.headers.get('set-cookie')||'',/Max-Age=0/);checks++;
+  await expectStatus({path:'/api/session',cookie:ownerCookie},401);
 
-  console.log(JSON.stringify({passed:true,checks,verified:['server-side sessions','spoofed identity rejected','shared workspace actor audit','cross-origin writes blocked','rate-limited login failure path','360-payment loan and replacement','logout revocation']}));
+  console.log(JSON.stringify({passed:true,checks,verified:['server-side sessions','spoofed identity rejected','shared workspace actor audit','cross-origin writes blocked','five-attempt login rate limit','360-payment loan and replacement','logout server-side revocation']}));
 }finally{await mf.dispose();}

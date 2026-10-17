@@ -136,6 +136,25 @@ try{
   assert(w.journals.some(j=>j.reversal===originalLoanJournal.id),'editing must reverse the old loan receipt journal');
   assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===editableLoan.id&&r.data.status==='cancelled').length,12);
   assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===editableLoan.id&&r.data.status==='pending').length,12);checks+=10;
+  // Deleting a loan reverses its receipt, paid installment, allocation and outside-project use.
+  const shiftDate=(d,days)=>new Date(Date.parse(d+'T00:00:00Z')+days*86400000).toISOString().slice(0,10);
+  await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{name:'قرض حذف تجريبي',amount:6000,monthlyPayment:2200,months:3,start:shiftDate(date,-90),firstDate:shiftDate(date,-60)}}},200);
+  w=await (await call()).json();const deletableLoan=w.records.find(r=>r.kind==='loan'&&r.data.name==='قرض حذف تجريبي');
+  await expectStatus({method:'POST',body:{action:'allocateLoanFunds',requestId:crypto.randomUUID(),payload:{loanId:deletableLoan.id,project,amount:1000,paymentAccount:'cash',date}}},200);
+  await expectStatus({method:'POST',body:{action:'useLoanFundsOutsideProjects',requestId:crypto.randomUUID(),payload:{loanId:deletableLoan.id,amount:500,paymentAccount:'cash',date,memo:'استخدام مرتبط للاختبار'}}},200);
+  w=await (await call()).json();const paidLoanDue=w.records.find(r=>r.kind==='obligation'&&r.data.loan===deletableLoan.id&&r.data.status==='pending');
+  const initialDeleteJournal=w.journals.find(j=>j.source==='loan:'+deletableLoan.id);
+  await expectStatus({method:'POST',body:{action:'settle',requestId:crypto.randomUUID(),payload:{id:paidLoanDue.id,date,paymentAccount:'cash'}}},200);
+  w=await (await call()).json();
+  await expectStatus({method:'POST',body:{action:'deleteLoan',requestId:crypto.randomUUID(),payload:{id:deletableLoan.id}}},200);
+  w=await (await call()).json();const deletedLoan=w.records.find(r=>r.id===deletableLoan.id);
+  assert.equal(deletedLoan.data.status,'deleted');assert(w.journals.some(j=>j.reversal===initialDeleteJournal.id),'deleting must reverse original loan receipt');
+  const paidInstallmentJournal=w.journals.find(j=>j.source==='obligation:'+paidLoanDue.id);
+  assert(paidInstallmentJournal&&w.journals.some(j=>j.reversal===paidInstallmentJournal.id),'deleting must reverse paid installment');
+  assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===deletableLoan.id&&r.data.status==='pending').length,0);
+  assert.equal(w.records.filter(r=>(r.kind==='loanAllocation'||r.kind==='loanUse')&&r.data.loanId===deletableLoan.id&&r.data.status!=='cancelled').length,0);checks+=6;
+  await expectStatus({method:'POST',body:{action:'editLoan',requestId:crypto.randomUUID(),payload:{id:deletableLoan.id,name:'لا يجب تعديله',amount:6000,monthlyPayment:2200,months:3,start:date,firstDate:nextMonth(date)}}},400);
+
   const repeatStart=nextMonth(date),repeatEnd=nextMonth(nextMonth(repeatStart));
   await expectStatus({method:'POST',body:{action:'obligation',requestId:crypto.randomUUID(),payload:{project,title:'تحصيل شهري تجريبي',amount:2000,date:repeatStart,repeat:'monthly',repeatEnd,direction:'in',category:'revenue',certainty:100}}},200);
   w=await (await call()).json();

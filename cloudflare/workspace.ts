@@ -163,7 +163,7 @@ else if(action==='projectSettings'){const r=find(p.id,'project');if(p.version!==
 else if(action==='setFiscalYear'||action==='fiscalYear'){const start=date(p.start);const end=date(p.end);if(start>=end)throw Error('بداية السنة المالية يجب أن تسبق نهايتها.');if((start.slice(0,4)==='')||(end.slice(0,4)===''))throw Error('تواريخ السنة المالية غير صحيحة.');const same=p.id?w.records.find(x=>x.kind==='fiscalYear'&&x.id===p.id):w.records.find(x=>x.kind==='fiscalYear'&&String(x.data.start)===start&&String(x.data.end)===end);const overlap=w.records.find(x=>x.kind==='fiscalYear'&&x.id!==same?.id&&String(x.data.start)<=end&&String(x.data.end)>=start);if(overlap)throw Error('الفترة تتداخل مع سنة مالية أخرى مسجلة ('+String(overlap.data.start)+' إلى '+String(overlap.data.end)+'). راجع حدود الفترتين.');const data={start,end,label:str(p.label||('السنة المالية '+start+' إلى '+end),120)};if(same)update(same,data);else put('fiscalYear',data);description=(same?'تعديل':'تحديد')+' السنة المالية من '+start+' إلى '+end;}
 else if(action==='closePeriod'){const r=project(p.id);const d=date(p.date);if(d>today()||d<(r.data.closedThrough||''))throw Error('يمكن فقط إقفال فترة منتهية بعد آخر إقفال.');if(r.data.closedThrough&&d===r.data.closedThrough)throw Error('المشروع مقفل بالفعل حتى هذا التاريخ. اختر نهاية فترة مفتوحة لاحقة.');update(r,{...r.data,closedThrough:d});description='إقفال فترة '+r.data.name+' حتى '+d;}
 else if(action==='projectAsset'){
- const pr=project(str(p.project,'المشروع')),amount=cents(p.amount),dt=date(p.date),category=String(p.category||'');
+ const pr=project(str(p.project)),amount=cents(p.amount),dt=date(p.date),category=String(p.category||'');
  const mapping:Record<string,{account:string;label:string}>={construction:{account:'fixed',label:'إنشاءات وبناء'},land:{account:'fixed',label:'أرض'},equipment:{account:'fixed',label:'معدات وتجهيزات'},furniture:{account:'fixed',label:'أثاث'},inventory:{account:'inventory',label:'بضاعة ومخزون'},other:{account:'fixed',label:'أصل آخر'}};
  const selected=mapping[category];if(!selected)throw Error('اختر تصنيفًا صحيحًا لاستخدام السيولة.');
  if(!amount||amount<=0)throw Error('أدخل مبلغًا أكبر من صفر.');
@@ -403,7 +403,7 @@ else if(action==='editLoan'){
  if(dues.some(x=>x.data.status==='paid'||x.data.status==='settled'))throw Error('لا يمكن تعديل جدول قرض له أقساط مسددة؛ استخدم تصحيحًا محاسبيًا يحافظ على السجل التاريخي.');
  if(dues.some(x=>String(x.data.date||'')<=today()&&x.data.status==='pending'))throw Error('يوجد قسط مستحق أو مؤرخ اليوم/سابقًا. سوِّ الاستحقاقات أولًا ثم عدّل الجدول.');
  if(w.records.some(x=>(x.kind==='loanAllocation'||x.kind==='loanUse')&&x.data.loanId===loan.id&&x.data.status!=='cancelled'))throw Error('لا يمكن إعادة جدولة قرض له تخصيصات أو استخدامات نشطة؛ سوِّ هذه الحركات أولًا.');
- const name=str(p.name,'اسم القرض'),paymentExact=money5(p.monthlyPayment,'القسط الشهري'),months=Math.trunc(num(p.months,1,360)),first=date(p.firstDate);
+ const name=str(p.name),paymentExact=money5(p.monthlyPayment,'القسط الشهري'),months=Math.trunc(num(p.months,1,360)),first=date(p.firstDate);
  const amountExact=Number(d.principalExact||Number(d.principal||0)/100);
  if(!Number.isFinite(amountExact)||amountExact<=0)throw Error('تعذر تحديد أصل القرض المسجل.');
  if(first<today())throw Error('موعد أول قسط الجديد يجب ألا يكون في المستقبل أو اليوم؛ لا تغيّر الأقساط التاريخية.');

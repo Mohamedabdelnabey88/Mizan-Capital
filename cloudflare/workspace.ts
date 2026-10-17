@@ -177,6 +177,44 @@ else if(action==='projectAsset'){
 }
 else if(action==='entry'){const pr=project(p.project),a=cents(p.amount);if(!a)throw Error('المبلغ يجب أن يكون أكبر من صفر.');const policy=taxPolicyFor(w,date(p.date));const taxableKind=['income','invoice','expense','bill','asset','inventory'].includes(p.kind);const taxMode=['none','inclusive','exclusive'].includes(p.taxMode)?p.taxMode:(taxableKind&&policy.enabled?policy.defaultMode:'none');const taxRate=percentBps(p.taxRate??(Number(policy.rateBps||0)/100),'نسبة الضريبة');const mappings:Record<string,string[]>={income:['cash','revenue'],invoice:['receivable','revenue'],collect:['cash','receivable'],expense:['expense','cash'],bill:['expense','payable'],paybill:['payable','cash'],capital:['cash','capital'],asset:['fixed','cash'],inventory:['inventory','cash'],cogs:['cogs','inventory'],depreciation:['depreciation','accumulated'],invest:['investment','cash'],dividend:['cash','dividend'],returnCapital:['cash','investment'],distribution:['distribution','cash'],cardSettlement:['bank','mada'],investmentStart:['investment','cash'],investmentReturn:['cash','investment']};let lines:Line[]=[];if(p.kind==='transfer'){project(p.target);if(p.target===p.project)throw Error('اختر مشروعين مختلفين.');lines=[...pair(p.project,'inter_receivable','cash',a),...pair(p.target,'cash','inter_payable',a)];}else if(p.kind==='repayTransfer'){project(p.target);if(p.target===p.project)throw Error('اختر مشروعين مختلفين.');if(a>Math.min(internalFunding(w,p.target,p.project,date(p.date)),internalFunding(w,p.target,p.project)))throw Error('المبلغ يتجاوز التمويل المستحق للمشروع المحدد.');lines=[...pair(p.project,'inter_payable','cash',a),...pair(p.target,'cash','inter_receivable',a)];}else if(p.kind==='manual'){if(p.debit===p.credit)throw Error('طرفا القيد يجب أن يكونا مختلفين.');if(['inter_receivable','inter_payable','distribution','loan','investment'].includes(p.debit)||['inter_receivable','inter_payable','distribution','loan','investment'].includes(p.credit))throw Error('لهذه الحسابات استخدم التحويل أو التوزيع أو التمويل أو الاستثمار المخصص لحفظ ترابط السجلات.');lines=pair(p.project,str(p.debit),str(p.credit),a);}else{if(!mappings[p.kind])throw Error('نوع حركة غير معروف.');const isSale=['income','invoice'].includes(p.kind),isPurchase=['expense','bill','asset','inventory'].includes(p.kind);if(taxMode!=='none'&&!policy.enabled)throw Error('الضريبة غير مفعلة في سياسة الفترة؛ فعّلها أو اختر بدون ضريبة.');if(taxMode!=='none'&&!((isSale&&policy.salesTax)||(isPurchase&&policy.purchaseTax)))throw Error('هذه الحركة لا تستخدم الضريبة حسب السياسة الحالية.');if(taxMode==='none')lines=pair(p.project,mappings[p.kind][0],mappings[p.kind][1],a);else{const t=taxParts(a,taxMode,taxRate);const debitAccount=mappings[p.kind][0],creditAccount=mappings[p.kind][1];if(isSale)lines=[{project:p.project,account:debitAccount,debit:t.total,credit:0},{project:p.project,account:creditAccount,debit:0,credit:t.base},...(t.tax?[{project:p.project,account:'tax_payable',debit:0,credit:t.tax}]:[])];else if(isPurchase)lines=[{project:p.project,account:debitAccount,debit:t.base,credit:0},...(t.tax?[{project:p.project,account:'tax_receivable',debit:t.tax,credit:0}]:[]),{project:p.project,account:creditAccount,debit:0,credit:t.total}];else lines=pair(p.project,debitAccount,creditAccount,a);}}if(p.kind==='distribution'){if(date(p.date)!==today())throw Error('توزيع الأرباح متاح بتاريخ اليوم لضمان فحص السيولة الحالية.');const entitlement=distributionEntitlement(w,pr);const f=forecast(w,p.project,pr.data.reserve,0,0,a);if(a>entitlement||f.min<pr.data.reserve)throw Error('السحب يتجاوز استحقاق المالك أو ينزل السيولة المتوقعة تحت الاحتياطي. راجع مركز القرار.');}if(['invest','dividend','returnCapital'].includes(p.kind)){find(p.investment,'project');if(find(p.investment).data.mode!=='investment')throw Error('اختر استثمارًا خارجيًا.');if(p.kind==='returnCapital'){const invested=w.journals.filter(j=>j.source?.startsWith('investment:'+p.investment+':')).flatMap(j=>j.lines).filter(l=>l.project===p.project&&l.account==='investment').reduce((s,l)=>s+l.debit-l.credit,0);if(a>invested)throw Error('الاسترداد يتجاوز رأس المال المسجل لهذا الاستثمار.');}}journal(p.kind,str(p.memo,500),date(p.date),lines,p.investment?'investment:'+p.investment+':'+id:null);description='تسجيل حركة مالية: '+p.memo;}
 else if(action==='reverse'){const j=w.journals.find(x=>x.id===p.id);if(!j||j.reversal||j.source)throw Error('يمكن عكس القيود المباشرة فقط. القيود المرتبطة بالتزامات تحتاج تسوية مخصصة.');if(w.journals.some(x=>x.reversal===j.id))throw Error('تم عكس هذا القيد بالفعل.');journal('reversal','عكس: '+j.memo+' — '+str(p.reason,200),date(p.date),j.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,j.id);description='عكس قيد مع الاحتفاظ بالأصل';}
+else if(action==='propertyUnit'){
+ const pr=project(p.project),name=str(p.name),unitType=['retail','residential','office','other'].includes(p.unitType)?p.unitType:'retail',operatingMode=p.operatingMode==='self'?'self':'rent';
+ if(w.records.some(r=>r.kind==='propertyUnit'&&r.data.project===pr.id&&String(r.data.name||'').trim().toLowerCase()===name.toLowerCase()&&r.data.status!=='archived'))throw Error('اسم الفتحة/الوحدة موجود بالفعل في هذا المشروع.');
+ const areaRaw=String(p.area??'').trim(),area=areaRaw?num(areaRaw,0,1000000):0;
+ const unitId=put('propertyUnit',{project:pr.id,name,unitType,operatingMode,area,notes:String(p.notes||'').trim().slice(0,500),status:'active',createdOn:today()});
+ description='إضافة وحدة عقارية: '+name+' — '+pr.data.name;
+}
+else if(action==='tenantLease'){
+ const pr=project(p.project),unit=find(p.unitId,'propertyUnit'),tenantName=str(p.tenantName),title=str(p.title||'عقد إيجار '+unit.data.name,200),start=date(p.startDate),end=date(p.endDate),total=cents(p.totalAmount);
+ if(unit.data.project!==pr.id||unit.data.status==='archived')throw Error('الوحدة المحددة لا تتبع هذا المشروع أو مؤرشفة.');
+ if(unit.data.operatingMode==='self')throw Error('هذه الوحدة محددة للتشغيل الذاتي. عدّل نمط الوحدة إلى التأجير قبل تسجيل عقد مستأجر.');
+ if(end<start)throw Error('نهاية العقد يجب أن تكون بعد بدايته.');
+ if(total<=0)throw Error('أدخل إجمالي إيجار أكبر من صفر.');
+ if(w.records.some(r=>r.kind==='tenantLease'&&r.data.unitId===unit.id&&r.data.status==='active'&&String(r.data.startDate)<=end&&String(r.data.endDate)>=start))throw Error('توجد مدة عقد متداخلة لهذه الوحدة. أنهِ العقد السابق أو اختر فترة مختلفة.');
+ const mode=['once','monthly','quarterly','semiannual','custom'].includes(p.scheduleType)?p.scheduleType:'monthly';
+ let installments:{date:string;amount:number}[]=[];
+ if(mode==='custom'){
+  const raw=str(p.installments||'',12000);
+  installments=raw.split('\n').map((line:string)=>{const parts=line.split(',').map(x=>x.trim());if(parts.length!==2)throw Error('صيغة الدفعات: التاريخ,المبلغ');return {date:date(parts[0]),amount:cents(parts[1])};}).filter(x=>x.amount>0);
+  if(!installments.length)throw Error('أدخل دفعة إيجار واحدة على الأقل.');
+ }else{
+  const first=date(p.paymentDate||start);
+  if(mode==='once')installments=[{date:first,amount:total}];
+  else{
+   const step=mode==='monthly'?1:mode==='quarterly'?3:6;
+   const startMonth=Number(start.slice(0,4))*12+Number(start.slice(5,7))-1,endMonth=Number(end.slice(0,4))*12+Number(end.slice(5,7))-1;
+   const count=Math.floor((endMonth-startMonth)/step)+1,base=Math.floor(total/count);let remaining=total;
+   for(let i=0;i<count;i++){const dueDate=monthAdd(first,i*step);if(dueDate>end&&i>0)break;const amount=i===count-1?remaining:base;if(amount>0){installments.push({date:dueDate,amount});remaining-=amount;}}
+   if(remaining>0){if(installments.length)installments[installments.length-1].amount+=remaining;else installments=[{date:first,amount:total}];}
+  }
+ }
+ if(installments.reduce((sum,x)=>sum+x.amount,0)!==total)throw Error('مجموع دفعات الإيجار يجب أن يساوي إجمالي العقد بالهللة.');
+ if(installments.some(x=>x.date<start||x.date>end))throw Error('تواريخ تحصيل الإيجار يجب أن تقع داخل مدة العقد.');
+ installments.sort((a,b)=>a.date.localeCompare(b.date));
+ const leaseId=put('tenantLease',{project:pr.id,unitId:unit.id,unitName:unit.data.name,tenantName,title,totalAmount:total,startDate:start,endDate:end,scheduleType:mode,status:'active',installments});
+ for(const [i,item] of installments.entries())due({project:pr.id,title:'إيجار مستحق — '+unit.data.name+' — '+tenantName+' / '+(i+1),amount:item.amount,date:item.date,direction:'in',category:'revenue',certainty:100,tenantLeaseId:leaseId,unitId:unit.id,tenantName,leaseInstallment:i+1,leaseTotal:total});
+ description='إضافة عقد تأجير وحدة '+unit.data.name+' للمستأجر '+tenantName+' وجدولة '+installments.length+' تحصيل';
+}
 else if(action==='lease'){
  const pr=project(p.project);
  const total=cents(p.totalAmount);

@@ -28,7 +28,7 @@ export function projectPerformance(w:Workspace,projectId:string,start:string,end
     const dim=daysInMonth(d);
     const expectedRevenue=plan?(Number(plan.revenueDailyMicro||0)||Math.round(Number(plan.revenueMonthlyMicro||0)/dim)):0;
     const expectedExpense=plan?(Number(plan.expenseDailyMicro||0)||Math.round(Number(plan.expenseMonthlyMicro||0)/dim)):0;
-    const expectedNet=plan?(Number(plan.netDailyMicro||0)||((Number(plan.revenueDailyMicro||0)||Math.round(Number(plan.revenueMonthlyMicro||0)/dim))-(Number(plan.expenseDailyMicro||0)||Math.round(Number(plan.expenseMonthlyMicro||0)/dim)))):Math.round(fallbackNet/dim);
+    const expectedNet=plan?(()=>{const plannedNetDaily=Number(plan.netDailyMicro||0);const plannedNetMonthly=Number(plan.netMonthlyMicro||0);if(plannedNetDaily!==0)return plannedNetDaily;if(plan.netTargetMicro!==undefined)return Math.round(plannedNetMonthly/dim);if(plannedNetMonthly!==0)return Math.round(plannedNetMonthly/dim);return (Number(plan.revenueDailyMicro||0)||Math.round(Number(plan.revenueMonthlyMicro||0)/dim))-(Number(plan.expenseDailyMicro||0)||Math.round(Number(plan.expenseMonthlyMicro||0)/dim));})():Math.round(fallbackNet/dim);
     const dayJournals=w.journals.filter(j=>j.date===d);
     const actualRevenue=dayJournals.reduce((s,j)=>s+j.lines.filter(l=>l.project===projectId&&accounts[l.account]?.type==='income').reduce((x,l)=>x+(l.credit-l.debit)*1000,0),0);
     const actualExpense=dayJournals.reduce((s,j)=>s+j.lines.filter(l=>l.project===projectId&&accounts[l.account]?.type==='expense').reduce((x,l)=>x+(l.debit-l.credit)*1000,0),0);

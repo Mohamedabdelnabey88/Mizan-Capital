@@ -33,6 +33,7 @@ const recurringLiquidityFixture={records:[{id:'liquidity-plan',kind:'projectPlan
 const recurringLiquidity=f.forecast(recurringLiquidityFixture,'a');
 assert.equal(recurringLiquidity.days.find(d=>d.date===f.dayAdd(now,14)).income,50000,'liquidity forecast includes the first recurring collection');
 assert.equal(recurringLiquidity.days.find(d=>d.date===f.dayAdd(now,44)).income,50000,'liquidity forecast includes a monthly recurrence');
+const bankForecastFixture=structuredClone(cashFixture);bankForecastFixture.journals[0].lines.push({project:'a',account:'bank',debit:50000,credit:0},{project:'a',account:'capital',debit:0,credit:50000});const bankForecast=f.forecast(bankForecastFixture,'a',20000);assert.equal(bankForecast.days[0].min,60000,'forecast opening liquidity includes bank and cash balances');
 const daily=f.forecast(cashFixture,'a',20000);
 assert.equal(daily.min,10000);assert.equal(daily.buckets[0].cash,110000);assert.equal(daily.shortfall,10000);assert.equal(daily.firstGap,f.dayAdd(now,1));
 assert.equal(f.firstAffordableDate(daily,30000,20000),f.dayAdd(now,5));

@@ -168,7 +168,7 @@ else if(action==='projectAsset'){
  const selected=mapping[category];if(!selected)throw Error('اختر تصنيفًا صحيحًا لاستخدام السيولة.');
  if(!amount||amount<=0)throw Error('أدخل مبلغًا أكبر من صفر.');
  const payment=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';
- const available=w.journals.flatMap(j=>j.lines).filter(l=>l.project===pr.id&&l.account===payment).reduce((sum,l)=>sum+l.debit-l.credit,0);
+ const available=w.journals.filter(j=>String(j.date||'')<=dt).flatMap(j=>j.lines).filter(l=>l.project===pr.id&&l.account===payment).reduce((sum,l)=>sum+l.debit-l.credit,0);
  if(amount>available)throw Error('المبلغ يتجاوز رصيد '+(payment==='bank'?'الحساب البنكي':'الصندوق')+' المتاح داخل المشروع. حدّث الأرصدة أو اختر مصدر السيولة الصحيح.');
  const descriptionText=str(p.description||selected.label,300);
  const assetId=put('projectAsset',{project:pr.id,category,categoryLabel:selected.label,description:descriptionText,amount,account:selected.account,paymentAccount:payment,date:dt,status:'active'});

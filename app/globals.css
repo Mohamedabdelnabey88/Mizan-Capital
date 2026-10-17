@@ -756,3 +756,10 @@ button,.btn,[role="button"],[role="combobox"]{touch-action:manipulation}
 .project-capital-grid b{display:block;font-size:13px;font-weight:750;overflow-wrap:anywhere}
 .project-capital-foot{line-height:1.6;margin:10px 0 0}
 @media(max-width:480px){.project-capital-breakdown{padding:10px}.project-capital-grid{gap:7px}.project-capital-grid>div{padding:8px}}
+
+
+.project-asset-register{margin-top:10px;padding-top:10px;border-top:1px solid var(--border,#e6ebe9)}
+.project-asset-register>strong{display:block;font-size:12px;margin-bottom:7px}
+.project-asset-register>div{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;font-size:12px}
+.project-asset-register>div span{color:var(--muted-foreground,#77827f)}
+.project-asset-register>div b{font-size:12px}

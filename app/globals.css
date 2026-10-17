@@ -774,3 +774,10 @@ button,.btn,[role="button"],[role="combobox"]{touch-action:manipulation}
 .property-unit-row>span{text-align:left;overflow-wrap:anywhere}
 .property-unit-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .property-unit-actions .btn{flex:1;min-width:130px}
+
+
+.project-asset-items{margin-top:9px;padding-top:8px;border-top:1px dashed var(--border,#dfe6e3)}
+.project-asset-items>strong{display:block;font-size:11px;margin-bottom:5px}
+.project-asset-items>div{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:5px 0;font-size:11px}
+.project-asset-items>div span{color:var(--muted-foreground,#77827f);min-width:0;overflow-wrap:anywhere}
+.project-asset-items>div b{white-space:nowrap;font-size:11px}

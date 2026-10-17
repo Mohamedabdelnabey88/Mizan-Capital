@@ -106,6 +106,33 @@ try{
   assert.equal(annualPlan.data.netTargetMicro,2400000000);
   assert.equal(annualPlan.data.netMonthlyMicro,200000000);checks++;
   const nextMonth=d=>{const x=new Date(d+'T00:00:00Z');x.setUTCMonth(x.getUTCMonth()+1);return x.toISOString().slice(0,10);};
+  // Capital-to-asset conversion must create a balanced journal and never overdraw the selected cash account.
+  await expectStatus({method:'POST',body:{action:'entry',requestId:crypto.randomUUID(),payload:{project,kind:'capital',amount:10000,date,memo:'رأس مال افتتاحي لاختبار الأصول'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectAsset',requestId:crypto.randomUUID(),payload:{project,category:'construction',amount:3000,date,paymentAccount:'cash',description:'دفعة بناء تجريبية'}}},200);
+  w=await (await call()).json();
+  const projectAsset=w.records.find(r=>r.kind==='projectAsset'&&r.data.project===project);
+  assert(projectAsset,'project asset register record must persist');
+  assert.equal(projectAsset.data.category,'construction');assert.equal(projectAsset.data.amount,300000);
+  const assetJournal=w.journals.find(j=>j.source==='project-asset:'+projectAsset.id);
+  assert(assetJournal,'asset conversion journal must be linked to the asset register');
+  assert.equal(assetJournal.lines.reduce((n,l)=>n+l.debit,0),assetJournal.lines.reduce((n,l)=>n+l.credit,0));checks+=4;
+  await expectStatus({method:'POST',body:{action:'projectAsset',requestId:crypto.randomUUID(),payload:{project,category:'equipment',amount:8000,date,paymentAccount:'cash',description:'يجب رفض تجاوز السيولة'}}},400);
+  // Rental units and tenant contracts create dated receivables/income obligations and reject overlapping contracts.
+  await expectStatus({method:'POST',body:{action:'propertyUnit',requestId:crypto.randomUUID(),payload:{project,name:'محل اختبار 1',unitType:'retail',operatingMode:'rent',area:40}}},200);
+  w=await (await call()).json();const unit=w.records.find(r=>r.kind==='propertyUnit'&&r.data.name==='محل اختبار 1');assert(unit,'property unit must persist');
+  const leaseEnd=nextMonth(nextMonth(date));
+  await expectStatus({method:'POST',body:{action:'tenantLease',requestId:crypto.randomUUID(),payload:{project,unitId:unit.id,tenantName:'مستأجر تجريبي',title:'عقد تجريبي',totalAmount:12000,startDate:date,endDate:leaseEnd,scheduleType:'monthly',paymentDate:date}}},200);
+  w=await (await call()).json();const tenantLease=w.records.find(r=>r.kind==='tenantLease'&&r.data.unitId===unit.id);
+  assert(tenantLease,'tenant lease must persist');assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.tenantLeaseId===tenantLease.id).length,3);
+  await expectStatus({method:'POST',body:{action:'tenantLease',requestId:crypto.randomUUID(),payload:{project,unitId:unit.id,tenantName:'مستأجر آخر',title:'عقد متداخل',totalAmount:12000,startDate:date,endDate:leaseEnd,scheduleType:'monthly',paymentDate:date}}},400);
+  // Editing a loan only regenerates unpaid installments; original principal receipt remains unchanged.
+  await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{name:'قرض قابل للتعديل',amount:12000,monthlyPayment:1100,months:12,start:date,firstDate:nextMonth(date)}}},200);
+  w=await (await call()).json();const editableLoan=w.records.find(r=>r.kind==='loan'&&r.data.name==='قرض قابل للتعديل');
+  await expectStatus({method:'POST',body:{action:'editLoan',requestId:crypto.randomUUID(),payload:{id:editableLoan.id,name:'قرض معدل',monthlyPayment:1200,months:12,firstDate:nextMonth(nextMonth(date))}}},200);
+  w=await (await call()).json();const editedLoan=w.records.find(r=>r.id===editableLoan.id);
+  assert.equal(editedLoan.data.name,'قرض معدل');
+  assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===editableLoan.id&&r.data.status==='cancelled').length,12);
+  assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===editableLoan.id&&r.data.status==='pending').length,12);checks+=4;
   const repeatStart=nextMonth(date),repeatEnd=nextMonth(nextMonth(repeatStart));
   await expectStatus({method:'POST',body:{action:'obligation',requestId:crypto.randomUUID(),payload:{project,title:'تحصيل شهري تجريبي',amount:2000,date:repeatStart,repeat:'monthly',repeatEnd,direction:'in',category:'revenue',certainty:100}}},200);
   w=await (await call()).json();

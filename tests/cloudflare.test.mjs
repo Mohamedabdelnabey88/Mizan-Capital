@@ -129,11 +129,13 @@ try{
   // Editing a loan only regenerates unpaid installments; original principal receipt remains unchanged.
   await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{name:'قرض قابل للتعديل',amount:12000,monthlyPayment:1100,months:12,start:date,firstDate:nextMonth(date)}}},200);
   w=await (await call()).json();const editableLoan=w.records.find(r=>r.kind==='loan'&&r.data.name==='قرض قابل للتعديل');
-  await expectStatus({method:'POST',body:{action:'editLoan',requestId:crypto.randomUUID(),payload:{id:editableLoan.id,name:'قرض معدل',monthlyPayment:1200,months:12,firstDate:nextMonth(nextMonth(date))}}},200);
+  const originalLoanJournal=w.journals.find(j=>j.source==='loan:'+editableLoan.id);
+  await expectStatus({method:'POST',body:{action:'editLoan',requestId:crypto.randomUUID(),payload:{id:editableLoan.id,name:'قرض معدل',amount:15000,holder:'personal',project:'__unallocated',fundingMode:'opening',start:date,monthlyPayment:1400,months:12,firstDate:nextMonth(nextMonth(date))}}},200);
   w=await (await call()).json();const editedLoan=w.records.find(r=>r.id===editableLoan.id);
-  assert.equal(editedLoan.data.name,'قرض معدل');
+  assert.equal(editedLoan.data.name,'قرض معدل');assert.equal(editedLoan.data.principal,1500000);assert.equal(editedLoan.data.holder,'personal');assert.equal(editedLoan.data.project,'');assert.equal(editedLoan.data.fundingMode,'opening');assert.equal(editedLoan.data.start,date);
+  assert(w.journals.some(j=>j.reversal===originalLoanJournal.id),'editing must reverse the old loan receipt journal');
   assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===editableLoan.id&&r.data.status==='cancelled').length,12);
-  assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===editableLoan.id&&r.data.status==='pending').length,12);checks+=4;
+  assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===editableLoan.id&&r.data.status==='pending').length,12);checks+=10;
   const repeatStart=nextMonth(date),repeatEnd=nextMonth(nextMonth(repeatStart));
   await expectStatus({method:'POST',body:{action:'obligation',requestId:crypto.randomUUID(),payload:{project,title:'تحصيل شهري تجريبي',amount:2000,date:repeatStart,repeat:'monthly',repeatEnd,direction:'in',category:'revenue',certainty:100}}},200);
   w=await (await call()).json();

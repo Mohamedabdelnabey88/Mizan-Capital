@@ -126,7 +126,7 @@ try{
   w=await (await call()).json();const tenantLease=w.records.find(r=>r.kind==='tenantLease'&&r.data.unitId===unit.id);
   assert(tenantLease,'tenant lease must persist');assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.tenantLeaseId===tenantLease.id).length,3);
   await expectStatus({method:'POST',body:{action:'tenantLease',requestId:crypto.randomUUID(),payload:{project,unitId:unit.id,tenantName:'مستأجر آخر',title:'عقد متداخل',totalAmount:12000,startDate:date,endDate:leaseEnd,scheduleType:'monthly',paymentDate:date}}},400);
-  // Editing a loan only regenerates unpaid installments; original principal receipt remains unchanged.
+  // Full loan edits correct the receipt and rebuild unpaid installments with reversing journals.
   await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{name:'قرض قابل للتعديل',amount:12000,monthlyPayment:1100,months:12,start:date,firstDate:nextMonth(date)}}},200);
   w=await (await call()).json();const editableLoan=w.records.find(r=>r.kind==='loan'&&r.data.name==='قرض قابل للتعديل');
   const originalLoanJournal=w.journals.find(j=>j.source==='loan:'+editableLoan.id);

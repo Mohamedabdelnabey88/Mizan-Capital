@@ -184,6 +184,15 @@ else if(action==='propertyUnit'){
  const unitId=put('propertyUnit',{project:pr.id,name,unitType,operatingMode,area,notes:String(p.notes||'').trim().slice(0,500),status:'active',createdOn:today()});
  description='إضافة وحدة عقارية: '+name+' — '+pr.data.name;
 }
+else if(action==='editPropertyUnit'){
+ const unit=find(p.id,'propertyUnit'),pr=project(unit.data.project),name=str(p.name),unitType=['retail','residential','office','other'].includes(p.unitType)?p.unitType:'retail',operatingMode=p.operatingMode==='self'?'self':'rent';
+ if(w.records.some(r=>r.kind==='propertyUnit'&&r.id!==unit.id&&r.data.project===pr.id&&String(r.data.name||'').trim().toLowerCase()===name.toLowerCase()&&r.data.status!=='archived'))throw Error('اسم الفتحة/الوحدة موجود بالفعل في هذا المشروع.');
+ const activeLeases=w.records.filter(r=>r.kind==='tenantLease'&&r.data.unitId===unit.id&&r.data.status==='active'&&String(r.data.endDate||'')>=today());
+ if(operatingMode==='self'&&activeLeases.length)throw Error('لا يمكن تحويل الوحدة إلى تشغيل ذاتي ما دام عليها عقد إيجار نشط أو مستقبلي. أنهِ العقود أولًا.');
+ const areaRaw=String(p.area??'').trim(),area=areaRaw?num(areaRaw,0,1000000):0;
+ update(unit,{...unit.data,name,unitType,operatingMode,area,notes:String(p.notes||'').trim().slice(0,500),updatedAt:time});
+ description='تعديل إعدادات الوحدة العقارية: '+name;
+}
 else if(action==='tenantLease'){
  const pr=project(p.project),unit=find(p.unitId,'propertyUnit'),tenantName=str(p.tenantName),title=str(p.title||'عقد إيجار '+unit.data.name,200),start=date(p.startDate),end=date(p.endDate),total=cents(p.totalAmount);
  if(unit.data.project!==pr.id||unit.data.status==='archived')throw Error('الوحدة المحددة لا تتبع هذا المشروع أو مؤرشفة.');

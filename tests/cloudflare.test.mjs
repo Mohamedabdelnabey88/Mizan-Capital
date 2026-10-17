@@ -126,7 +126,7 @@ try{
   w=await (await call()).json();const tenantLease=w.records.find(r=>r.kind==='tenantLease'&&r.data.unitId===unit.id);
   assert(tenantLease,'tenant lease must persist');assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.tenantLeaseId===tenantLease.id).length,3);
   await expectStatus({method:'POST',body:{action:'tenantLease',requestId:crypto.randomUUID(),payload:{project,unitId:unit.id,tenantName:'مستأجر آخر',title:'عقد متداخل',totalAmount:12000,startDate:date,endDate:leaseEnd,scheduleType:'monthly',paymentDate:date}}},400);
-  // Editing a loan only regenerates unpaid installments; original principal receipt remains unchanged.
+  // Full loan edits correct the receipt and rebuild unpaid installments with reversing journals.
   await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{name:'قرض قابل للتعديل',amount:12000,monthlyPayment:1100,months:12,start:date,firstDate:nextMonth(date)}}},200);
   w=await (await call()).json();const editableLoan=w.records.find(r=>r.kind==='loan'&&r.data.name==='قرض قابل للتعديل');
   const originalLoanJournal=w.journals.find(j=>j.source==='loan:'+editableLoan.id);
@@ -154,6 +154,24 @@ try{
   assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===deletableLoan.id&&r.data.status==='pending').length,0);
   assert.equal(w.records.filter(r=>(r.kind==='loanAllocation'||r.kind==='loanUse')&&r.data.loanId===deletableLoan.id&&r.data.status!=='cancelled').length,0);checks+=6;
   await expectStatus({method:'POST',body:{action:'editLoan',requestId:crypto.randomUUID(),payload:{id:deletableLoan.id,name:'لا يجب تعديله',amount:6000,monthlyPayment:2200,months:3,start:date,firstDate:nextMonth(date)}}},400);
+
+  // Editing after a paid installment keeps the paid transaction and only rebuilds the remaining principal schedule.
+  await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{name:'قرض تعديل بعد سداد',amount:6000,monthlyPayment:2200,months:3,start:shiftDate(date,-90),firstDate:shiftDate(date,-60)}}},200);
+  w=await (await call()).json();const partlyPaidLoan=w.records.find(r=>r.kind==='loan'&&r.data.name==='قرض تعديل بعد سداد');
+  const firstPaidDue=w.records.find(r=>r.kind==='obligation'&&r.data.loan===partlyPaidLoan.id&&r.data.status==='pending');
+  await expectStatus({method:'POST',body:{action:'settle',requestId:crypto.randomUUID(),payload:{id:firstPaidDue.id,date,paymentAccount:'cash'}}},200);
+  w=await (await call()).json();
+  await expectStatus({method:'POST',body:{action:'editLoan',requestId:crypto.randomUUID(),payload:{id:partlyPaidLoan.id,name:'قرض معدل بعد السداد',amount:6500,holder:'business',project:'__unallocated',fundingMode:'new',start:shiftDate(date,-90),monthlyPayment:2300,months:3,firstDate:nextMonth(date)}}},200);
+  w=await (await call()).json();const partlyPaidEdited=w.records.find(r=>r.id===partlyPaidLoan.id);
+  const paidPrincipalAfterEdit=w.records.filter(r=>r.kind==='obligation'&&r.data.loan===partlyPaidLoan.id&&r.data.status==='paid').reduce((sum,o)=>sum+Number(o.data.principal||0),0);
+  const pendingAfterEdit=w.records.filter(r=>r.kind==='obligation'&&r.data.loan===partlyPaidLoan.id&&r.data.status==='pending');
+  assert.equal(partlyPaidEdited.data.principal,650000);assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.loan===partlyPaidLoan.id&&r.data.status==='paid').length,1);assert.equal(pendingAfterEdit.length,2);
+  assert.equal(paidPrincipalAfterEdit+pendingAfterEdit.reduce((sum,o)=>sum+Number(o.data.principal||0),0),650000);
+  const principalAdjustment=w.journals.find(j=>String(j.source||'').startsWith('loan-edit-adjustment:'+partlyPaidLoan.id+':'));
+  assert(principalAdjustment,'principal change after a paid installment must create a balanced adjustment journal');
+  await expectStatus({method:'POST',body:{action:'deleteLoan',requestId:crypto.randomUUID(),payload:{id:partlyPaidLoan.id}}},200);
+  w=await (await call()).json();assert.equal(w.records.find(r=>r.id===partlyPaidLoan.id).data.status,'deleted');
+  assert(w.journals.some(j=>j.reversal===principalAdjustment.id),'loan deletion must reverse principal adjustment entries');checks+=7;
 
   const repeatStart=nextMonth(date),repeatEnd=nextMonth(nextMonth(repeatStart));
   await expectStatus({method:'POST',body:{action:'obligation',requestId:crypto.randomUUID(),payload:{project,title:'تحصيل شهري تجريبي',amount:2000,date:repeatStart,repeat:'monthly',repeatEnd,direction:'in',category:'revenue',certainty:100}}},200);

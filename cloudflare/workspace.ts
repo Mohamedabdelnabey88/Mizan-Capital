@@ -447,42 +447,60 @@ else if(action==='loan'){const projectId=String(p.project||'')==='__unallocated'
 else if(action==='editLoan'){
  const loan=find(p.id,'loan'),d=loan.data;
  if(d.status==='deleted')throw Error('هذا القرض محذوف بالفعل.');
- const dues=w.records.filter(x=>x.kind==='obligation'&&x.data.loan===loan.id);
- if(dues.some(x=>x.data.status==='paid'||x.data.status==='settled'))throw Error('لا يمكن تعديل بيانات قرض له أقساط مسددة؛ احذف القرض لإجراء عكس محاسبي كامل ثم سجّل البيانات الصحيحة من جديد.');
- if(w.records.some(x=>(x.kind==='loanAllocation'||x.kind==='loanUse')&&x.data.loanId===loan.id&&x.data.status!=='cancelled'))throw Error('لا يمكن تعديل بيانات قرض له تخصيصات أو استخدامات نشطة؛ ألغِ/صحح هذه الحركات أولًا أو استخدم حذف القرض مع العكس المحاسبي.');
+ const dues=w.records.filter(x=>x.kind==='obligation'&&x.data.loan===loan.id),paidDues=dues.filter(x=>x.data.status==='paid'||x.data.status==='settled');
+ if(w.records.some(x=>(x.kind==='loanAllocation'||x.kind==='loanUse')&&x.data.loanId===loan.id&&x.data.status!=='cancelled'))throw Error('لا يمكن تعديل قرض له تخصيصات أو استخدامات نشطة؛ ألغِ/صحح هذه الحركات أولًا أو استخدم حذف القرض مع العكس المحاسبي.');
  const linkedPrepayments=w.journals.filter(j=>String(j.source||'').startsWith('prepay:')&&(String(j.source||'').startsWith('prepay:'+loan.id+':')||j.memo==='سداد مبكر: '+String(d.name||'')));
  if(linkedPrepayments.length)throw Error('يوجد سداد مبكر مرتبط بهذا القرض. للحفاظ على صحة الرصيد، لا يمكن تغيير أصل القرض تلقائيًا؛ استخدم حذف القرض مع العكس المحاسبي أو سجّل تصحيحًا مخصصًا.');
  const name=str(p.name),amountExact=money5(p.amount,'أصل القرض'),paymentExact=money5(p.monthlyPayment,'القسط الشهري'),months=Math.trunc(num(p.months,1,360)),start=date(p.start),first=date(p.firstDate);
- const holder=['personal','business'].includes(p.holder)?p.holder:'business';
- const fundingMode=p.fundingMode==='opening'?'opening':'new';
+ const holder=['personal','business'].includes(p.holder)?p.holder:'business',fundingMode=p.fundingMode==='opening'?'opening':'new';
  const projectId=holder==='personal'||String(p.project||'')==='__unallocated'?'':String(p.project||'');
  if(projectId)project(projectId);
  if(start>today())throw Error('تاريخ استلام/إثبات القرض لا يمكن أن يكون مستقبليًا.');
  if(first<=start)throw Error('أول قسط يجب أن يكون بعد تاريخ استلام/إثبات القرض.');
  if(first<=today())throw Error('تاريخ أول قسط الجديد يجب أن يكون في المستقبل؛ غيّر موعده لتجنب إعادة إنشاء استحقاقات قديمة.');
  if(paymentExact<=0)throw Error('القسط الشهري يجب أن يكون أكبر من صفر.');
- const annual=loanRateFromPaymentExact(amountExact,paymentExact,months),schedule=loanScheduleFromPaymentExact(amountExact,paymentExact,months,first);
+ const amount=Math.round(amountExact*100),payment=Math.round(paymentExact*100),loanAccount=holder==='personal'?'personal_loan':'loan',cashAccount=holder==='personal'?'personal_cash':'cash';
+ if(months<paidDues.length)throw Error('عدد الأقساط الجديد أقل من عدد الأقساط المسددة بالفعل.');
+ if(paidDues.length&&(start!==String(d.start||'')||projectId!==String(d.project||'')||holder!==String(d.holder||'business')||fundingMode!==(d.fundingMode==='opening'?'opening':'new')))throw Error('يمكن تعديل أصل القرض وجدوله بعد سداد أقساط، لكن لا يمكن تغيير تاريخ الاستلام أو جهة القرض أو المشروع أو نوع التسجيل بعد السداد؛ استخدم حذف القرض مع العكس المحاسبي لإعادة تصنيفه بالكامل.');
+ const paidPrincipal=paidDues.reduce((sum,o)=>sum+Number(o.data.principal||0),0);
+ if(amount<paidPrincipal)throw Error('أصل القرض الجديد أقل من أصل الأقساط التي سددتها بالفعل؛ لا يمكن تسجيل هذا التعديل.');
+ const remainingPrincipal=Math.max(0,amount-paidPrincipal),remainingMonths=months-paidDues.length;
+ if(remainingPrincipal>0&&remainingMonths<1)throw Error('عدد الأقساط المتبقية غير كافٍ لسداد أصل الدين بعد الأقساط المسددة.');
+ const annual=remainingPrincipal>0?loanRateFromPaymentExact(remainingPrincipal/100,paymentExact,remainingMonths):0;
+ const schedule=remainingPrincipal>0?loanScheduleFromPaymentExact(remainingPrincipal/100,paymentExact,remainingMonths,first):[];
  const activeOrigin=w.journals.filter(j=>(j.source==='loan:'+loan.id||String(j.source||'').startsWith('loan-edit:'+loan.id+':'))&&!w.journals.some(x=>x.reversal===j.id));
  if(activeOrigin.length!==1)throw Error('تعذر تحديد قيد استلام القرض النشط بشكل فريد؛ أوقفنا التعديل لحماية الأستاذ.');
  const original=activeOrigin[0],oldCashAccount=d.holder==='personal'?'personal_cash':'cash',oldProject=String(d.project||'');
- if(d.fundingMode!=='opening'){
-  const currentCash=w.journals.flatMap(j=>j.lines).filter(l=>String(l.project||'')===oldProject&&l.account===oldCashAccount).reduce((sum,l)=>sum+Number(l.debit||0)-Number(l.credit||0),0);
-  const newPrincipal=Math.round(amountExact*100),oldPrincipal=Math.round(Number(d.principal||0));
-  const sameCashDestination=oldProject===projectId&&oldCashAccount===(holder==='personal'?'personal_cash':'cash')&&fundingMode==='new';
-  const cashNeeded=sameCashDestination?Math.max(0,oldPrincipal-newPrincipal):oldPrincipal;
-  if(currentCash<cashNeeded)throw Error('لا يمكن تعديل أصل القرض أو وجهته بأمان لأن السيولة الأصلية صُرفت أو لم تعد متاحة في حسابها الحالي. سجّل مصدر التمويل/التصحيح أولًا ثم أعد المحاولة.');
+ if(!paidDues.length){
+  if(d.fundingMode!=='opening'){
+   const currentCash=w.journals.flatMap(j=>j.lines).filter(l=>String(l.project||'')===oldProject&&l.account===oldCashAccount).reduce((sum,l)=>sum+Number(l.debit||0)-Number(l.credit||0),0);
+   const oldPrincipal=Math.round(Number(d.principal||0)),sameCashDestination=oldProject===projectId&&oldCashAccount===(holder==='personal'?'personal_cash':'cash')&&fundingMode==='new';
+   const cashNeeded=sameCashDestination?Math.max(0,oldPrincipal-amount):oldPrincipal;
+   if(currentCash<cashNeeded)throw Error('لا يمكن تعديل أصل القرض أو وجهته بأمان لأن السيولة الأصلية صُرفت أو لم تعد متاحة في حسابها الحالي. سجّل مصدر التمويل/التصحيح أولًا ثم أعد المحاولة.');
+  }
+  const newProject=w.records.find(x=>x.kind==='project'&&x.id===projectId);
+  if(newProject&&newProject.data.closedThrough&&start<=newProject.data.closedThrough)throw Error('تاريخ القرض الجديد يقع داخل فترة محاسبية مقفلة في المشروع.');
+  journal('reversal','عكس قيد القرض قبل التعديل: '+String(d.name||''),today(),original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
+  const debitAccount=fundingMode==='opening'?'capital':cashAccount;
+  const lines:Line[]=projectId?pair(projectId,debitAccount,loanAccount,amount):[{project:'',account:debitAccount,debit:amount,credit:0},{project:'',account:loanAccount,debit:0,credit:amount}];
+  journal('loan','تصحيح بيانات القرض وإعادة إثباته: '+name+' — '+(holder==='personal'?'قرض شخصي':'قرض مؤسسة/شركة'),start,lines,'loan-edit:'+loan.id+':'+uid());
+ }else{
+  const samePrincipal=amount===Number(d.principal||0);
+  if(!samePrincipal){
+   const delta=amount-Number(d.principal||0),oldMode=d.fundingMode==='opening'?'opening':'new';
+   if(delta<0&&oldMode==='new'){
+    const currentCash=w.journals.flatMap(j=>j.lines).filter(l=>String(l.project||'')===oldProject&&l.account===oldCashAccount).reduce((sum,l)=>sum+Number(l.debit||0)-Number(l.credit||0),0);
+    if(currentCash<Math.abs(delta))throw Error('لا يمكن تخفيض أصل القرض لأن رصيد السيولة الحالي لا يكفي لإثبات فرق التخفيض بأمان.');
+   }
+   const debitAccount=delta>0?(oldMode==='opening'?'capital':cashAccount):loanAccount,creditAccount=delta>0?loanAccount:(oldMode==='opening'?'capital':cashAccount),adjustment=Math.abs(delta);
+   const lines:Line[]=projectId?pair(projectId,debitAccount,creditAccount,adjustment):[{project:'',account:debitAccount,debit:adjustment,credit:0},{project:'',account:creditAccount,debit:0,credit:adjustment}];
+   journal('loanAdjustment','تعديل أصل القرض بعد أقساط مسددة: '+name,today(),lines,'loan-edit-adjustment:'+loan.id+':'+uid());
+  }
  }
- const newProject=w.records.find(x=>x.kind==='project'&&x.id===projectId);
- if(newProject&&newProject.data.closedThrough&&start<=newProject.data.closedThrough)throw Error('تاريخ القرض الجديد يقع داخل فترة محاسبية مقفلة في المشروع.');
- journal('reversal','عكس قيد القرض قبل التعديل: '+String(d.name||''),today(),original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
  for(const o of dues)if(o.data.status==='pending')update(o,{...o.data,status:'cancelled',cancelledAt:time,cancellationReason:'إعادة بناء بيانات القرض من شاشة التعديل'});
- const amount=Math.round(amountExact*100),payment=Math.round(paymentExact*100),loanAccount=holder==='personal'?'personal_loan':'loan',cashAccount=holder==='personal'?'personal_cash':'cash';
  update(loan,{...d,name,holder,project:projectId,principal:amount,principalExact:amountExact.toFixed(5),rate:annual,monthlyPayment:payment,monthlyPaymentExact:paymentExact.toFixed(5),months,start,firstDate:first,fundingMode,scheduleType:'estimate',rateMethod:'implied_from_bank_payment',scheduleEditedAt:time,status:'active'});
- const debitAccount=fundingMode==='opening'?'capital':cashAccount;
- const lines:Line[]=projectId?pair(projectId,debitAccount,loanAccount,amount):[{project:'',account:debitAccount,debit:amount,credit:0},{project:'',account:loanAccount,debit:0,credit:amount}];
- journal('loan','تصحيح بيانات القرض وإعادة إثباته: '+name+' — '+(holder==='personal'?'قرض شخصي':'قرض مؤسسة/شركة'),start,lines,'loan-edit:'+loan.id+':'+uid());
- for(const [i,item] of schedule.entries())due({...item,project:projectId,title:'قسط '+name+' / '+(i+1),direction:'out',category:'loan',loan:loan.id,certainty:100});
- description='تعديل جميع بيانات القرض وإعادة بناء القيد والجدول';
+ for(const [i,item] of schedule.entries())due({...item,project:projectId,title:'قسط '+name+' / '+(paidDues.length+i+1),direction:'out',category:'loan',loan:loan.id,certainty:100});
+ description=paidDues.length?'تعديل أصل القرض وشروط الأقساط المتبقية مع الحفاظ على الأقساط المسددة':'تعديل جميع بيانات القرض وإعادة بناء القيد والجدول';
 }
 else if(action==='deleteLoan'){
  const loan=find(p.id,'loan'),d=loan.data;

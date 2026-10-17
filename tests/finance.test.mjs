@@ -30,8 +30,8 @@ assert.equal(f.expectedCollectionsInRange(recurringPlanFixture,'a','2026-10-01',
 assert.equal(f.expectedCollectionsInRange(recurringPlanFixture,'a','2026-11-01','2026-11-30'),50000,'month-end recurrence clamps to the final day of shorter months');
 assert.equal(f.expectedCollectionsInRange(recurringPlanFixture,'a','2026-10-01','2027-03-31'),300000,'monthly recurring installments expand across all inclusive months');
 const semiannualPlanFixture={records:[{id:'semiannual-plan',kind:'projectPlan',version:1,created:'2026-10-01T00:00:00Z',data:{project:'a',effectiveFrom:'2026-01-01',expectedReceiptInstallments:[{date:'2026-01-01',amountMicro:10000000000,repeatUntil:'2027-01-01',repeatEveryMonths:6}]}}],journals:[],audit:[]};
-assert.equal(f.expectedCollectionsInRange(semiannualPlanFixture,'a','2026-01-01','2026-12-31'),200000,'semiannual installments recur every six months');
-assert.equal(f.expectedCollectionsInRange(semiannualPlanFixture,'a','2027-01-01','2027-12-31'),100000,'semiannual recurrence includes end date once and stops after repeatUntil');
+assert.equal(f.expectedCollectionsInRange(semiannualPlanFixture,'a','2026-01-01','2026-12-31'),20000000,'semiannual installments recur every six months (200,000 SAR total, represented in halala)');
+assert.equal(f.expectedCollectionsInRange(semiannualPlanFixture,'a','2027-01-01','2027-12-31'),10000000,'semiannual recurrence includes end date once and stops after repeatUntil');
 const recurringLiquidityFixture={records:[{id:'liquidity-plan',kind:'projectPlan',version:1,data:{project:'a',expectedReceiptInstallments:[{date:f.dayAdd(now,14),amountMicro:50000000,repeatUntil:f.dayAdd(now,180)}]}}],journals:[],audit:[]};
 const recurringLiquidity=f.forecast(recurringLiquidityFixture,'a');
 assert.equal(recurringLiquidity.days.find(d=>d.date===f.dayAdd(now,14)).income,50000,'liquidity forecast includes the first recurring collection');

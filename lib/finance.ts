@@ -85,6 +85,18 @@ export function loanScheduleFromPayment(principal:number,payment:number,months:n
 export function loanSchedule(principal:number,annual:number,months:number,first:string){if(principal<=0||!Number.isInteger(months)||months<1||months>360||principal<months||annual<0||annual>100)throw Error('راجع مبلغ التمويل والنسبة وعدد الأشهر.');const r=annual/1200;const payment=r?Math.round(principal*r/(1-Math.pow(1+r,-months))):Math.round(principal/months);let rest=principal;return Array.from({length:months},(_,i)=>{const interest=Math.round(rest*r);let p=i===months-1?rest:Math.min(rest,Math.max(0,payment-interest));rest-=p;return {date:monthAdd(first,i),principal:p,interest,amount:p+interest};});}
 // Daily cash ordering is deliberately conservative: payments precede collections
 // on the same date because the bank's actual settlement times are not known.
+// Sum dated cash inflows for a selected period. Amounts returned are halala, matching the ledger and Money UI.
+export function expectedCollectionsInRange(w:Workspace,project='all',start='0000-01-01',end='9999-12-31'){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||start>end)throw Error('فترة توقعات التحصيل غير صحيحة.');
+ const obligationRows=w.records.filter(r=>r.kind==='obligation'&&r.data?.direction==='in'&&!['cancelled','replaced'].includes(String(r.data?.status||''))&&String(r.data.date||'')>=start&&String(r.data.date||'')<=end&&(project==='all'||String(r.data.project||'')===project));
+ const incoming=obligationRows.filter(r=>r.data?.status==='pending');
+ let total=incoming.reduce((sum,r)=>sum+Math.max(0,Math.round(Number(r.data.amount||0))),0);
+ const existing=new Set(obligationRows.map(r=>String(r.data.project||'')+'|'+String(r.data.date||'')+'|'+Math.round(Number(r.data.amount||0))));
+ const latestPlans=new Map<string,RecordItem>();
+ for(const r of w.records.filter(x=>x.kind==='projectPlan')){const pid=String(r.data?.project||'');if(project!=='all'&&pid!==project)continue;const prior=latestPlans.get(pid);const effective=String(r.data?.effectiveFrom||'');const previous=String(prior?.data?.effectiveFrom||'');if(!prior||effective>previous||(effective===previous&&String((r as any).created||'')>=String((prior as any).created||'')))latestPlans.set(pid,r);}
+ for(const [pid,r] of latestPlans){const d=r.data as any;const rows=Array.isArray(d.expectedReceiptInstallments)&&d.expectedReceiptInstallments.length?d.expectedReceiptInstallments:(d.expectedReceiptDate?[{date:d.expectedReceiptDate,amountMicro:Math.max(0,Math.round(Number(d.netTargetMicro||0)/1000))*1000}]:[]);for(const row of rows){const date=String(row.date||'');const amount=Math.max(0,Math.round(Number(row.amountMicro||0)/1000));if(!date||date<start||date>end||!amount)continue;const key=pid+'|'+date+'|'+amount;if(existing.has(key))continue;total+=amount;}}
+ return total;
+}
 export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,outlay=0){
  const now=today(), opening=(balance(w,project).cash||0)-Math.round(outlay);
  const days=Array.from({length:91},(_,i)=>({date:dayAdd(now,i),income:0,out:0,cash:0,min:0}));

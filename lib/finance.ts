@@ -87,7 +87,7 @@ export function loanSchedule(principal:number,annual:number,months:number,first:
 // on the same date because the bank's actual settlement times are not known.
 // Sum dated cash inflows for a selected period. Amounts returned are halala, matching the ledger and Money UI.
 export function expectedCollectionsInRange(w:Workspace,project='all',start='0000-01-01',end='9999-12-31'){
- if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(start)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(end)||start>end)throw Error('فترة توقعات التحصيل غير صحيحة.');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||start>end)throw Error('فترة توقعات التحصيل غير صحيحة.');
  const incoming=w.records.filter(r=>r.kind==='obligation'&&r.data?.status==='pending'&&r.data?.direction==='in'&&String(r.data.date||'')>=start&&String(r.data.date||'')<=end&&(project==='all'||String(r.data.project||'')===project));
  let total=incoming.reduce((sum,r)=>sum+Math.max(0,Math.round(Number(r.data.amount||0))),0);
  const existing=new Set(incoming.map(r=>String(r.data.project||'')+'|'+String(r.data.date||'')+'|'+Math.round(Number(r.data.amount||0))));

@@ -763,3 +763,14 @@ button,.btn,[role="button"],[role="combobox"]{touch-action:manipulation}
 .project-asset-register>div{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;font-size:12px}
 .project-asset-register>div span{color:var(--muted-foreground,#77827f)}
 .project-asset-register>div b{font-size:12px}
+
+
+.property-units-register{margin-top:12px;padding:12px;border:1px solid var(--border,#e6ebe9);border-radius:13px}
+.property-units-register .project-capital-heading{margin-bottom:8px}
+.property-unit-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--border,#e6ebe9)}
+.property-unit-row>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.property-unit-row b{font-size:12px}
+.property-unit-row small,.property-unit-row>span{font-size:11px;color:var(--muted-foreground,#77827f)}
+.property-unit-row>span{text-align:left;overflow-wrap:anywhere}
+.property-unit-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.property-unit-actions .btn{flex:1;min-width:130px}

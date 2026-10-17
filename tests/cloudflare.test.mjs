@@ -142,7 +142,7 @@ try{
   assert(repeated.every(r=>r.data.amount===200000));
   assert(!w.journals.some(j=>j.memo.includes('تحصيل شهري تجريبي')));checks+=4;
   await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{project,name:'360 قسطًا',amount:360000,monthlyPayment:1000,months:360,start:date,firstDate:date}}},200);
-  w=await (await call()).json();const loan=w.records.find(r=>r.kind==='loan');let due=w.records.filter(r=>r.data.loan===loan.id&&r.data.status==='pending');
+  w=await (await call()).json();const loan=w.records.find(r=>r.kind==='loan'&&r.data.name==='360 قسطًا');let due=w.records.filter(r=>r.kind==='obligation'&&r.data.loan===loan.id&&r.data.status==='pending');
   assert.equal(due.length,360);checks++;
 
   await expectStatus({method:'POST',body:{action:'replaceSchedule',requestId:crypto.randomUUID(),payload:{id:loan.id,date,prepay:0,fee:0,rows:due.map(r=>r.data.date+',1000,0').join('\n')}}},200);

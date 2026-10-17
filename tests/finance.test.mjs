@@ -18,11 +18,12 @@ const cashFixture={records:[
 const datedPlanFixture={records:[
  {id:'due-oct',kind:'obligation',version:1,data:{project:'a',status:'pending',date:'2026-10-10',direction:'in',amount:250000}},
  {id:'due-nov',kind:'obligation',version:1,data:{project:'a',status:'pending',date:'2026-11-03',direction:'in',amount:70000}},
+ {id:'due-paid-dec',kind:'obligation',version:1,data:{project:'a',status:'paid',date:'2026-12-15',direction:'in',amount:125000}},
  {id:'plan-a',kind:'projectPlan',version:1,created:'2026-10-01T00:00:00Z',data:{project:'a',effectiveFrom:'2026-10-01',netTargetMicro:900000000,expectedReceiptDate:'2026-10-10',expectedReceiptInstallments:[{date:'2026-10-10',amountMicro:250000000},{date:'2026-12-15',amountMicro:125000000},{date:'2027-10-01',amountMicro:400000000}]}}
 ],journals:[],audit:[]};
 assert.equal(f.expectedCollectionsInRange(datedPlanFixture,'a','2026-10-01','2026-10-31'),250000,'October totals only receipts dated in October and does not double count an identical obligation');
-assert.equal(f.expectedCollectionsInRange(datedPlanFixture,'a','2026-01-01','2026-12-31'),445000,'calendar-year total includes dated obligations and plan installments inside the year');
-assert.equal(f.expectedCollectionsInRange(datedPlanFixture,'a','2026-10-01','2028-09-30'),845000,'24-month period sums only dated collections within the selected range');
+assert.equal(f.expectedCollectionsInRange(datedPlanFixture,'a','2026-01-01','2026-12-31'),320000,'calendar-year total excludes plan installments already represented by settled obligations');
+assert.equal(f.expectedCollectionsInRange(datedPlanFixture,'a','2026-10-01','2028-09-30'),720000,'24-month period excludes already-settled receipts and sums only dated collections within the selected range');
 assert.equal(f.expectedCollectionsInRange(datedPlanFixture,'b','2026-01-01','2028-12-31'),0,'project filter excludes unrelated projects');
 const daily=f.forecast(cashFixture,'a',20000);
 assert.equal(daily.min,10000);assert.equal(daily.buckets[0].cash,110000);assert.equal(daily.shortfall,10000);assert.equal(daily.firstGap,f.dayAdd(now,1));

@@ -99,7 +99,7 @@ export function expectedCollectionsInRange(w:Workspace,project='all',start='0000
  return total;
 }
 export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,outlay=0){
- const now=today(), opening=(balance(w,project).cash||0)-Math.round(outlay);
+ const openingBalance=balance(w,project),now=today(), opening=(openingBalance.cash||0)+(openingBalance.bank||0)-Math.round(outlay);
  const days=Array.from({length:91},(_,i)=>({date:dayAdd(now,i),income:0,out:0,cash:0,min:0}));
  const byDate=new Map(days.map(d=>[d.date,d]));
  for(const r of w.records){

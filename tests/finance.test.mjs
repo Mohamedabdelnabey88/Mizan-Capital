@@ -29,6 +29,10 @@ const recurringPlanFixture={records:[{id:'monthly-plan',kind:'projectPlan',versi
 assert.equal(f.expectedCollectionsInRange(recurringPlanFixture,'a','2026-10-01','2026-10-31'),50000,'recurring installment includes its initial month');
 assert.equal(f.expectedCollectionsInRange(recurringPlanFixture,'a','2026-11-01','2026-11-30'),50000,'month-end recurrence clamps to the final day of shorter months');
 assert.equal(f.expectedCollectionsInRange(recurringPlanFixture,'a','2026-10-01','2027-03-31'),300000,'monthly recurring installments expand across all inclusive months');
+const recurringLiquidityFixture={records:[{id:'liquidity-plan',kind:'projectPlan',version:1,data:{project:'a',expectedReceiptInstallments:[{date:f.dayAdd(now,14),amountMicro:50000000,repeatUntil:f.dayAdd(now,180)}]}}],journals:[],audit:[]};
+const recurringLiquidity=f.forecast(recurringLiquidityFixture,'a');
+assert.equal(recurringLiquidity.days.find(d=>d.date===f.dayAdd(now,14)).income,50000,'liquidity forecast includes the first recurring collection');
+assert.equal(recurringLiquidity.days.find(d=>d.date===f.dayAdd(now,44)).income,50000,'liquidity forecast includes a monthly recurrence');
 const daily=f.forecast(cashFixture,'a',20000);
 assert.equal(daily.min,10000);assert.equal(daily.buckets[0].cash,110000);assert.equal(daily.shortfall,10000);assert.equal(daily.firstGap,f.dayAdd(now,1));
 assert.equal(f.firstAffordableDate(daily,30000,20000),f.dayAdd(now,5));

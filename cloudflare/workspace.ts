@@ -384,6 +384,24 @@ else if(action==='stopEmployee'){const r=find(p.id,'employee'),from=date(p.date)
  description='حذف موظف وسجلاته غير المدفوعة: '+r.data.name;
 }
 else if(action==='loan'){const projectId=String(p.project||'')==='__unallocated'?'':String(p.project||'');const holder=['personal','business'].includes(p.holder)?p.holder:'business';if(holder==='personal'&&projectId)throw Error('القرض الشخصي يُسجل أولًا في السيولة الشخصية، ثم استخدم خيار تخصيص جزء لمشروع عند ضخ الأموال فيه.');if(projectId)project(projectId);const amountExact=money5(p.amount,'أصل التمويل'),paymentExact=money5(p.monthlyPayment,'القسط الشهري'),start=date(p.start),first=date(p.firstDate),months=Math.trunc(num(p.months,1,360));if(first<start)throw Error('أول قسط يجب أن يكون بعد استلام التمويل.');if(paymentExact<=0)throw Error('أدخل القسط الشهري المحدد من البنك.');const annual=loanRateFromPaymentExact(amountExact,paymentExact,months);const schedule=loanScheduleFromPaymentExact(amountExact,paymentExact,months,first);const amount=Math.round(amountExact*100),payment=Math.round(paymentExact*100);const rid=put('loan',{project:projectId,holder,name:str(p.name),principal:amount,principalExact:amountExact.toFixed(5),rate:annual,monthlyPayment:payment,monthlyPaymentExact:paymentExact.toFixed(5),months,start,firstDate:first,scheduleType:'estimate',fundingMode:p.fundingMode==='opening'?'opening':'new',rateMethod:'implied_from_bank_payment'});for(const [i,s]of schedule.entries())due({...s,project:projectId,title:'قسط '+p.name+' / '+(i+1),direction:'out',category:'loan',loan:rid,certainty:100});const cashAccount=holder==='personal'?'personal_cash':'cash',loanAccount=holder==='personal'?'personal_loan':'loan';const lines:Line[]=projectId?pair(projectId,p.fundingMode==='opening'?'capital':cashAccount,loanAccount,amount):[{project:'',account:p.fundingMode==='opening'?'capital':cashAccount,debit:amount,credit:0},{project:'',account:loanAccount,debit:0,credit:amount}];journal('loan',(p.fundingMode==='opening'?'رصيد تمويل افتتاحي: ':'استلام تمويل: ')+p.name+' — '+(holder==='personal'?'قرض شخصي':'قرض مؤسسة/شركة'),start,lines,'loan:'+rid);description='إضافة تمويل وجدوله التقديري';}
+else if(action==='editLoan'){
+ const loan=find(p.id,'loan'),d=loan.data;
+ const dues=w.records.filter(x=>x.kind==='obligation'&&x.data.loan===loan.id);
+ if(dues.some(x=>x.data.status==='paid'||x.data.status==='settled'))throw Error('لا يمكن تعديل جدول قرض له أقساط مسددة؛ استخدم تصحيحًا محاسبيًا يحافظ على السجل التاريخي.');
+ if(dues.some(x=>String(x.data.date||'')<=today()&&x.data.status==='pending'))throw Error('يوجد قسط مستحق أو مؤرخ اليوم/سابقًا. سوِّ الاستحقاقات أولًا ثم عدّل الجدول.');
+ if(w.records.some(x=>(x.kind==='loanAllocation'||x.kind==='loanUse')&&x.data.loanId===loan.id&&x.data.status!=='cancelled'))throw Error('لا يمكن إعادة جدولة قرض له تخصيصات أو استخدامات نشطة؛ سوِّ هذه الحركات أولًا.');
+ const name=str(p.name,'اسم القرض'),paymentExact=money5(p.monthlyPayment,'القسط الشهري'),months=Math.trunc(num(p.months,1,360)),first=date(p.firstDate);
+ const amountExact=Number(d.principalExact||Number(d.principal||0)/100);
+ if(!Number.isFinite(amountExact)||amountExact<=0)throw Error('تعذر تحديد أصل القرض المسجل.');
+ if(first<today())throw Error('موعد أول قسط الجديد يجب ألا يكون في المستقبل أو اليوم؛ لا تغيّر الأقساط التاريخية.');
+ if(paymentExact<=0)throw Error('القسط الشهري يجب أن يكون أكبر من صفر.');
+ const annual=loanRateFromPaymentExact(amountExact,paymentExact,months);
+ const schedule=loanScheduleFromPaymentExact(amountExact,paymentExact,months,first);
+ for(const o of dues)if(o.data.status==='pending')update(o,{...o.data,status:'cancelled',cancelledAt:time,cancellationReason:'إعادة جدولة القرض من شاشة التعديل'});
+ update(loan,{...d,name,rate:annual,monthlyPayment:Math.round(paymentExact*100),monthlyPaymentExact:paymentExact.toFixed(5),months,firstDate:first,scheduleType:'estimate',rateMethod:'implied_from_bank_payment',scheduleEditedAt:time});
+ for(const [i,item] of schedule.entries())due({...item,project:String(d.project||''),title:'قسط '+name+' / '+(i+1),direction:'out',category:'loan',loan:loan.id,certainty:100});
+ description='تعديل بيانات القرض وإعادة جدولة الأقساط غير المسددة';
+}
 else if(action==='reassignLoanToGeneral'){
  const loan=find(p.id,'loan'),d=loan.data,from=String(d.project||'');
  if(!from)throw Error('القرض بالفعل عام وغير مخصص لمشروع.');

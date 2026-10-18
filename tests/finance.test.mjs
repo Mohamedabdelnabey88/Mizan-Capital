@@ -10,6 +10,24 @@ const f=await import('../.sites-runtime/finance.js');const precision=await impor
 assert.equal(f.monthAdd('2026-01-31',1),'2026-02-28');assert.equal(f.monthAdd('2028-01-31',1),'2028-02-29');
 for(const annual of [0,6,12]){const s=f.loanSchedule(12345678,annual,36,'2026-01-31');assert.equal(s.reduce((n,r)=>n+r.principal,0),12345678);assert.equal(s.at(-1).date,'2028-12-31');assert(s.every(r=>r.amount===r.interest+r.principal));}const exactRate=f.loanRateFromPaymentExact(50000,4244,12);assert(exactRate>3&&exactRate<4);const exactSchedule=f.loanScheduleFromPaymentExact(50000,4244,12,'2026-01-31');assert.equal(exactSchedule.length,12);assert.equal(exactSchedule.at(-1).principal,exactSchedule.reduce((n,r)=>n+r.principal,0)-exactSchedule.slice(0,-1).reduce((n,r)=>n+r.principal,0));assert.equal(exactSchedule.reduce((n,r)=>n+r.principal,0),5000000);
 assert.throws(()=>f.validateLines([{project:'a',account:'cash',debit:10,credit:0},{project:'a',account:'capital',debit:0,credit:9}]));
+const commitmentsFixture={records:[
+ {id:'rent-pending',kind:'obligation',version:1,data:{project:'estate-a',title:'إيجار محل 1',direction:'in',amount:100000,date:'2026-10-10',status:'pending',tenantLeaseId:'lease-a'}},
+ {id:'contractor-pending',kind:'obligation',version:1,data:{project:'estate-a',title:'دفعة مقاول',direction:'out',amount:130000,date:'2026-10-20',status:'pending'}},
+ {id:'rent-paid',kind:'obligation',version:1,data:{project:'estate-a',title:'إيجار محصل',direction:'in',amount:40000,date:'2026-10-01',paidOn:'2026-10-12',status:'paid'}},
+ {id:'fee-paid',kind:'obligation',version:1,data:{project:'estate-a',title:'رسوم مدفوعة',direction:'out',amount:20000,date:'2026-10-02',paidOn:'2026-10-12',status:'paid'}},
+ {id:'cancelled',kind:'obligation',version:1,data:{project:'estate-a',title:'ملغى',direction:'in',amount:900000,date:'2026-10-10',status:'cancelled'}},
+ {id:'other-project',kind:'obligation',version:1,data:{project:'estate-b',title:'مشروع آخر',direction:'in',amount:70000,date:'2026-10-15',status:'pending'}},
+ {id:'next-month',kind:'obligation',version:1,data:{project:'estate-a',title:'تحصيل نوفمبر',direction:'in',amount:80000,date:'2026-11-01',status:'pending'}}
+],journals:[],audit:[]};
+const octoberCommitments=f.commitmentSummary(commitmentsFixture,'all','2026-10-01','2026-10-31');
+assert.equal(octoberCommitments.expectedInflows,170000,'monthly commitments include only pending receipts due in the selected period and all projects');
+assert.equal(octoberCommitments.expectedOutflows,130000,'monthly commitments include scheduled payments without counting already-paid payments twice');
+assert.equal(octoberCommitments.expectedNet,40000,'expected monthly net cash flow is inflows minus outflows');
+assert.equal(octoberCommitments.settledInflows,40000,'actual receipts use the actual settlement date');
+assert.equal(octoberCommitments.settledOutflows,20000,'actual payments use the actual settlement date');
+assert.equal(f.commitmentSummary(commitmentsFixture,'estate-a','2026-10-01','2026-10-31').expectedInflows,100000,'project filter excludes other projects');
+assert.equal(f.commitmentSummary(commitmentsFixture,'estate-a','2026-11-01','2026-11-30').expectedInflows,80000,'period filter includes the selected month only');
+assert.equal(octoberCommitments.scheduledIn.length,2,'cancelled obligations are excluded and only pending receipts are listed');
 const now=f.today();
 const cashFixture={records:[
  {id:'pay',kind:'obligation',version:1,data:{project:'a',status:'pending',date:f.dayAdd(now,1),direction:'out',amount:90000}},
@@ -381,6 +399,23 @@ const cancelledSummary=f.projectFundingSummaries(cancelledRepaymentFixture,'all'
 assert.equal(cancelledSummary.repaid,0);
 assert.equal(cancelledSummary.outstanding,200000);
 checks+=3;
+
+// A planned land/building asset payment is a cash commitment, not an operating expense accrual.
+const assetProjectId=w.records.find(r=>r.kind==='project'&&r.data.mode==='operating')?.id;assert(assetProjectId,'an operating project remains for asset commitment test');
+const profitBeforeAssetCommitment=f.profit(w,assetProjectId,'0000-01-01',T).net;
+await ok('obligation',{project:assetProjectId,title:'اختبار دفعة أصل عقاري',amount:123.45,date:T,direction:'out',category:'fixed',repeat:'once'});
+w=await read();
+const assetCommitment=w.records.find(r=>r.kind==='obligation'&&r.data.title==='اختبار دفعة أصل عقاري');
+assert(assetCommitment,'asset commitment record is created');
+assert.equal(w.journals.some(j=>j.source==='obligation-accrual:'+assetCommitment.id),false,'planned asset commitment must not create an expense/payable accrual');
+await ok('settle',{id:assetCommitment.id,date:T,paymentAccount:'cash'});
+w=await read();
+const assetSettlement=w.journals.find(j=>j.source==='obligation:'+assetCommitment.id);
+assert(assetSettlement,'asset commitment settlement posts a journal');
+assert.equal(assetSettlement.lines.find(l=>l.account==='fixed')?.debit,12345,'settlement capitalizes the asset at the exact halala amount');
+assert.equal(assetSettlement.lines.find(l=>l.account==='cash')?.credit,12345,'settlement reduces cash by the exact halala amount');
+assert.equal(f.profit(w,assetProjectId,'0000-01-01',T).net,profitBeforeAssetCommitment,'capitalized asset payment does not reduce operating profit');
+checks+=5;
 
 // Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
 w=await read();

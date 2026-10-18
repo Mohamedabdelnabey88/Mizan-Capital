@@ -441,7 +441,10 @@ const updatedLandContract=w.records.find(r=>r.id===landContract.id);
 assert.equal(updatedLandContract.data.remainingAmount,50000,'contract outstanding balance updates after settlement');
 assert.equal(updatedLandContract.data.status,'active','contract stays active while installments remain');
 assert.equal(f.balanceSheet(w,assetProjectId,T).balanced,true,'land purchase and installment settlement preserve the balance sheet');
-checks+=12;
+await fail('cancelDue',{id:landInstallments[1].id,reason:'اختبار منع إلغاء قسط منفرد'});
+w=await read();
+assert.equal(w.records.find(r=>r.id===landInstallments[1].id)?.data.status,'pending','a land installment cannot be cancelled without updating the contract liability');
+checks+=13;
 
 // Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
 w=await read();

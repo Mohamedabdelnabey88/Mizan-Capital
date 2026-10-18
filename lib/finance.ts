@@ -22,6 +22,15 @@ export function cardReceivables(w:Workspace,project='all',end=today()){
  const b=balance(w,project,end);
  return (b.mada||0)+(b.visa||0)+(b.mastercard||0);
 }
+export function commitmentSummary(w:Workspace,project='all',start=today().slice(0,7)+'-01',end=dayAdd(monthAdd(start,1),-1)){
+ const rows=w.records.filter(r=>r.kind==='obligation'&&(project==='all'||r.data.project===project)&&!['cancelled','replaced'].includes(String(r.data.status||'')));
+ const inRange=(d:unknown)=>typeof d==='string'&&d>=start&&d<=end;
+ const scheduled=rows.filter(r=>r.data.status==='pending'&&inRange(r.data.date));
+ const settled=rows.filter(r=>r.data.status==='paid'&&inRange(r.data.paidOn||r.data.date));
+ const sum=(items:RecordItem[],direction:'in'|'out')=>items.filter(r=>r.data.direction===direction).reduce((total,r)=>total+Math.max(0,Number(r.data.amount||0)),0);
+ const scheduledIn=scheduled.filter(r=>r.data.direction==='in'),scheduledOut=scheduled.filter(r=>r.data.direction==='out');
+ return {start,end,scheduledIn,scheduledOut,settledIn:settled.filter(r=>r.data.direction==='in'),settledOut:settled.filter(r=>r.data.direction==='out'),expectedInflows:sum(scheduled,'in'),expectedOutflows:sum(scheduled,'out'),expectedNet:sum(scheduled,'in')-sum(scheduled,'out'),settledInflows:sum(settled,'in'),settledOutflows:sum(settled,'out'),scheduledCount:scheduled.length,settledCount:settled.length};
+}
 export type FiscalYear={id?:string;start:string;end:string;label?:string};
 export function fiscalYearForDate(w:Workspace,at=today()):FiscalYear{
  const rows=w.records.filter(r=>r.kind==='fiscalYear'&&String(r.data.start)<=at&&String(r.data.end)>=at).sort((a,b)=>String(a.data.start).localeCompare(String(b.data.start)));

@@ -417,6 +417,32 @@ assert.equal(assetSettlement.lines.find(l=>l.account==='cash')?.credit,12345,'se
 assert.equal(f.profit(w,assetProjectId,'0000-01-01',T).net,profitBeforeAssetCommitment,'capitalized asset payment does not reduce operating profit');
 checks+=5;
 
+// A land purchase contract recognizes the full asset and seller payable up front, then reduces the payable with each installment.
+const profitBeforeLandContract=f.profit(w,assetProjectId,'0000-01-01',T).net;
+await ok('landPurchase',{project:assetProjectId,title:'اختبار شراء أرض بالتقسيط',seller:'بائع اختبار',assetType:'land',totalAmount:1000,downPayment:0,paymentAccount:'bank',date:T,firstDate:T,scheduleType:'monthly',installmentCount:2});
+w=await read();
+const landContract=w.records.find(r=>r.kind==='landPurchase'&&r.data.title==='اختبار شراء أرض بالتقسيط');
+assert(landContract,'land purchase contract record is created');
+const acquisition=w.journals.find(j=>j.source==='land-purchase:'+landContract.id);
+assert(acquisition,'land purchase acquisition journal is posted');
+assert.equal(acquisition.lines.find(l=>l.account==='fixed')?.debit,100000,'full purchase price is recognized as a fixed asset');
+assert.equal(acquisition.lines.find(l=>l.account==='payable')?.credit,100000,'unpaid purchase price is recognized as a seller liability');
+const landInstallments=w.records.filter(r=>r.kind==='obligation'&&r.data.landPurchaseId===landContract.id).sort((x,y)=>x.data.date.localeCompare(y.data.date));
+assert.equal(landInstallments.length,2,'installment schedule contains the requested number of installments');
+assert.equal(landInstallments.reduce((sum,r)=>sum+Number(r.data.amount||0),0),100000,'installments reconcile exactly to the remaining purchase price');
+assert(landInstallments.every(r=>r.data.category==='payable'),'land installments settle the seller liability rather than post operating expenses');
+assert.equal(f.profit(w,assetProjectId,'0000-01-01',T).net,profitBeforeLandContract,'recognizing an asset and seller liability does not create operating profit');
+await ok('settle',{id:landInstallments[0].id,date:T,paymentAccount:'bank'});
+w=await read();
+const installmentPayment=w.journals.find(j=>j.source==='obligation:'+landInstallments[0].id);
+assert.equal(installmentPayment.lines.find(l=>l.account==='payable')?.debit,50000,'installment payment reduces the payable');
+assert.equal(installmentPayment.lines.find(l=>l.account==='bank')?.credit,50000,'installment payment uses the selected bank account');
+const updatedLandContract=w.records.find(r=>r.id===landContract.id);
+assert.equal(updatedLandContract.data.remainingAmount,50000,'contract outstanding balance updates after settlement');
+assert.equal(updatedLandContract.data.status,'active','contract stays active while installments remain');
+assert.equal(f.balanceSheet(w,assetProjectId,T).balanced,true,'land purchase and installment settlement preserve the balance sheet');
+checks+=12;
+
 // Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
 w=await read();
 const integratedControl=f.balanceSheetControl(w,'all',T);

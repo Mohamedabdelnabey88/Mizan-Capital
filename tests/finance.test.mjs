@@ -400,6 +400,22 @@ assert.equal(cancelledSummary.repaid,0);
 assert.equal(cancelledSummary.outstanding,200000);
 checks+=3;
 
+// A planned land/building asset payment is a cash commitment, not an operating expense accrual.
+const profitBeforeAssetCommitment=f.profit(w,a,'0000-01-01',T).net;
+await ok('obligation',{project:a,title:'اختبار دفعة أصل عقاري',amount:123.45,date:T,direction:'out',category:'fixed',repeat:'once'});
+w=await read();
+const assetCommitment=w.records.find(r=>r.kind==='obligation'&&r.data.title==='اختبار دفعة أصل عقاري');
+assert(assetCommitment,'asset commitment record is created');
+assert.equal(w.journals.some(j=>j.source==='obligation-accrual:'+assetCommitment.id),false,'planned asset commitment must not create an expense/payable accrual');
+await ok('settle',{id:assetCommitment.id,date:T,paymentAccount:'cash'});
+w=await read();
+const assetSettlement=w.journals.find(j=>j.source==='obligation:'+assetCommitment.id);
+assert(assetSettlement,'asset commitment settlement posts a journal');
+assert.equal(assetSettlement.lines.find(l=>l.account==='fixed')?.debit,12345,'settlement capitalizes the asset at the exact halala amount');
+assert.equal(assetSettlement.lines.find(l=>l.account==='cash')?.credit,12345,'settlement reduces cash by the exact halala amount');
+assert.equal(f.profit(w,a,'0000-01-01',T).net,profitBeforeAssetCommitment,'capitalized asset payment does not reduce operating profit');
+checks+=5;
+
 // Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
 w=await read();
 const integratedControl=f.balanceSheetControl(w,'all',T);

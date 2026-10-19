@@ -210,7 +210,8 @@ try{
   w=await (await call()).json();
   const periodicCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قرض بأقساط ربع سنوية');
   assert(periodicCommitment);assert.equal(periodicCommitment.data.installments.length,3);
-  assert.deepEqual(periodicCommitment.data.installments.map(x=>x.date),[commitmentFirst,nextMonth(nextMonth(nextMonth(commitmentFirst))),nextMonth(nextMonth(nextMonth(nextMonth(nextMonth(nextMonth(commitmentFirst)))))]);
+  const commitmentThird=nextMonth(nextMonth(nextMonth(commitmentFirst))),commitmentSixth=nextMonth(nextMonth(commitmentThird));
+  assert.deepEqual(periodicCommitment.data.installments.map(x=>x.date),[commitmentFirst,commitmentThird,commitmentSixth]);
   assert(periodicCommitment.data.installments.every(x=>x.amount===300000));assert.equal(w.journals.length,organizerJournalCount);checks+=4;
 
   await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project,title:'عقد مستثمر تجريبي',tenantName:'مستثمر تجريبي',totalAmount:6000,startDate:date,endDate:nextMonth(nextMonth(date)),scheduleType:'monthly',paymentDate:date}}},200);

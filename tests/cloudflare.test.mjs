@@ -227,7 +227,7 @@ try{
   await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project,title:'عقد مستثمر تجريبي',tenantName:'مستثمر تجريبي',totalAmount:6000,monthlyAmount:2000,startDate:rentStartDate,endDate:nextMonth(nextMonth(rentStartDate)),scheduleType:'monthly',paymentDate:rentStartDate}}},200);
   w=await (await call()).json();
   const organizerLease=w.records.find(r=>r.kind==='projectTenantLease'&&r.data.title==='عقد مستثمر تجريبي');
-  assert(organizerLease);assert.equal(organizerLease.data.tenantName,'مستثمر تجريبي');assert.equal(organizerLease.data.endDate,nextMonth(nextMonth(date)));
+  assert(organizerLease);assert.equal(organizerLease.data.tenantName,'مستثمر تجريبي');assert.equal(organizerLease.data.endDate,nextMonth(nextMonth(rentStartDate)));
   const organizerRentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId===organizerLease.id&&r.data.status==='pending');
   assert(organizerRentDue);assert.equal(organizerRentDue.data.direction,'in');assert.equal(w.journals.length,organizerJournalCount);checks+=5;
   // Rent deferral must replace the original scheduled due, merge into the next unpaid installment, and never create cash/revenue journals.

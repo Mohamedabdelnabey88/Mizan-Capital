@@ -13,6 +13,7 @@ async function materializeDueAccruals(db:D1Database,owner:string,skipId='',settl
  for(const r of w.records){
   if(r.kind!=='obligation'||r.data.status!=='pending')continue;
   const d=r.data,linkedLease=d.leaseId?w.records.find(x=>x.kind==='lease'&&x.id===d.leaseId):null;
+  if(d.tenantLeaseId)continue; // Legacy tenant collection schedules are tracked as organizer dates, not automatically accrued accounting entries.
   if(linkedLease?.data.accountingModel==='period-accrual-v2')continue;
   const source='obligation-accrual:'+r.id;
   if(d.date>today()||known.has(source)||!['income','expense'].includes(accounts[d.category]?.type))continue;
@@ -209,9 +210,9 @@ else if(action==='projectSchedulePayment'){
  const paidOn=date(p.date||today());
  if(paidOn>today())throw Error('تاريخ التحصيل أو السداد الفعلي لا يمكن أن يكون في المستقبل.');
  update(r,{...d,status:'paid',paidOn});
- const parentId=d.projectCommitmentId||d.projectTenantLeaseId,parentKind=d.projectCommitmentId?'projectCommitment':'projectTenantLease';
+ const parentId=d.projectCommitmentId||d.projectTenantLeaseId||d.tenantLeaseId,parentKind=d.projectCommitmentId?'projectCommitment':d.projectTenantLeaseId?'projectTenantLease':'tenantLease';
  const parent=find(parentId,parentKind);
- const installments=(Array.isArray(parent.data.installments)?parent.data.installments:[]).map((x:any)=>x.obligationId===r.id?{...x,status:'paid',paidOn}:x);
+ const installments=(Array.isArray(parent.data.installments)?parent.data.installments:[]).map((x:any,i:number)=>x.obligationId===r.id||(parentKind==='tenantLease'&&i+1===Number(d.leaseInstallment))?{...x,status:'paid',paidOn,obligationId:r.id}:x);
  const allPaid=installments.length>0&&installments.every((x:any)=>x.status==='paid');
  update(parent,{...parent.data,installments,status:parentKind==='projectCommitment'?(allPaid?'completed':'active'):parent.data.status,updatedAt:time});
  description=(d.direction==='in'?'تسجيل تحصيل مستأجر':'تسجيل سداد التزام مشروع')+' دون قيد مصدر سيولة: '+d.title;

@@ -198,7 +198,7 @@ try{
   const organizerJournalCount=w.journals.length;checks+=4;
 
   const commitmentFirst=nextMonth(date),commitmentSecond=nextMonth(commitmentFirst);
-  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'أقساط مقاول تنظيمية',party:'مقاول تجريبي',totalAmount:3000,installments:commitmentFirst+',1500\\n'+commitmentSecond+',1500'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'أقساط مقاول تنظيمية',party:'مقاول تجريبي',totalAmount:3000,installments:commitmentFirst+',1500\n'+commitmentSecond+',1500'}}},200);
   w=await (await call()).json();
   const organizerCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='أقساط مقاول تنظيمية');
   assert(organizerCommitment);assert.equal(organizerCommitment.data.installments.length,2);

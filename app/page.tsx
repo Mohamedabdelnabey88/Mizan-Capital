@@ -135,10 +135,10 @@ return <SidebarProvider><Sidebar side="right" className="app-sidebar"><SidebarHe
  const currentLease=projectLeases.find(r=>String(r.data.startDate)<=today()&&String(r.data.endDate)>=today())||projectLeases.find(r=>String(r.data.startDate)>today())||w.records.filter(r=>r.kind==='tenantLease'&&r.data.project===p.id&&r.data.status==='active').find(r=>String(r.data.startDate)<=today()&&String(r.data.endDate)>=today());
  const rentDues=w.records.filter(r=>r.kind==='obligation'&&r.data.project===p.id&&r.data.direction==='in'&&r.data.status==='pending'&&(r.data.projectTenantLeaseId||r.data.tenantLeaseId)).sort((a,b)=>String(a.data.date).localeCompare(String(b.data.date)));
  const nextRent=rentDues[0];
+ const managementMode=['self','leased','preparing','vacant'].includes(p.data.managementMode)?p.data.managementMode:'self';
  const tenantName=currentLease?String(currentLease.data.tenantName||'مستأجر'):managementMode==='leased'?'العقد غير مسجل':'—';
  const contractEnd=currentLease?String(currentLease.data.endDate||''):managementMode==='leased'?'سجّل نهاية العقد':'';
  const leaseIsUpcoming=!!currentLease&&String(currentLease.data.startDate)>today();
- const managementMode=['self','leased','preparing','vacant'].includes(p.data.managementMode)?p.data.managementMode:'self';
  const managementLabel=currentLease?(leaseIsUpcoming?'عقد قادم':'مؤجر لمستثمر'):({self:'تشغيل ذاتي',leased:'مؤجر لمستثمر',preparing:'تحت التجهيز',vacant:'شاغر / معروض للتأجير'} as any)[managementMode];
  return <Panel key={p.id} className="project-organizer-card">
   <div className="project-organizer-head"><div className="project-organizer-symbol"><Building2 size={22}/></div><div className="project-organizer-name"><h2>{p.data.name}</h2><p>{p.data.activity||'متابعة مشروع واستثمار'}</p></div><Tag tone={managementMode==='self'?'green':managementMode==='leased'?'blue':'muted'}>{managementLabel}</Tag><button className="icon-button" aria-label={'تعديل إعدادات '+p.data.name} onClick={()=>open('projectSettings',{id:p.id,version:p.version,name:p.data.name,managementMode:p.data.managementMode||'self',reserve:p.data.reserve/100,expectedNetMonthly:(p.data.expectedNetMonthly||0)/100,planEffectiveFrom:today(),payout:p.data.payout,partner:p.data.partner})}><Settings2 size={17}/></button></div>

@@ -10,6 +10,15 @@ const f=await import('../.sites-runtime/finance.js');const precision=await impor
 assert.equal(f.monthAdd('2026-01-31',1),'2026-02-28');assert.equal(f.monthAdd('2028-01-31',1),'2028-02-29');
 for(const annual of [0,6,12]){const s=f.loanSchedule(12345678,annual,36,'2026-01-31');assert.equal(s.reduce((n,r)=>n+r.principal,0),12345678);assert.equal(s.at(-1).date,'2028-12-31');assert(s.every(r=>r.amount===r.interest+r.principal));}const exactRate=f.loanRateFromPaymentExact(50000,4244,12);assert(exactRate>3&&exactRate<4);const exactSchedule=f.loanScheduleFromPaymentExact(50000,4244,12,'2026-01-31');assert.equal(exactSchedule.length,12);assert.equal(exactSchedule.at(-1).principal,exactSchedule.reduce((n,r)=>n+r.principal,0)-exactSchedule.slice(0,-1).reduce((n,r)=>n+r.principal,0));assert.equal(exactSchedule.reduce((n,r)=>n+r.principal,0),5000000);
 assert.throws(()=>f.validateLines([{project:'a',account:'cash',debit:10,credit:0},{project:'a',account:'capital',debit:0,credit:9}]));
+const liabilityFixture={records:[],journals:[
+ {id:'external-liabilities',date:'2026-10-19',memo:'liability fixture',kind:'manual',lines:[{project:'a',account:'cash',debit:3700,credit:0},{project:'a',account:'payable',debit:0,credit:1000},{project:'a',account:'rent_payable',debit:0,credit:500},{project:'a',account:'loan',debit:0,credit:2000},{project:'a',account:'tax_payable',debit:0,credit:200}]},
+ {id:'internal-funding',date:'2026-10-19',memo:'internal project funding',kind:'transfer',lines:[{project:'a',account:'cash',debit:9000,credit:0},{project:'a',account:'inter_payable',debit:0,credit:9000}]},
+ {id:'future-liability',date:'2026-10-20',memo:'future payable',kind:'manual',lines:[{project:'b',account:'cash',debit:250,credit:0},{project:'b',account:'payable',debit:0,credit:250}]}
+],audit:[]};
+assert.deepEqual(f.externalLiabilityBreakdown(liabilityFixture,['a','b'],'2026-10-19'),[
+ {project:'a',payable:1000,rent:500,loan:2000,tax:200,total:3700},
+ {project:'b',payable:0,rent:0,loan:0,tax:0,total:0}
+],'external liability summary includes rent payable, uses current balances, and excludes internal financing and future postings');
 const commitmentsFixture={records:[
  {id:'rent-pending',kind:'obligation',version:1,data:{project:'estate-a',title:'إيجار محل 1',direction:'in',amount:100000,date:'2026-10-10',status:'pending',tenantLeaseId:'lease-a'}},
  {id:'contractor-pending',kind:'obligation',version:1,data:{project:'estate-a',title:'دفعة مقاول',direction:'out',amount:130000,date:'2026-10-20',status:'pending'}},

@@ -175,7 +175,7 @@ else if(action==='projectCommitment'){
 }
 else if(action==='projectTenantLease'){
  const pr=find(str(p.project),'project'),tenantName=str(p.tenantName,200),title=str(p.title||'عقد تأجير المشروع',200),start=date(p.startDate),end=date(p.endDate),mode=['once','monthly','quarterly','semiannual','custom'].includes(p.scheduleType)?p.scheduleType:'monthly';let total=cents(p.totalAmount);
- if(total<=0)throw Error('أدخل إجمالي قيمة العقد أكبر من صفر.');
+ if(mode!=='monthly'&&total<=0)throw Error('أدخل إجمالي قيمة العقد أكبر من صفر.');
  if(end<start)throw Error('نهاية العقد يجب ألا تسبق بدايته.');
  if(w.records.some(r=>r.kind==='projectTenantLease'&&r.data.project===pr.id&&r.data.status==='active'&&String(r.data.startDate)<=end&&String(r.data.endDate)>=start))throw Error('يوجد عقد تأجير آخر متداخل على المشروع خلال هذه المدة.');
  let installments:{date:string;amount:number;status:string;obligationId:string}[]=[];

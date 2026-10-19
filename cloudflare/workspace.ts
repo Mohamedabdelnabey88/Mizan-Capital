@@ -231,6 +231,7 @@ else if(action==='projectSchedulePayment'){
  update(parent,{...parent.data,installments,status:parentKind==='projectCommitment'?(allPaid?'completed':'active'):parent.data.status,updatedAt:time});
  description=(d.direction==='in'?'تسجيل تحصيل مستأجر':'تسجيل سداد التزام مشروع')+' دون قيد مصدر سيولة: '+d.title;
 }
+// Keep the original rent due auditable while moving its value to a later scheduled collection.
 else if(action==='deferRentInstallment'){
  const current=find(str(p.id),'obligation'),d=current.data;
  const parentId=d.projectTenantLeaseId||d.tenantLeaseId;

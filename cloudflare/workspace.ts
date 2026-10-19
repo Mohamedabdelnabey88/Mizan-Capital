@@ -215,6 +215,12 @@ else if(action==='projectSchedulePayment'){
  const paidOn=date(p.date||today());
  if(paidOn>today())throw Error('تاريخ التحصيل أو السداد الفعلي لا يمكن أن يكون في المستقبل.');
  update(r,{...d,status:'paid',paidOn});
+ // Actual project-tenant rent collection is operating revenue and must post to the selected receipt account.
+ if(d.projectTenantLeaseId&&d.direction==='in'){
+  const receiptAccount=ensurePayment(p.paymentAccount||'bank');
+  if(receiptAccount==='receivable')throw Error('اختر حساب التحصيل الفعلي؛ لا يمكن تسجيل التحصيل على حساب آجل.');
+  journal('income','تحصيل إيجار مشروع فعلي: '+String(d.title||'إيجار مستأجر'),paidOn,pair(d.project,receiptAccount,'revenue',Number(d.amount||0)),'project-tenant-rent-payment:'+r.id);
+ }
  const parentId=d.projectCommitmentId||d.projectTenantLeaseId||d.tenantLeaseId,parentKind=d.projectCommitmentId?'projectCommitment':d.projectTenantLeaseId?'projectTenantLease':'tenantLease';
  const parent=find(parentId,parentKind);
  const installments=(Array.isArray(parent.data.installments)?parent.data.installments:[]).map((x:any,i:number)=>x.obligationId===r.id||(parentKind==='tenantLease'&&i+1===Number(d.leaseInstallment))?{...x,status:'paid',paidOn,obligationId:r.id}:x);

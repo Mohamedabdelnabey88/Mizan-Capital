@@ -118,7 +118,7 @@ assert.equal(loanDay.operatingOut,100000,'interest component is operating cash o
 assert.equal(loanDay.financingOut,1000000,'principal component is financing cash outflow');
 assert.equal(loanFlow.rows.find(row=>row.date==='2026-01-01').financingIn,10000000,'loan proceeds are financing cash inflow');
 assert.equal(loanFlow.closing,10400000,'cash flow closing agrees with cash and bank ledger');
-assert.equal(loanFlow.rows.reduce((sum,row)=>sum+row.net,0),400000,'cash-flow net change agrees with total cash movements');
+assert.equal(loanFlow.rows.reduce((sum,row)=>sum+row.net,0),10400000,'cash-flow net change agrees with total cash movements');
 
 // Reversal must neutralize the original cash and profit effects without deleting audit history.
 const reversalWorkspace={records:[],audit:[],journals:[

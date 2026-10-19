@@ -377,7 +377,7 @@ assert.equal(f.actualCashFlow(w,leaseProject,'2026-01-01',T).rows.at(-1).operati
 await ok('settle',{id:futureLease[0].id,date:T});
 w=await read();
 assert.equal(f.profit(w,leaseProject,'2027-01-01','2027-12-31').net,0);
-assert.equal(f.balance(w,leaseProject).prepaid_rent,8400000);
+assert.equal(f.balance(w,leaseProject).prepaid_rent,6000000+leasePrepaidAmount);
 assert.equal(f.balanceSheet(w,leaseProject,T).balanced,true);
 checks+=15;
 

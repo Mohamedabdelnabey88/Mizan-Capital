@@ -210,7 +210,7 @@ try{
   w=await (await call()).json();
   const periodicCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قرض بأقساط ربع سنوية');
   assert(periodicCommitment);assert.equal(periodicCommitment.data.installments.length,3);
-  const commitmentThird=nextMonth(nextMonth(nextMonth(commitmentFirst))),commitmentSixth=nextMonth(nextMonth(commitmentThird));
+  const commitmentThird=nextMonth(nextMonth(nextMonth(commitmentFirst))),commitmentSixth=nextMonth(nextMonth(nextMonth(commitmentThird)));
   assert.deepEqual(periodicCommitment.data.installments.map(x=>x.date),[commitmentFirst,commitmentThird,commitmentSixth]);
   assert(periodicCommitment.data.installments.every(x=>x.amount===300000));assert.equal(w.journals.length,organizerJournalCount);checks+=4;
 

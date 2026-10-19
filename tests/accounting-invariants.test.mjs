@@ -140,6 +140,29 @@ assert.equal(reversedCashFlow.rows.find(row=>row.date==='2026-03-02').operatingO
 assert.equal(reversedCashFlow.rows.find(row=>row.date==='2026-03-02').otherOut,0,'reversed revenue must not be misclassified as other cash outflow');
 assert.equal(reversalWorkspace.journals.length,2,'reversal preserves both original and reversing journals for auditability');
 
+// Reversing a loan installment must reverse principal and interest in their original cash-flow categories.
+const reversedLoanSettlement={records:[],audit:[],journals:[
+  {id:'loan-settlement',date:'2026-04-01',memo:'قسط قرض',kind:'settle',lines:[
+    {project:'p1',account:'loan',debit:1000000,credit:0},
+    {project:'p1',account:'interest',debit:100000,credit:0},
+    {project:'p1',account:'cash',debit:0,credit:1100000}
+  ]},
+  {id:'loan-settlement-reversal',date:'2026-04-02',memo:'عكس قسط قرض',kind:'reversal',reversal:'loan-settlement',lines:[
+    {project:'p1',account:'loan',debit:0,credit:1000000},
+    {project:'p1',account:'interest',debit:0,credit:100000},
+    {project:'p1',account:'cash',debit:1100000,credit:0}
+  ]}
+]};
+const reversedLoanFlow=f.actualCashFlow(reversedLoanSettlement,'p1','2026-04-01','2026-04-30');
+const originalLoanPayment=reversedLoanFlow.rows.find(row=>row.date==='2026-04-01');
+const reversedLoanPayment=reversedLoanFlow.rows.find(row=>row.date==='2026-04-02');
+assert.equal(originalLoanPayment.operatingOut,100000,'original loan interest is operating outflow');
+assert.equal(originalLoanPayment.financingOut,1000000,'original loan principal is financing outflow');
+assert.equal(reversedLoanPayment.operatingIn,100000,'reversed loan interest is operating inflow');
+assert.equal(reversedLoanPayment.financingIn,1000000,'reversed loan principal is financing inflow');
+assert.equal(reversedLoanPayment.otherIn,0,'reversed loan payment must not be misclassified as other inflow');
+assert.equal(reversedLoanFlow.closing,0,'reversed loan settlement nets to zero cash movement');
+
 // Loan schedules must conserve principal exactly and never produce negative interest/principal.
 for(const [principal,rate,months] of [[100001,0,7],[1234567,3.75,18],[987654321,9.99,60]]){
   const schedule=f.loanSchedule(principal,rate,months,'2026-01-31');

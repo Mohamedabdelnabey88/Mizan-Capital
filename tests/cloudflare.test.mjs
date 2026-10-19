@@ -206,6 +206,13 @@ try{
   let organizerCommitmentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===organizerCommitment.id&&r.data.status==='pending');
   assert(organizerCommitmentDue);assert.equal(organizerCommitmentDue.data.direction,'out');assert.equal(w.journals.length,organizerJournalCount);checks+=6;
 
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'قرض بأقساط ربع سنوية',totalAmount:9000,scheduleType:'quarterly',firstDate:commitmentFirst,installmentCount:3}}},200);
+  w=await (await call()).json();
+  const periodicCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قرض بأقساط ربع سنوية');
+  assert(periodicCommitment);assert.equal(periodicCommitment.data.installments.length,3);
+  assert.deepEqual(periodicCommitment.data.installments.map(x=>x.date),[commitmentFirst,nextMonth(nextMonth(nextMonth(commitmentFirst))),nextMonth(nextMonth(nextMonth(nextMonth(nextMonth(nextMonth(commitmentFirst)))))]);
+  assert(periodicCommitment.data.installments.every(x=>x.amount===300000));assert.equal(w.journals.length,organizerJournalCount);checks+=4;
+
   await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project,title:'عقد مستثمر تجريبي',tenantName:'مستثمر تجريبي',totalAmount:6000,startDate:date,endDate:nextMonth(nextMonth(date)),scheduleType:'monthly',paymentDate:date}}},200);
   w=await (await call()).json();
   const organizerLease=w.records.find(r=>r.kind==='projectTenantLease'&&r.data.title==='عقد مستثمر تجريبي');

@@ -10,7 +10,7 @@ export function ExternalProjectFilter({projects,selected,onChange,context='salar
   const selectedNames=useMemo(()=>projects.filter(p=>selected.includes(p.id)).map(p=>p.data.name||'مشروع بدون اسم'),[projects,selected]);
   const toggle=(id:string)=>onChange(selected.includes(id)?selected.filter(x=>x!==id):[...selected,id]);
   return (
-    <div className="project-filter-wrap">
+    <div className="project-filter-wrap" onClick={event=>event.stopPropagation()}>
       <div className="project-filter-heading"><span>{title}</span><span className="project-filter-count">{selected.length?selected.length:'الكل'}</span></div>
       <div className="project-filter-control">
         <button type="button" className={`project-filter-trigger ${open?'is-open':''}`} aria-expanded={open} aria-label={title} onClick={()=>setOpen(v=>!v)}>

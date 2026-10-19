@@ -69,6 +69,29 @@ const profitBeforePlanCheck=f.profit(workspace,'p1','2026-01-01','2026-12-31').n
 assert(f.expectedCollectionsInRange(workspace,'p1','2026-01-01','2026-12-31')>0);
 assert.equal(f.profit(workspace,'p1','2026-01-01','2026-12-31').net,profitBeforePlanCheck);
 
+// A future-dated plan must not rewrite earlier forecast periods; plans switch on effectiveFrom.
+const planWindowWorkspace={records:[
+  {id:'plan-current',kind:'projectPlan',version:1,created:'2026-01-01T00:00:00Z',data:{
+    project:'p1',effectiveFrom:'2026-01-01',
+    expectedReceiptInstallments:[{date:'2026-01-15',amountMicro:100000000}]
+  }},
+  {id:'plan-future',kind:'projectPlan',version:1,created:'2026-01-20T00:00:00Z',data:{
+    project:'p1',effectiveFrom:'2026-02-01',
+    expectedReceiptInstallments:[
+      {date:'2026-01-20',amountMicro:900000000},
+      {date:'2026-02-15',amountMicro:200000000}
+    ]
+  }}
+],journals:[],audit:[]};
+assert.equal(f.expectedCollectionsInRange(planWindowWorkspace,'p1','2026-01-01','2026-01-31'),100000,'future plan must not change expected collections before its effective date');
+assert.equal(f.expectedCollectionsInRange(planWindowWorkspace,'p1','2026-02-01','2026-02-28'),200000,'active plan contributes receipts in its effective window');
+assert.equal(f.expectedCollectionsInRange(planWindowWorkspace,'p1','2026-01-01','2026-02-28'),300000,'range spanning plan versions includes each plan only in its active window');
+const planForecast=f.forecast(planWindowWorkspace,'p1',0,0,0,0,'2026-01-10');
+assert.equal(planForecast.days.find(day=>day.date==='2026-01-15').income,100000,'forecast retains the earlier plan until replacement becomes effective');
+assert.equal(planForecast.days.find(day=>day.date==='2026-01-20').income,0,'forecast excludes receipts dated before the new plan effective date');
+assert.equal(planForecast.days.find(day=>day.date==='2026-02-15').income,200000,'forecast applies the new plan after its effective date');
+assert.equal(f.profit(planWindowWorkspace,'p1','2026-01-01','2026-12-31').net,0,'forecast plans must never be booked as actual profit');
+
 // Assets must equal liabilities plus equity and current-period profit.
 const sheet=f.balanceSheet(workspace,'p1','2026-02-28');
 assert.equal(sheet.accounts.cash,10400000);

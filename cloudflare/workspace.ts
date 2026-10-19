@@ -205,7 +205,7 @@ else if(action==='projectTenantLease'){
 }
 else if(action==='projectSchedulePayment'){
  const r=find(str(p.id),'obligation'),d=r.data;
- if(!d.projectCommitmentId&&!d.projectTenantLeaseId)throw Error('هذا الموعد ليس من سجلات تنظيم المشروع.');
+ if(!d.projectCommitmentId&&!d.projectTenantLeaseId&&!d.tenantLeaseId)throw Error('هذا الموعد ليس من سجلات تنظيم المشروع.');
  if(d.status!=='pending')throw Error('تم تسجيل هذا الموعد من قبل.');
  const paidOn=date(p.date||today());
  if(paidOn>today())throw Error('تاريخ التحصيل أو السداد الفعلي لا يمكن أن يكون في المستقبل.');

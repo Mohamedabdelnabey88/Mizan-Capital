@@ -126,6 +126,15 @@ try{
   w=await (await call()).json();const tenantLease=w.records.find(r=>r.kind==='tenantLease'&&r.data.unitId===unit.id);
   assert(tenantLease,'tenant lease must persist');assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.tenantLeaseId===tenantLease.id).length,3);
   await expectStatus({method:'POST',body:{action:'tenantLease',requestId:crypto.randomUUID(),payload:{project,unitId:unit.id,tenantName:'مستأجر آخر',title:'عقد متداخل',totalAmount:12000,startDate:date,endDate:leaseEnd,scheduleType:'monthly',paymentDate:date}}},400);
+  w=await (await call()).json();
+  const legacyTenantDue=w.records.find(r=>r.kind==='obligation'&&r.data.tenantLeaseId===tenantLease.id&&r.data.status==='pending');
+  const legacyLeaseJournalCount=w.journals.length;
+  assert(legacyTenantDue,'legacy tenant rent must be scheduled');
+  await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:legacyTenantDue.id,date}}},200);
+  w=await (await call()).json();
+  assert.equal(w.records.find(r=>r.id===legacyTenantDue.id).data.status,'paid');
+  assert.equal(w.records.find(r=>r.id===tenantLease.id).data.installments.filter(x=>x.status==='paid').length,1);
+  assert.equal(w.journals.length,legacyLeaseJournalCount);checks+=4;
   // Full loan edits correct the receipt and rebuild unpaid installments with reversing journals.
   await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{name:'قرض قابل للتعديل',amount:12000,monthlyPayment:1100,months:12,start:date,firstDate:nextMonth(date)}}},200);
   w=await (await call()).json();const editableLoan=w.records.find(r=>r.kind==='loan'&&r.data.name==='قرض قابل للتعديل');

@@ -104,9 +104,28 @@ export function expectedCollectionsInRange(w:Workspace,project='all',start='0000
  const incoming=obligationRows.filter(r=>r.data?.status==='pending');
  let total=incoming.reduce((sum,r)=>sum+Math.max(0,Math.round(Number(r.data.amount||0))),0);
  const existing=new Set(obligationRows.map(r=>String(r.data.project||'')+'|'+String(r.data.date||'')+'|'+Math.round(Number(r.data.amount||0))));
- const latestPlans=new Map<string,RecordItem>();
- for(const r of w.records.filter(x=>x.kind==='projectPlan')){const pid=String(r.data?.project||'');if(project!=='all'&&pid!==project)continue;const prior=latestPlans.get(pid);const effective=String(r.data?.effectiveFrom||'');const previous=String(prior?.data?.effectiveFrom||'');if(!prior||effective>previous||(effective===previous&&String((r as any).created||'')>=String((prior as any).created||'')))latestPlans.set(pid,r);}
- for(const [pid,r] of latestPlans){const d=r.data as any;const rows=Array.isArray(d.expectedReceiptInstallments)&&d.expectedReceiptInstallments.length?d.expectedReceiptInstallments:(d.expectedReceiptDate?[{date:d.expectedReceiptDate,amountMicro:Math.max(0,Math.round(Number(d.netTargetMicro||0)/1000))*1000}]:[]);for(const row of rows){const amount=Math.max(0,Math.round(Number(row.amountMicro||0)/1000));if(!amount)continue;for(const date of installmentDates(row)){if(date<start||date>end)continue;const key=pid+'|'+date+'|'+amount;if(existing.has(key))continue;total+=amount;}}}
+ const plansByProject=new Map<string,RecordItem[]>();
+ for(const r of w.records.filter(x=>x.kind==='projectPlan')){
+  const pid=String(r.data?.project||'');if(project!=='all'&&pid!==project)continue;
+  const list=plansByProject.get(pid)||[];list.push(r);plansByProject.set(pid,list);
+ }
+ for(const [pid,plans] of plansByProject){
+  plans.sort((a,b)=>String(a.data?.effectiveFrom||'0000-01-01').localeCompare(String(b.data?.effectiveFrom||'0000-01-01'))||String((a as any).created||'').localeCompare(String((b as any).created||'')));
+  const activePlans=plans.filter((plan,index)=>index===plans.length-1||String(plan.data?.effectiveFrom||'0000-01-01')!==String(plans[index+1].data?.effectiveFrom||'0000-01-01'));
+  for(let index=0;index<activePlans.length;index++){
+   const r=activePlans[index],d=r.data as any;
+   const effective=String(d.effectiveFrom||'0000-01-01');
+   const nextEffective=index+1<activePlans.length?String(activePlans[index+1].data?.effectiveFrom||'0000-01-01'):'9999-12-31';
+   const rows=Array.isArray(d.expectedReceiptInstallments)&&d.expectedReceiptInstallments.length?d.expectedReceiptInstallments:(d.expectedReceiptDate?[{date:d.expectedReceiptDate,amountMicro:Math.max(0,Math.round(Number(d.netTargetMicro||0)/1000))*1000}]:[]);
+   for(const row of rows){
+    const amount=Math.max(0,Math.round(Number(row.amountMicro||0)/1000));if(!amount)continue;
+    for(const date of installmentDates(row)){
+     if(date<start||date>end||date<effective||date>=nextEffective)continue;
+     const key=pid+'|'+date+'|'+amount;if(existing.has(key))continue;total+=amount;
+    }
+   }
+  }
+ }
  return total;
 }
 export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,outlay=0,startDate=today()){

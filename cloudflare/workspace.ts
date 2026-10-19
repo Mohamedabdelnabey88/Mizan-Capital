@@ -231,6 +231,31 @@ else if(action==='projectSchedulePayment'){
  update(parent,{...parent.data,installments,status:parentKind==='projectCommitment'?(allPaid?'completed':'active'):parent.data.status,updatedAt:time});
  description=(d.direction==='in'?'تسجيل تحصيل مستأجر':'تسجيل سداد التزام مشروع')+' دون قيد مصدر سيولة: '+d.title;
 }
+else if(action==='deferRentInstallment'){
+ const current=find(str(p.id),'obligation'),d=current.data;
+ const parentId=d.projectTenantLeaseId||d.tenantLeaseId;
+ const parentKind=d.projectTenantLeaseId?'projectTenantLease':d.tenantLeaseId?'tenantLease':'';
+ if(!parentId||!parentKind||d.direction!=='in')throw Error('ترحيل الموعد متاح فقط لتحصيل إيجار مرتبط بعقد مستأجر.');
+ if(d.status!=='pending')throw Error('لا يمكن ترحيل قسط تمت تسويته أو ترحيله مسبقًا.');
+ const requestedDate=date(p.date);
+ if(requestedDate<=String(d.date||''))throw Error('اختر تاريخ ترحيل بعد تاريخ الاستحقاق الأصلي.');
+ const parent=find(parentId,parentKind);
+ const siblings=w.records.filter(x=>x.kind==='obligation'&&(x.data.projectTenantLeaseId===parentId||x.data.tenantLeaseId===parentId)&&x.id!==current.id&&x.data.status==='pending'&&String(x.data.date||'')>=requestedDate).sort((a,b)=>String(a.data.date).localeCompare(String(b.data.date)));
+ const target=siblings[0];
+ const amount=Number(d.amount||0);
+ if(!Number.isSafeInteger(amount)||amount<=0)throw Error('قيمة قسط الإيجار غير صالحة للترحيل.');
+ const targetId=target?.id||uid(),targetDate=target?String(target.data.date):requestedDate;
+ if(target)update(target,{...target.data,amount:Number(target.data.amount||0)+amount,deferredRentFrom:[...(Array.isArray(target.data.deferredRentFrom)?target.data.deferredRentFrom:[]),current.id]});
+ else due({...d,status:'pending',date:targetDate,title:String(d.title||'إيجار مستحق')+' — قسط مرحّل',amount,paidOn:undefined,deferredFrom:current.id,leaseInstallment:(Array.isArray(parent.data.installments)?parent.data.installments.length:0)+1},targetId);
+ update(current,{...d,status:'replaced',replacedBy:targetId,deferredToDate:targetDate,deferredAmount:amount,updatedAt:time});
+ const items=Array.isArray(parent.data.installments)?parent.data.installments.slice():[];
+ let foundCurrent=false,foundTarget=!!target;
+ const revised=items.map((x:any)=>{if(x.obligationId===current.id){foundCurrent=true;return {...x,amount:0,status:'deferred',deferredAmount:amount,deferredToDate:targetDate,replacedBy:targetId};}if(target&&x.obligationId===target.id){foundTarget=true;return {...x,amount:Number(x.amount||0)+amount};}return x;});
+ if(!foundCurrent)throw Error('تعذر مطابقة القسط مع جدول العقد؛ لم يتم ترحيل أي مبلغ.');
+ if(!target)revised.push({date:targetDate,amount,status:'pending',obligationId:targetId,deferredFrom:current.id});
+ update(parent,{...parent.data,installments:revised,updatedAt:time});
+ description='ترحيل قسط إيجار '+d.title+' إلى '+targetDate+' دون تسجيل تحصيل فعلي';
+}
 else if(action==='project'){const projectId=uid();const monthlyRevenueMicro=planMoneyMicro(p.expectedMonthlyRevenue||0,'الإيراد الشهري المتوقع');const dailyRevenueMicro=planMoneyMicro(p.expectedDailyRevenue||0,'الإيراد اليومي المتوقع');const monthlyExpenseMicro=planMoneyMicro(p.expectedMonthlyExpense||0,'المصروف الشهري المتوقع');const monthlyNetMicro=planMoneyMicro(p.expectedNetMonthly||0,'صافي الدخل الشهري المتوقع');put('project',{name:str(p.name),activity:p.activity?str(p.activity,200):'متابعة مشروع',mode:['operating','investment'].includes(p.mode)?p.mode:'operating',managementMode:['self','leased','preparing','vacant'].includes(p.managementMode)?p.managementMode:'self',ownership:num(p.ownership,0.01,100),reserve:cents(p.reserve||0),payout:num(p.payout??30,0,100),expectedNetMonthly:monthlyNetMicro/1000,partner:p.partner?str(p.partner):'',closedThrough:''},projectId);if(p.mode==='operating')put('projectPlan',{project:projectId,effectiveFrom:date(p.planEffectiveFrom||today()),revenueMonthlyMicro:monthlyRevenueMicro,revenueDailyMicro:dailyRevenueMicro,expenseMonthlyMicro:monthlyExpenseMicro,expenseDailyMicro:0,netMonthlyMicro:monthlyNetMicro,source:'original_baseline',label:'الخطة الأصلية'});description='إضافة مشروع: '+p.name;}
 else if(action==='deleteProject'){
  const r=find(p.id,'project');

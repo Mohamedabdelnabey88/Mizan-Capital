@@ -896,3 +896,8 @@ button,.btn,[role="button"],[role="combobox"]{touch-action:manipulation}
  .project-page-filters .project-filter-reset{margin-inline-start:0}
  .project-organizer-head .project-delete-button{flex:0 0 38px}
 }
+
+/* Loan installment schedule: readable dates and clear hierarchy */
+.installment-date{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:132px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.installment-date strong{font-size:13px;font-weight:750;color:var(--foreground,#24382e);line-height:1.65}
+.installment-date small{font-size:10px;line-height:1.4;color:var(--muted-foreground,#758078);letter-spacing:.03em}

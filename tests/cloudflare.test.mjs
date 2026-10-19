@@ -118,6 +118,15 @@ try{
   assert.equal(assetJournal.lines.reduce((n,l)=>n+l.debit,0),assetJournal.lines.reduce((n,l)=>n+l.credit,0));checks+=4;
   await expectStatus({method:'POST',body:{action:'projectAsset',requestId:crypto.randomUUID(),payload:{project,category:'equipment',amount:8000,date,paymentAccount:'cash',description:'يجب رفض تجاوز السيولة'}}},400);
   await expectStatus({method:'POST',body:{action:'projectAsset',requestId:crypto.randomUUID(),payload:{project,category:'equipment',amount:1,date:'2000-01-01',paymentAccount:'cash',description:'يجب رفض استخدام سيولة مستقبلية'}}},400);
+  // Cancelled funding repayments must not reduce the outstanding balance available for a valid repayment.
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project,sourceType:'personal',amount:1000,date,memo:'تمويل لاسترداد ملغى تجريبي'}}},200);
+  w=await (await call()).json();const fundingForCancelledRepayment=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل لاسترداد ملغى تجريبي');
+  assert(fundingForCancelledRepayment,'funding record must persist before repayment lifecycle test');
+  await db.prepare('INSERT INTO records(id,owner,kind,data,created) VALUES(?,?,?,?,?)').bind('cancelled-repayment-fixture','cloudflare-owner','fundingRepayment',JSON.stringify({fundingId:fundingForCancelledRepayment.id,project,sourceType:'personal',amount:100000,date,status:'cancelled',memo:'fixture already reversed'}),new Date().toISOString()).run();
+  await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:fundingForCancelledRepayment.id,amount:1000,date,memo:'استرداد صحيح بعد استبعاد الملغى'}}},200);
+  w=await (await call()).json();const activeFundingRepayments=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id&&r.data.status!=='cancelled');
+  assert.equal(activeFundingRepayments.reduce((sum,r)=>sum+Number(r.data.amount||0),0),100000);
+  assert.equal(w.journals.filter(j=>j.source==='fundingRepayment:'+activeFundingRepayments[0].id).length,1);checks+=4;
   // Rental units and tenant contracts create dated receivables/income obligations and reject overlapping contracts.
   await expectStatus({method:'POST',body:{action:'propertyUnit',requestId:crypto.randomUUID(),payload:{project,name:'محل اختبار 1',unitType:'retail',operatingMode:'rent',area:40}}},200);
   w=await (await call()).json();const unit=w.records.find(r=>r.kind==='propertyUnit'&&r.data.name==='محل اختبار 1');assert(unit,'property unit must persist');

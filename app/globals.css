@@ -873,3 +873,26 @@ button,.btn,[role="button"],[role="combobox"]{touch-action:manipulation}
 @media(max-width:760px){.project-organizer-card{padding:16px 14px;border-radius:17px}.project-organizer-head{gap:9px;align-items:flex-start}.project-organizer-symbol{width:40px;height:40px;border-radius:12px}.project-organizer-name h2{font-size:19px}.project-organizer-head>.tag{max-width:95px;font-size:10px}.project-organizer-stats{gap:7px}.project-organizer-stat{padding:11px 9px;gap:5px}.project-organizer-stat>span{font-size:11px}.project-organizer-stat>strong{font-size:15px}.project-organizer-stat>small{font-size:9px}.project-organizer-contract{gap:0 12px}.project-organizer-contract>div{gap:6px;flex-direction:column}.project-organizer-contract span,.project-organizer-contract strong{font-size:11px}.project-organizer-actions{grid-template-columns:1fr;gap:8px}.project-organizer-actions .btn{min-height:44px;font-size:12px}.project-organizer-cost-row,.project-organizer-due-row,.project-organizer-contract-row{gap:7px}.project-organizer-cost-row>b,.project-organizer-due-row>b,.project-organizer-contract-row>b{font-size:12px}}
 @media(max-width:420px){.project-organizer-stats{grid-template-columns:1fr}.project-organizer-stat{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:3px 8px}.project-organizer-stat>strong{grid-column:2;grid-row:1 / span 2;text-align:left}.project-organizer-stat>small{grid-column:1}.project-organizer-contract{grid-template-columns:1fr 1fr}.project-organizer-head>.tag{display:none}.project-organizer-cost-row,.project-organizer-due-row,.project-organizer-contract-row{grid-template-columns:minmax(0,1fr) auto}.project-organizer-cost-row .text-button,.project-organizer-due-row .text-button,.project-organizer-contract-row .tag,.project-organizer-paid{grid-column:1 / -1;justify-self:start}}
 @media(prefers-reduced-motion:reduce){.project-organizer-ledger>summary svg,.project-legacy-tools>summary svg{transition:none}}
+
+/* Projects & investments: reliable local filtering and explicit destructive action */
+.project-page-filters{align-items:center;gap:12px;flex-wrap:wrap}
+.project-page-filters .project-search{flex:1 1 280px;min-width:220px}
+.project-page-filters .project-search input{width:100%;min-width:0}
+.project-filter-select{display:flex;flex-direction:column;gap:3px;min-width:155px;font-size:11px;color:#718078}
+.project-filter-select select{min-height:40px;max-width:100%;border:1px solid var(--border);border-radius:8px;background:#fff;color:#304b3d;padding:7px 10px;font-size:13px}
+.project-filter-count{font-size:12px;color:#728078;white-space:nowrap}
+.project-filter-reset{min-height:40px}
+.project-delete-button{color:#b44949;border-color:#f0d8d5;background:#fffafa}
+.project-delete-button:hover{background:#fff0ee;border-color:#e7bcb6;color:#9f2f2f}
+.project-delete-warning{background:#fff5f3;border-color:#f1d5d0;color:#9b5d55}
+.project-delete-warning strong{color:#a33f36;font-size:22px;overflow-wrap:anywhere}
+.project-delete-warning small{line-height:1.9;color:#986c66}
+.project-page-filters .project-filter-reset{margin-inline-start:auto}
+@media(max-width:760px){
+ .project-page-filters{align-items:stretch;gap:9px}
+ .project-page-filters .project-search{flex:1 1 100%;min-width:0}
+ .project-filter-select{flex:1 1 145px;min-width:0}
+ .project-filter-count{flex:1 1 100%;white-space:normal}
+ .project-page-filters .project-filter-reset{margin-inline-start:0}
+ .project-organizer-head .project-delete-button{flex:0 0 38px}
+}

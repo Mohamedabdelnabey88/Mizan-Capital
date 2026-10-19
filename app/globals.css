@@ -1,3 +1,44 @@
+
+
+/* Project cards: clear hierarchy and progressive disclosure */
+.project-card-overview{padding:22px;min-width:0;overflow:hidden;background:linear-gradient(145deg,#fff 0%,#fbfdfc 68%,#f3f8f5 100%);border:1px solid #dfe9e3;border-radius:20px;box-shadow:0 8px 24px rgba(24,58,42,.055);}
+.project-card-overview .project-card-top{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.project-card-overview .project-card-top .tag{margin-right:auto;max-width:calc(100% - 112px);white-space:normal;line-height:1.5;text-align:center;}
+.project-card-overview>h2{font-size:23px;line-height:1.45;font-weight:800;letter-spacing:-.025em;color:#183d30;margin:4px 0 4px;overflow-wrap:anywhere;}
+.project-card-overview>p{font-size:13px;line-height:1.8;color:#738078;margin:0 0 18px;overflow-wrap:anywhere;}
+.project-card-overview>.ownership{align-items:center;margin:0 0 9px;font-size:13px;gap:12px;}
+.project-card-overview>.ownership b{color:#365f45;font-size:14px;white-space:nowrap;}
+.project-card-overview>.ownership-bar{height:6px;background:#e8efe9;margin-bottom:17px;}
+.project-card-overview>.project-amounts{gap:10px;margin:0 0 16px;}
+.project-card-overview>.project-amounts>div{min-width:0;padding:13px 12px;border:1px solid #e4ece6;border-radius:13px;background:rgba(255,255,255,.9);}
+.project-card-overview>.project-amounts small{font-size:11px;line-height:1.6;min-height:35px;margin-bottom:5px;}
+.project-card-overview>.project-amounts b{display:block;font-size:clamp(15px,1.25vw,20px);font-weight:750;line-height:1.5;overflow-wrap:anywhere;}
+.project-card-overview .project-capital-breakdown{margin:0 0 12px;padding:0;border:1px solid #e2eae4;border-radius:14px;background:#f8faf8;overflow:hidden;}
+.project-details-summary{display:flex;align-items:center;gap:9px;min-height:54px;padding:12px 13px;cursor:pointer;list-style:none;}
+.project-details-summary::-webkit-details-marker{display:none;}
+.project-details-summary::marker{content:"";display:none;}
+.project-details-summary strong{font-size:13px;font-weight:800;color:#294a38;}
+.project-details-summary span{margin-right:auto;font-size:11px;color:#7a877f;line-height:1.5;text-align:left;}
+.project-details-summary>svg{flex:0 0 auto;color:#65806e;transition:transform .18s ease;}
+.project-capital-breakdown[open]>.project-details-summary>svg,.property-units-register[open]>.project-details-summary>svg{transform:rotate(-90deg);}
+.project-capital-content{padding:0 13px 13px;border-top:1px solid #e5ece7;}
+.project-capital-content .project-capital-heading{padding-top:13px;}
+.project-capital-content .project-capital-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.project-capital-content .project-capital-grid>div{padding:10px;border-radius:10px;background:#fff;}
+.project-capital-content .project-capital-grid b{font-size:13px;line-height:1.6;overflow-wrap:anywhere;}
+.project-capital-content .project-capital-grid small{font-size:11px;line-height:1.6;}
+.project-card-overview .property-units-register{margin:0 0 12px;padding:0;border:1px solid #e2eae4;border-radius:14px;background:#fbfcfb;overflow:hidden;}
+.project-units-content,.property-units-content{padding:0 13px 13px;border-top:1px solid #e5ece7;}
+.property-units-content .project-capital-heading{padding-top:12px;}
+.project-card-overview .project-actions-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0 10px;}
+.project-card-overview .project-actions-grid .btn.full{width:100%;min-width:0;min-height:46px;margin:0;padding:10px;display:flex;align-items:center;justify-content:center;gap:7px;text-align:center;white-space:normal;line-height:1.55;font-size:12px;border-radius:11px;}
+.project-card-overview .project-actions-grid .btn.primary{box-shadow:0 3px 8px rgba(42,93,58,.12);}
+.project-card-overview>.project-delete-button{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:38px;margin-top:4px;padding:8px;border-top:1px solid #edf0ed;font-size:12px;color:#9b6863;}
+.project-card-overview .project-capital-foot{font-size:11px;line-height:1.8;}
+.project-card-overview .project-asset-register{margin-top:12px;}
+@media(max-width:760px){.project-card-overview{padding:17px 15px;border-radius:17px}.project-card-overview>h2{font-size:21px}.project-card-overview>.project-amounts{gap:8px}.project-card-overview>.project-amounts>div{padding:11px 9px}.project-card-overview>.project-amounts b{font-size:16px}.project-card-overview .project-actions-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.project-card-overview .project-actions-grid .btn.full{min-height:48px;font-size:11px;padding:9px 7px}.project-details-summary{padding:11px;gap:7px}.project-details-summary span{font-size:10px}.project-capital-content{padding:0 10px 10px}.project-capital-content .project-capital-grid{gap:7px}.project-capital-content .project-capital-grid>div{padding:8px}}
+@media(max-width:420px){.project-card-overview .project-actions-grid{grid-template-columns:minmax(0,1fr)}.project-card-overview .project-actions-grid .btn.full{min-height:44px;font-size:12px}.project-card-overview .project-details-summary strong{font-size:12px}.project-card-overview .project-details-summary span{max-width:44%;}}
+@media(prefers-reduced-motion:reduce){.project-details-summary>svg{transition:none}}
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @custom-variant dark (&:is(.dark *));

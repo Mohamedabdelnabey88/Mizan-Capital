@@ -260,7 +260,7 @@ try{
   const rentCollectionJournal=w.journals.find(j=>j.source==='project-tenant-rent-payment:'+organizerRentDue.id);
   assert(rentCollectionJournal,'confirmed project rent collection must post to the ledger');
   assert.equal(rentCollectionJournal.lines.reduce((n,l)=>n+l.debit,0),rentCollectionJournal.lines.reduce((n,l)=>n+l.credit,0));
-  assert(rentCollectionJournal.lines.some(l=>l.account==='revenue'&&l.credit===organizerRentDue.data.amount));checks+=5;
+  assert(rentCollectionJournal.lines.some(l=>l.account==='revenue'&&l.credit===nextRentAmount+rentAmount));checks+=5;
 
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');

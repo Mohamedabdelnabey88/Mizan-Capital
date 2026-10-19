@@ -191,7 +191,7 @@ try{
   assert.equal(w.records.filter(r=>r.data.loan===loan.id&&r.data.status==='replaced').length,360);checks++;
 
   // Project organizer workflow: track costs and schedules without requiring a funding source or creating ledger entries.
-  await expectStatus({method:'POST',body:{action:'projectCost',requestId:crypto.randomUUID(),payload:{project,title:'تكلفة تنظيمية تجريبية',amount:200000,date,category:'construction',notes:'بدون مصدر سيولة'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCost',requestId:crypto.randomUUID(),payload:{project,title:'تكلفة تنظيمية تجريبية',amount:2000,date,category:'construction',notes:'بدون مصدر سيولة'}}},200);
   w=await (await call()).json();
   const organizerCost=w.records.find(r=>r.kind==='projectCost'&&r.data.title==='تكلفة تنظيمية تجريبية');
   assert(organizerCost);assert.equal(organizerCost.data.amount,200000);assert.equal(organizerCost.data.project,project);assert.equal(organizerCost.data.notes,'بدون مصدر سيولة');

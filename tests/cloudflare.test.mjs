@@ -223,7 +223,8 @@ try{
   assert.deepEqual(periodicCommitment.data.installments.map(x=>x.date),[commitmentFirst,commitmentThird,commitmentSixth]);
   assert(periodicCommitment.data.installments.every(x=>x.amount===300000));assert.equal(w.journals.length,organizerJournalCount);checks+=4;
 
-  await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project,title:'عقد مستثمر تجريبي',tenantName:'مستثمر تجريبي',totalAmount:6000,monthlyAmount:2000,startDate:date,endDate:nextMonth(nextMonth(date)),scheduleType:'monthly',paymentDate:date}}},200);
+  const rentStartDate='2026-01-15';
+  await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project,title:'عقد مستثمر تجريبي',tenantName:'مستثمر تجريبي',totalAmount:6000,monthlyAmount:2000,startDate:rentStartDate,endDate:nextMonth(nextMonth(rentStartDate)),scheduleType:'monthly',paymentDate:rentStartDate}}},200);
   w=await (await call()).json();
   const organizerLease=w.records.find(r=>r.kind==='projectTenantLease'&&r.data.title==='عقد مستثمر تجريبي');
   assert(organizerLease);assert.equal(organizerLease.data.tenantName,'مستثمر تجريبي');assert.equal(organizerLease.data.endDate,nextMonth(nextMonth(date)));

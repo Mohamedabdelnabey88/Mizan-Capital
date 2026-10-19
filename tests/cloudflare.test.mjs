@@ -229,6 +229,24 @@ try{
   assert(organizerLease);assert.equal(organizerLease.data.tenantName,'مستثمر تجريبي');assert.equal(organizerLease.data.endDate,nextMonth(nextMonth(date)));
   const organizerRentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId===organizerLease.id&&r.data.status==='pending');
   assert(organizerRentDue);assert.equal(organizerRentDue.data.direction,'in');assert.equal(w.journals.length,organizerJournalCount);checks+=5;
+  // Rent deferral must replace the original scheduled due, merge into the next unpaid installment, and never create cash/revenue journals.
+  const rentDeferralDate=nextMonth(organizerRentDue.data.date);
+  const nextOrganizerRentDue=w.records.filter(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId===organizerLease.id&&r.data.status==='pending'&&r.id!==organizerRentDue.id&&r.data.date>=rentDeferralDate).sort((a,b)=>a.data.date.localeCompare(b.data.date))[0];
+  assert(nextOrganizerRentDue,'a later unpaid rent installment should exist for merge testing');
+  const rentAmount=organizerRentDue.data.amount, nextRentAmount=nextOrganizerRentDue.data.amount, rentJournalCount=w.journals.length;
+  await expectStatus({method:'POST',body:{action:'deferRentInstallment',requestId:crypto.randomUUID(),payload:{id:organizerRentDue.id,date:rentDeferralDate}}},200);
+  w=await (await call()).json();
+  const deferredRentDue=w.records.find(r=>r.id===organizerRentDue.id);
+  const mergedRentDue=w.records.find(r=>r.id===nextOrganizerRentDue.id);
+  const updatedOrganizerLease=w.records.find(r=>r.id===organizerLease.id);
+  assert.equal(deferredRentDue.data.status,'replaced');assert.equal(deferredRentDue.data.replacedBy,nextOrganizerRentDue.id);
+  assert.equal(mergedRentDue.data.amount,nextRentAmount+rentAmount);assert(mergedRentDue.data.title.includes('قسط مرحّل'));
+  assert.equal(updatedOrganizerLease.data.installments.find(x=>x.obligationId===organizerRentDue.id).status,'deferred');
+  assert.equal(updatedOrganizerLease.data.installments.find(x=>x.obligationId===organizerRentDue.id).amount,0);
+  assert.equal(updatedOrganizerLease.data.installments.find(x=>x.obligationId===nextOrganizerRentDue.id).amount,nextRentAmount+rentAmount);
+  assert.equal(w.journals.length,rentJournalCount,'rent deferral must not create a cash or revenue journal');
+  await expectStatus({method:'POST',body:{action:'deferRentInstallment',requestId:crypto.randomUUID(),payload:{id:organizerRentDue.id,date:nextMonth(rentDeferralDate)}}},400);
+  checks+=9;
 
   await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:organizerCommitmentDue.id,date}}},200);
   w=await (await call()).json();

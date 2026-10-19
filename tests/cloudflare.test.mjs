@@ -239,7 +239,10 @@ try{
   w=await (await call()).json();
   assert.equal(w.records.find(r=>r.id===organizerRentDue.id).data.status,'paid');
   assert.equal(w.records.find(r=>r.id===organizerLease.id).data.installments.filter(x=>x.status==='paid').length,1);
-  assert.equal(w.journals.length,organizerJournalCount);checks+=3;
+  const rentCollectionJournal=w.journals.find(j=>j.source==='project-tenant-rent-payment:'+organizerRentDue.id);
+  assert(rentCollectionJournal,'confirmed project rent collection must post to the ledger');
+  assert.equal(rentCollectionJournal.lines.reduce((n,l)=>n+l.debit,0),rentCollectionJournal.lines.reduce((n,l)=>n+l.credit,0));
+  assert(rentCollectionJournal.lines.some(l=>l.account==='revenue'&&l.credit===organizerRentDue.data.amount));checks+=5;
 
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');

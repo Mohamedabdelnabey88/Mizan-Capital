@@ -201,7 +201,27 @@ export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=
   }
   return 'other';
  };
- for(const j of w.journals){if(j.date<start||j.date>end)continue;const hasLoanComponent=j.lines.some(l=>l.account==='loan'||l.account==='interest');const interestOut=(hasLoanComponent&&(j.kind==='settle'||j.kind==='prepay'))?j.lines.filter(l=>l.account==='interest').reduce((s,l)=>s+l.debit-l.credit,0):0;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(l.account!=='cash'&&l.account!=='bank')continue;const r=get(j.date),cat=category(j),inflow=l.debit,outflow=l.credit;const loanSettlement=hasLoanComponent&&(j.kind==='settle'||j.kind==='prepay');if(loanSettlement){if(outflow){r.operatingOut+=Math.min(outflow,Math.max(0,interestOut));r.financingOut+=Math.max(0,outflow-Math.min(outflow,Math.max(0,interestOut)));}else if(inflow){r.financingIn+=inflow;}}else{if(inflow){(r as any)[cat+'In']+=inflow;}if(outflow){(r as any)[cat+'Out']+=outflow;}}r.net+=inflow-outflow;}}
+ for(const j of w.journals){
+  if(j.date<start||j.date>end)continue;
+  const sourceJournal=j.kind==='reversal'&&j.reversal?w.journals.find(x=>x.id===j.reversal):undefined;
+  const sourceKind=sourceJournal?.kind||j.kind;
+  const hasLoanComponent=j.lines.some(l=>l.account==='loan'||l.account==='interest');
+  const loanSettlement=hasLoanComponent&&(sourceKind==='settle'||sourceKind==='prepay');
+  const interestAmount=loanSettlement?Math.abs(j.lines.filter(l=>l.account==='interest').reduce((sum,l)=>sum+l.debit-l.credit,0)):0;
+  for(const l of j.lines){
+   if(project!=='all'&&l.project!==project)continue;
+   if(l.account!=='cash'&&l.account!=='bank')continue;
+   const r=get(j.date),cat=category(j),inflow=l.debit,outflow=l.credit;
+   if(loanSettlement){
+    if(outflow){const interestPart=Math.min(outflow,interestAmount);r.operatingOut+=interestPart;r.financingOut+=outflow-interestPart;}
+    else if(inflow){const interestPart=Math.min(inflow,interestAmount);r.operatingIn+=interestPart;r.financingIn+=inflow-interestPart;}
+   }else{
+    if(inflow){(r as any)[cat+'In']+=inflow;}
+    if(outflow){(r as any)[cat+'Out']+=outflow;}
+   }
+   r.net+=inflow-outflow;
+  }
+ }
  const days=[...rows.values()].sort((a,b)=>a.date.localeCompare(b.date));
  let running=opening;for(const r of days){running+=r.net;}
  return {opening,rows:days,net:running-opening,closing:running};

@@ -1,6 +1,6 @@
 import {database} from '@/db';
 import {projectPerformance} from '@/lib/project-performance';
-import {accounts,cents,dayAdd,monthAdd,today,validateLines,loanSchedule,loanRateFromPayment,loanScheduleFromPayment,loanRateFromPaymentExact,loanScheduleFromPaymentExact,balance,profit,forecast,internalFunding,distributionEntitlement,fiscalYearForStart,fiscalYearForDate,type Workspace,type Line} from '@/lib/finance';
+import {accounts,cents,dayAdd,monthAdd,today,validateLines,loanRateFromPaymentExact,loanScheduleFromPaymentExact,balance,profit,forecast,internalFunding,distributionEntitlement,fiscalYearForStart,fiscalYearForDate,type Workspace,type Line} from '@/lib/finance';
 export const dynamic='force-dynamic'; // Production ledger: project deletion reverses posted entries before removing operational records. // financial operations: halala-safe ledger, auditable daily corrections, investments, annual owner settlement, historical owner-policy effective dates
 const uid=()=>crypto.randomUUID();
 function str(v:any,n=200){if(typeof v!=='string'||!v.trim()||v.length>n)throw Error('راجع الحقول المطلوبة وطول النص.');return v.trim();}
@@ -329,7 +329,7 @@ else if(action==='propertyUnit'){
  const pr=project(p.project),name=str(p.name),unitType=['retail','residential','office','other'].includes(p.unitType)?p.unitType:'retail',operatingMode=p.operatingMode==='self'?'self':'rent';
  if(w.records.some(r=>r.kind==='propertyUnit'&&r.data.project===pr.id&&String(r.data.name||'').trim().toLowerCase()===name.toLowerCase()&&r.data.status!=='archived'))throw Error('اسم الفتحة/الوحدة موجود بالفعل في هذا المشروع.');
  const areaRaw=String(p.area??'').trim(),area=areaRaw?num(areaRaw,0,1000000):0;
- const unitId=put('propertyUnit',{project:pr.id,name,unitType,operatingMode,area,notes:String(p.notes||'').trim().slice(0,500),status:'active',createdOn:today()});
+ put('propertyUnit',{project:pr.id,name,unitType,operatingMode,area,notes:String(p.notes||'').trim().slice(0,500),status:'active',createdOn:today()});
  description='إضافة وحدة عقارية: '+name+' — '+pr.data.name;
 }
 else if(action==='editPropertyUnit'){
@@ -415,7 +415,7 @@ else if(action==='lease'){
  if(scheduledTotal!==total)throw Error('مجموع دفعات الإيجار يجب أن يساوي إجمالي العقد بالهللة.');
  if(installments.some(x=>x.date<start||x.date>end))throw Error('تواريخ دفعات الإيجار يجب أن تقع داخل مدة العقد.');
  installments.sort((a,b)=>a.date.localeCompare(b.date));
- const lease=put('lease',{project:pr.id,title:str(p.title||'إيجار المشروع',200),totalAmount:total,startDate:start,endDate:end,scheduleType:mode,status:'active',accountingModel:'period-accrual-v2',paymentAccount:['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'bank',installments},leaseId);
+ put('lease',{project:pr.id,title:str(p.title||'إيجار المشروع',200),totalAmount:total,startDate:start,endDate:end,scheduleType:mode,status:'active',accountingModel:'period-accrual-v2',paymentAccount:['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'bank',installments},leaseId);
  for(let i=0;i<installments.length;i++){const installment=installments[i],obligationId=uid();due({project:pr.id,title:'إيجار — '+str(p.title||pr.data.name,120)+' / '+(i+1),amount:installment.amount,date:installment.date,direction:'out',category:'expense',certainty:num(p.certainty??100,0,100),leaseId,leaseInstallment:i+1,leaseTotal:total},obligationId);}
  description='إضافة عقد إيجار وجدولة '+installments.length+' دفعة: '+pr.data.name;
 }

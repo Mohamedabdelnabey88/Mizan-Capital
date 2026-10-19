@@ -110,4 +110,38 @@ assert.throws(()=>f.validateLines([
   {project:'p1',account:'capital',debit:0,credit:10000}
 ]),/طرف محاسبي غير صحيح/);
 
+// Loan cash-flow classification: principal is financing; interest is operating expense.
+const loanFlow=f.actualCashFlow(workspace,'p1','2026-01-01','2026-02-28');
+const loanDay=loanFlow.rows.find(row=>row.date==='2026-02-01');
+assert(loanDay,'loan settlement date must appear in cash flow');
+assert.equal(loanDay.operatingOut,100000,'interest component is operating cash outflow');
+assert.equal(loanDay.financingOut,1000000,'principal component is financing cash outflow');
+assert.equal(loanFlow.rows.find(row=>row.date==='2026-01-01').financingIn,10000000,'loan proceeds are financing cash inflow');
+assert.equal(loanFlow.closing,10400000,'cash flow closing agrees with cash and bank ledger');
+assert.equal(loanFlow.rows.reduce((sum,row)=>sum+row.net,0),400000,'cash-flow net change agrees with total cash movements');
+
+// Reversal must neutralize the original cash and profit effects without deleting audit history.
+const reversalWorkspace={records:[],audit:[],journals:[
+  {id:'original-revenue',date:'2026-03-01',memo:'إيراد اختبار',kind:'income',lines:[
+    {project:'p1',account:'cash',debit:12500,credit:0},
+    {project:'p1',account:'revenue',debit:0,credit:12500}
+  ]},
+  {id:'reversal-revenue',date:'2026-03-02',memo:'عكس إيراد اختبار',kind:'reversal',reversal:'original-revenue',lines:[
+    {project:'p1',account:'cash',debit:0,credit:12500},
+    {project:'p1',account:'revenue',debit:12500,credit:0}
+  ]}
+]};
+assert.equal(f.profit(reversalWorkspace,'p1','2026-03-01','2026-03-31').net,0,'reversal neutralizes revenue in the selected period');
+assert.equal(f.balance(reversalWorkspace,'p1','2026-03-31').cash,0,'reversal restores cash balance');
+assert.equal(f.actualCashFlow(reversalWorkspace,'p1','2026-03-01','2026-03-31').closing,0,'reversal neutralizes cash-flow closing');
+assert.equal(reversalWorkspace.journals.length,2,'reversal preserves both original and reversing journals for auditability');
+
+// Loan schedules must conserve principal exactly and never produce negative interest/principal.
+for(const [principal,rate,months] of [[100001,0,7],[1234567,3.75,18],[987654321,9.99,60]]){
+  const schedule=f.loanSchedule(principal,rate,months,'2026-01-31');
+  assert.equal(schedule.reduce((sum,row)=>sum+row.principal,0),principal,'scheduled principal must reconcile exactly');
+  assert(schedule.every(row=>row.principal>=0&&row.interest>=0&&row.amount===row.principal+row.interest),'loan schedule rows must contain nonnegative and internally consistent values');
+  assert.equal(schedule.at(-1).date, f.monthAdd('2026-01-31',months-1),'loan schedule must preserve clamped month-end dates');
+}
+
 console.log('Accounting invariant tests passed: balanced journals, loan principal vs interest, profit isolation, forecast isolation, balance sheet, cash-flow reconciliation, inter-project funding, and invalid journal rejection.');

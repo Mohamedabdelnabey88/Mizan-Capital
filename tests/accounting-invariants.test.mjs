@@ -133,7 +133,11 @@ const reversalWorkspace={records:[],audit:[],journals:[
 ]};
 assert.equal(f.profit(reversalWorkspace,'p1','2026-03-01','2026-03-31').net,0,'reversal neutralizes revenue in the selected period');
 assert.equal(f.balance(reversalWorkspace,'p1','2026-03-31').cash,0,'reversal restores cash balance');
-assert.equal(f.actualCashFlow(reversalWorkspace,'p1','2026-03-01','2026-03-31').closing,0,'reversal neutralizes cash-flow closing');
+const reversedCashFlow=f.actualCashFlow(reversalWorkspace,'p1','2026-03-01','2026-03-31');
+assert.equal(reversedCashFlow.closing,0,'reversal neutralizes cash-flow closing');
+assert.equal(reversedCashFlow.rows.find(row=>row.date==='2026-03-01').operatingIn,12500,'original revenue is classified as operating inflow');
+assert.equal(reversedCashFlow.rows.find(row=>row.date==='2026-03-02').operatingOut,12500,'reversed revenue must reverse the same operating category');
+assert.equal(reversedCashFlow.rows.find(row=>row.date==='2026-03-02').otherOut,0,'reversed revenue must not be misclassified as other cash outflow');
 assert.equal(reversalWorkspace.journals.length,2,'reversal preserves both original and reversing journals for auditability');
 
 // Loan schedules must conserve principal exactly and never produce negative interest/principal.

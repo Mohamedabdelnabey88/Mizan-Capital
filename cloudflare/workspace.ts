@@ -141,6 +141,72 @@ else if(action==='deleteRecord'){
  ops.push(db.prepare('DELETE FROM records WHERE id=? AND owner=?').bind(r.id,owner));
  description='حذف سجل غير مالي: '+r.kind;
 }
+else if(action==='projectCost'){
+ const pr=find(str(p.project),'project'),amount=cents(p.amount),dt=date(p.date||today());
+ if(dt>today())throw Error('تاريخ المصروف الفعلي لا يمكن أن يكون في المستقبل.');
+ if(amount<=0)throw Error('أدخل مبلغًا أكبر من صفر.');
+ const category=['purchase','construction','maintenance','fees','utilities','other'].includes(p.category)?p.category:'other';
+ const title=str(p.title||'تكلفة مشروع',200),notes=String(p.notes||'').trim().slice(0,1000);
+ put('projectCost',{project:pr.id,title,amount,date:dt,category,notes,status:'active',createdAt:time});
+ description='تسجيل تكلفة مباشرة للمشروع دون اشتراط تحديد مصدر السيولة: '+pr.data.name+' — '+title;
+}
+else if(action==='projectCommitment'){
+ const pr=find(str(p.project),'project'),title=str(p.title||'التزام مشروع',200),party=String(p.party||'').trim().slice(0,200),total=cents(p.totalAmount);
+ if(total<=0)throw Error('أدخل إجمالي الالتزام أكبر من صفر.');
+ const raw=str(p.installments||'',12000),installments:{date:string;amount:number;status:string;obligationId:string}[]=[];
+ for(const line of raw.split('\n')){const parts=line.split(',').map((x:string)=>x.trim());if(parts.length!==2)throw Error('صيغة الأقساط: التاريخ,المبلغ — كل قسط في سطر مستقل.');const dueDate=date(parts[0]),amount=cents(parts[1]);if(amount<=0)throw Error('مبلغ كل قسط يجب أن يكون أكبر من صفر.');installments.push({date:dueDate,amount,status:'pending',obligationId:''});}
+ if(!installments.length)throw Error('أدخل موعد قسط واحدًا على الأقل.');
+ if(installments.reduce((sum,x)=>sum+x.amount,0)!==total)throw Error('مجموع الأقساط يجب أن يساوي إجمالي الالتزام بالضبط.');
+ installments.sort((a,b)=>a.date.localeCompare(b.date));
+ const commitmentId=uid();
+ for(let i=0;i<installments.length;i++){const item=installments[i],obligationId=uid();item.obligationId=obligationId;due({project:pr.id,title:'قسط التزام — '+title+' / '+(i+1),amount:item.amount,date:item.date,direction:'out',category:'payable',certainty:100,projectCommitmentId:commitmentId,commitmentInstallment:i+1,party},obligationId);}
+ put('projectCommitment',{project:pr.id,title,party,totalAmount:total,createdOn:today(),status:'active',installments},commitmentId);
+ description='إضافة التزام مشروع وجدولة '+installments.length+' قسطًا دون اشتراط مصدر السيولة: '+title;
+}
+else if(action==='projectTenantLease'){
+ const pr=find(str(p.project),'project'),tenantName=str(p.tenantName,200),title=str(p.title||'عقد تأجير المشروع',200),total=cents(p.totalAmount),start=date(p.startDate),end=date(p.endDate),mode=['once','monthly','quarterly','semiannual','custom'].includes(p.scheduleType)?p.scheduleType:'monthly';
+ if(total<=0)throw Error('أدخل إجمالي قيمة العقد أكبر من صفر.');
+ if(end<start)throw Error('نهاية العقد يجب ألا تسبق بدايته.');
+ if(w.records.some(r=>r.kind==='projectTenantLease'&&r.data.project===pr.id&&r.data.status==='active'&&String(r.data.startDate)<=end&&String(r.data.endDate)>=start))throw Error('يوجد عقد تأجير آخر متداخل على المشروع خلال هذه المدة.');
+ let installments:{date:string;amount:number;status:string;obligationId:string}[]=[];
+ if(mode==='custom'){
+  const raw=str(p.installments||'',12000);
+  installments=raw.split('\n').map((line:string)=>{const parts=line.split(',').map((x:string)=>x.trim());if(parts.length!==2)throw Error('صيغة الدفعات: التاريخ,المبلغ — كل دفعة في سطر مستقل.');return {date:date(parts[0]),amount:cents(parts[1]),status:'pending',obligationId:''};}).filter(x=>x.amount>0);
+  if(!installments.length)throw Error('أدخل دفعة إيجار واحدة على الأقل.');
+ }else{
+  const first=date(p.paymentDate||start);
+  if(first<start||first>end)throw Error('تاريخ أول تحصيل يجب أن يقع داخل مدة العقد.');
+  if(mode==='once')installments=[{date:first,amount:total,status:'pending',obligationId:''}];
+  else{
+   const step=mode==='monthly'?1:mode==='quarterly'?3:6;
+   const startMonth=Number(start.slice(0,4))*12+Number(start.slice(5,7))-1,endMonth=Number(end.slice(0,4))*12+Number(end.slice(5,7))-1;
+   const count=Math.floor((endMonth-startMonth)/step)+1,base=Math.floor(total/count);let remaining=total;
+   for(let i=0;i<count;i++){const dueDate=monthAdd(first,i*step);if(dueDate>end)break;const amount=i===count-1?remaining:base;if(amount>0){installments.push({date:dueDate,amount,status:'pending',obligationId:''});remaining-=amount;}}
+   if(remaining>0){if(installments.length)installments[installments.length-1].amount+=remaining;else installments=[{date:first,amount:total,status:'pending',obligationId:''}];}
+  }
+ }
+ if(installments.some(x=>x.date<start||x.date>end))throw Error('تواريخ التحصيل يجب أن تقع داخل مدة العقد.');
+ if(installments.reduce((sum,x)=>sum+x.amount,0)!==total)throw Error('مجموع دفعات الإيجار يجب أن يساوي إجمالي العقد بالضبط.');
+ installments.sort((a,b)=>a.date.localeCompare(b.date));
+ const leaseId=uid();
+ for(let i=0;i<installments.length;i++){const item=installments[i],obligationId=uid();item.obligationId=obligationId;due({project:pr.id,title:'تحصيل إيجار — '+tenantName+' — '+title+' / '+(i+1),amount:item.amount,date:item.date,direction:'in',category:'receivable',certainty:100,projectTenantLeaseId:leaseId,tenantName,leaseInstallment:i+1,leaseTotal:total},obligationId);}
+ put('projectTenantLease',{project:pr.id,title,tenantName,totalAmount:total,startDate:start,endDate:end,scheduleType:mode,status:'active',installments},leaseId);
+ description='تسجيل عقد تأجير المشروع وجدولة '+installments.length+' تحصيلًا: '+tenantName;
+}
+else if(action==='projectSchedulePayment'){
+ const r=find(str(p.id),'obligation'),d=r.data;
+ if(!d.projectCommitmentId&&!d.projectTenantLeaseId)throw Error('هذا الموعد ليس من سجلات تنظيم المشروع.');
+ if(d.status!=='pending')throw Error('تم تسجيل هذا الموعد من قبل.');
+ const paidOn=date(p.date||today());
+ if(paidOn>today())throw Error('تاريخ التحصيل أو السداد الفعلي لا يمكن أن يكون في المستقبل.');
+ update(r,{...d,status:'paid',paidOn});
+ const parentId=d.projectCommitmentId||d.projectTenantLeaseId,parentKind=d.projectCommitmentId?'projectCommitment':'projectTenantLease';
+ const parent=find(parentId,parentKind);
+ const installments=(Array.isArray(parent.data.installments)?parent.data.installments:[]).map((x:any)=>x.obligationId===r.id?{...x,status:'paid',paidOn}:x);
+ const allPaid=installments.length>0&&installments.every((x:any)=>x.status==='paid');
+ update(parent,{...parent.data,installments,status:parentKind==='projectCommitment'?(allPaid?'completed':'active'):parent.data.status,updatedAt:time});
+ description=(d.direction==='in'?'تسجيل تحصيل مستأجر':'تسجيل سداد التزام مشروع')+' دون قيد مصدر سيولة: '+d.title;
+}
 else if(action==='project'){const projectId=uid();const monthlyRevenueMicro=planMoneyMicro(p.expectedMonthlyRevenue||0,'الإيراد الشهري المتوقع');const dailyRevenueMicro=planMoneyMicro(p.expectedDailyRevenue||0,'الإيراد اليومي المتوقع');const monthlyExpenseMicro=planMoneyMicro(p.expectedMonthlyExpense||0,'المصروف الشهري المتوقع');const monthlyNetMicro=planMoneyMicro(p.expectedNetMonthly||0,'صافي الدخل الشهري المتوقع');put('project',{name:str(p.name),activity:str(p.activity),mode:['operating','investment'].includes(p.mode)?p.mode:'operating',ownership:num(p.ownership,0.01,100),reserve:cents(p.reserve||0),payout:num(p.payout??30,0,100),expectedNetMonthly:monthlyNetMicro/1000,partner:p.partner?str(p.partner):'',closedThrough:''},projectId);if(p.mode==='operating')put('projectPlan',{project:projectId,effectiveFrom:date(p.planEffectiveFrom||today()),revenueMonthlyMicro:monthlyRevenueMicro,revenueDailyMicro:dailyRevenueMicro,expenseMonthlyMicro:monthlyExpenseMicro,expenseDailyMicro:0,netMonthlyMicro:monthlyNetMicro,source:'original_baseline',label:'الخطة الأصلية'});description='إضافة مشروع: '+p.name;}
 else if(action==='deleteProject'){
  const r=find(p.id,'project');

@@ -153,14 +153,23 @@ else if(action==='projectCost'){
 else if(action==='projectCommitment'){
  const pr=find(str(p.project),'project'),title=str(p.title||'التزام مشروع',200),party=String(p.party||'').trim().slice(0,200),total=cents(p.totalAmount);
  if(total<=0)throw Error('أدخل إجمالي الالتزام أكبر من صفر.');
- const raw=str(p.installments||'',12000),installments:{date:string;amount:number;status:string;obligationId:string}[]=[];
- for(const line of raw.split('\n')){const parts=line.split(',').map((x:string)=>x.trim());if(parts.length!==2)throw Error('صيغة الأقساط: التاريخ,المبلغ — كل قسط في سطر مستقل.');const dueDate=date(parts[0]),amount=cents(parts[1]);if(amount<=0)throw Error('مبلغ كل قسط يجب أن يكون أكبر من صفر.');installments.push({date:dueDate,amount,status:'pending',obligationId:''});}
+ const scheduleType=['once','monthly','quarterly','semiannual','yearly','custom'].includes(p.scheduleType)?p.scheduleType:(p.installments?'custom':'monthly'),firstDate=date(p.firstDate||today());
+ const installments:{date:string;amount:number;status:string;obligationId:string}[]=[];
+ if(scheduleType==='custom'){
+  const raw=str(p.installments||'',12000);
+  for(const line of raw.split('\n')){const parts=line.split(',').map((x:string)=>x.trim());if(parts.length!==2)throw Error('صيغة الأقساط: التاريخ,المبلغ — كل قسط في سطر مستقل.');const dueDate=date(parts[0]),amount=cents(parts[1]);if(amount<=0)throw Error('مبلغ كل قسط يجب أن يكون أكبر من صفر.');installments.push({date:dueDate,amount,status:'pending',obligationId:''});}
+ }else if(scheduleType==='once')installments.push({date:firstDate,amount:total,status:'pending',obligationId:''});
+ else{
+  const count=num(p.installmentCount??12,1,360);if(!Number.isInteger(count))throw Error('عدد الأقساط يجب أن يكون عددًا صحيحًا من 1 إلى 360.');if(count>total)throw Error('عدد الأقساط أكبر من الممكن بالنسبة إلى إجمالي المبلغ.');
+  const step=scheduleType==='monthly'?1:scheduleType==='quarterly'?3:scheduleType==='semiannual'?6:12,base=Math.floor(total/count);let remaining=total;
+  for(let i=0;i<count;i++){const amount=i===count-1?remaining:base;if(amount>0)installments.push({date:monthAdd(firstDate,i*step),amount,status:'pending',obligationId:''});remaining-=amount;}
+ }
  if(!installments.length)throw Error('أدخل موعد قسط واحدًا على الأقل.');
  if(installments.reduce((sum,x)=>sum+x.amount,0)!==total)throw Error('مجموع الأقساط يجب أن يساوي إجمالي الالتزام بالضبط.');
  installments.sort((a,b)=>a.date.localeCompare(b.date));
  const commitmentId=uid();
  for(let i=0;i<installments.length;i++){const item=installments[i],obligationId=uid();item.obligationId=obligationId;due({project:pr.id,title:'قسط التزام — '+title+' / '+(i+1),amount:item.amount,date:item.date,direction:'out',category:'payable',certainty:100,projectCommitmentId:commitmentId,commitmentInstallment:i+1,party},obligationId);}
- put('projectCommitment',{project:pr.id,title,party,totalAmount:total,createdOn:today(),status:'active',installments},commitmentId);
+ put('projectCommitment',{project:pr.id,title,party,totalAmount:total,scheduleType,createdOn:today(),status:'active',installments},commitmentId);
  description='إضافة التزام مشروع وجدولة '+installments.length+' قسطًا دون اشتراط مصدر السيولة: '+title;
 }
 else if(action==='projectTenantLease'){

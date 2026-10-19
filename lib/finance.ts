@@ -178,8 +178,17 @@ export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=
  const opening=(openingBalance.cash||0)+(openingBalance.bank||0);
  const rows=new Map<string,CashFlowRow>();
  const get=(date:string)=>{let r=rows.get(date);if(!r){r={date,operatingIn:0,operatingOut:0,investingIn:0,investingOut:0,financingIn:0,financingOut:0,transferIn:0,transferOut:0,otherIn:0,otherOut:0,net:0};rows.set(date,r);}return r;};
- const category=(j:{kind:string;memo:string;lines:Line[]})=>{
+ const category=(j:{id?:string;kind:string;memo:string;lines:Line[];reversal?:string},seen=new Set<string>()):string=>{
   const kind=j.kind;
+  // A reversing journal belongs to the same cash-flow category as its original.
+  // Otherwise the reversal is incorrectly reported as "other" and distorts category totals.
+  if(kind==='reversal'&&j.reversal){
+   const original=w.journals.find(x=>x.id===j.reversal);
+   if(original&&original.id!==j.id&&!seen.has(original.id)){
+    const next=new Set(seen);if(j.id)next.add(j.id);
+    return category(original,next);
+   }
+  }
   if(['income','collect','dailyReport','cardSettlement','expense','paybill','cogs','inventory','salary'].includes(kind))return 'operating';
   if(['asset','invest','dividend','returnCapital','investmentStart','investmentReturn'].includes(kind))return 'investing';
   if(['capital','loan','prepay','distribution','annualOwnerDistribution'].includes(kind))return 'financing';

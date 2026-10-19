@@ -245,12 +245,12 @@ else if(action==='deferRentInstallment'){
  const amount=Number(d.amount||0);
  if(!Number.isSafeInteger(amount)||amount<=0)throw Error('قيمة قسط الإيجار غير صالحة للترحيل.');
  const targetId=target?.id||uid(),targetDate=target?String(target.data.date):requestedDate;
- if(target)update(target,{...target.data,amount:Number(target.data.amount||0)+amount,deferredRentFrom:[...(Array.isArray(target.data.deferredRentFrom)?target.data.deferredRentFrom:[]),current.id]});
+ if(target)update(target,{...target.data,title:String(target.data.title||'إيجار مستحق')+' + قسط مرحّل',amount:Number(target.data.amount||0)+amount,deferredRentFrom:[...(Array.isArray(target.data.deferredRentFrom)?target.data.deferredRentFrom:[]),current.id]});
  else due({...d,status:'pending',date:targetDate,title:String(d.title||'إيجار مستحق')+' — قسط مرحّل',amount,paidOn:undefined,deferredFrom:current.id,leaseInstallment:(Array.isArray(parent.data.installments)?parent.data.installments.length:0)+1},targetId);
  update(current,{...d,status:'replaced',replacedBy:targetId,deferredToDate:targetDate,deferredAmount:amount,updatedAt:time});
  const items=Array.isArray(parent.data.installments)?parent.data.installments.slice():[];
- let foundCurrent=false,foundTarget=!!target;
- const revised=items.map((x:any)=>{if(x.obligationId===current.id){foundCurrent=true;return {...x,amount:0,status:'deferred',deferredAmount:amount,deferredToDate:targetDate,replacedBy:targetId};}if(target&&x.obligationId===target.id){foundTarget=true;return {...x,amount:Number(x.amount||0)+amount};}return x;});
+ let foundCurrent=false;
+ const revised=items.map((x:any)=>{if(x.obligationId===current.id){foundCurrent=true;return {...x,amount:0,status:'deferred',deferredAmount:amount,deferredToDate:targetDate,replacedBy:targetId};}if(target&&x.obligationId===target.id){return {...x,amount:Number(x.amount||0)+amount};}return x;});
  if(!foundCurrent)throw Error('تعذر مطابقة القسط مع جدول العقد؛ لم يتم ترحيل أي مبلغ.');
  if(!target)revised.push({date:targetDate,amount,status:'pending',obligationId:targetId,deferredFrom:current.id});
  update(parent,{...parent.data,installments:revised,updatedAt:time});

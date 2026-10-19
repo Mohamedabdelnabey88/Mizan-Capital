@@ -190,6 +190,40 @@ try{
   assert.equal(w.records.filter(r=>r.data.loan===loan.id&&r.data.status==='pending').length,360);
   assert.equal(w.records.filter(r=>r.data.loan===loan.id&&r.data.status==='replaced').length,360);checks++;
 
+  // Project organizer workflow: track costs and schedules without requiring a funding source or creating ledger entries.
+  await expectStatus({method:'POST',body:{action:'projectCost',requestId:crypto.randomUUID(),payload:{project,title:'تكلفة تنظيمية تجريبية',amount:200000,date,category:'construction',notes:'بدون مصدر سيولة'}}},200);
+  w=await (await call()).json();
+  const organizerCost=w.records.find(r=>r.kind==='projectCost'&&r.data.title==='تكلفة تنظيمية تجريبية');
+  assert(organizerCost);assert.equal(organizerCost.data.amount,200000);assert.equal(organizerCost.data.project,project);assert.equal(organizerCost.data.notes,'بدون مصدر سيولة');
+  const organizerJournalCount=w.journals.length;checks+=4;
+
+  const commitmentFirst=nextMonth(date),commitmentSecond=nextMonth(commitmentFirst);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'أقساط مقاول تنظيمية',party:'مقاول تجريبي',totalAmount:3000,installments:commitmentFirst+',1500\\n'+commitmentSecond+',1500'}}},200);
+  w=await (await call()).json();
+  const organizerCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='أقساط مقاول تنظيمية');
+  assert(organizerCommitment);assert.equal(organizerCommitment.data.installments.length,2);
+  assert.equal(organizerCommitment.data.installments.reduce((sum,x)=>sum+x.amount,0),300000);
+  let organizerCommitmentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===organizerCommitment.id&&r.data.status==='pending');
+  assert(organizerCommitmentDue);assert.equal(organizerCommitmentDue.data.direction,'out');assert.equal(w.journals.length,organizerJournalCount);checks+=6;
+
+  await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project,title:'عقد مستثمر تجريبي',tenantName:'مستثمر تجريبي',totalAmount:6000,startDate:date,endDate:nextMonth(nextMonth(date)),scheduleType:'monthly',paymentDate:date}}},200);
+  w=await (await call()).json();
+  const organizerLease=w.records.find(r=>r.kind==='projectTenantLease'&&r.data.title==='عقد مستثمر تجريبي');
+  assert(organizerLease);assert.equal(organizerLease.data.tenantName,'مستثمر تجريبي');assert.equal(organizerLease.data.endDate,nextMonth(nextMonth(date)));
+  const organizerRentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId===organizerLease.id&&r.data.status==='pending');
+  assert(organizerRentDue);assert.equal(organizerRentDue.data.direction,'in');assert.equal(w.journals.length,organizerJournalCount);checks+=5;
+
+  await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:organizerCommitmentDue.id,date}}},200);
+  w=await (await call()).json();
+  assert.equal(w.records.find(r=>r.id===organizerCommitmentDue.id).data.status,'paid');
+  assert.equal(w.records.find(r=>r.id===organizerCommitment.id).data.installments.filter(x=>x.status==='paid').length,1);
+  assert.equal(w.journals.length,organizerJournalCount);checks+=3;
+  await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:organizerRentDue.id,date}}},200);
+  w=await (await call()).json();
+  assert.equal(w.records.find(r=>r.id===organizerRentDue.id).data.status,'paid');
+  assert.equal(w.records.find(r=>r.id===organizerLease.id).data.installments.filter(x=>x.status==='paid').length,1);
+  assert.equal(w.journals.length,organizerJournalCount);checks+=3;
+
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');
   assert.match(logout.headers.get('set-cookie')||'',/Max-Age=0/);checks++;

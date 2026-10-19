@@ -54,26 +54,29 @@ async function materializeDueAccruals(db:D1Database,owner:string,skipId='',settl
     ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,dueDate,memo,'bill',JSON.stringify(lines),dueSource,time));
     w.journals.push({id:journalId,date:dueDate,memo,kind:'bill',lines,source:dueSource,created:time});known.add(dueSource);
    }
-   // Recognize the covered days only after the period has ended. The final service period absorbs all rounding residue.
-   if(periodEnd<=today()){
-    const source='lease-accrual:'+lease.id+':'+periodEnd;
-    if(!known.has(source)&&!(pr.data.closedThrough&&periodEnd<=pr.data.closedThrough)){
-     const coveredDays=dayNo(periodEnd)-dayNo(start)+1;
-     const cumulative=periodEnd===end?total:Math.round(total*coveredDays/totalDays);
-     const previous=w.journals.filter(j=>String(j.source||'').startsWith('lease-accrual:'+lease.id+':')&&j.date<periodEnd).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===projectId&&l.account==='expense').reduce((a,l)=>a+l.debit-l.credit,0),0);
+   // Recognize rent expense through today even when the current month has not ended.
+   // At month-end, only the remaining accrual is posted; prepaid rent is released as it is consumed.
+   const recognitionDate=periodEnd<=today()?periodEnd:(cursor<=today()&&today()<=end?today():'');
+   if(recognitionDate){
+    const source='lease-accrual:'+lease.id+':'+recognitionDate;
+    if(!known.has(source)&&!(pr.data.closedThrough&&recognitionDate<=pr.data.closedThrough)){
+     const coveredDays=dayNo(recognitionDate)-dayNo(start)+1;
+     const cumulative=recognitionDate===end?total:Math.round(total*coveredDays/totalDays);
+     const previous=w.journals.filter(j=>String(j.source||'').startsWith('lease-accrual:'+lease.id+':')&&j.date<recognitionDate).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===projectId&&l.account==='expense').reduce((a,l)=>a+l.debit-l.credit,0),0);
      const amount=cumulative-previous;
      if(amount>0){
-      const prepaidAvailable=Math.max(0,balance(w,projectId,periodEnd).prepaid_rent||0),prepaid=Math.min(amount,prepaidAvailable),payable=amount-prepaid;
+      const prepaidAvailable=Math.max(0,balance(w,projectId,recognitionDate).prepaid_rent||0),prepaid=Math.min(amount,prepaidAvailable),payable=amount-prepaid;
       const lines:Line[]=[{project:projectId,account:'expense',debit:amount,credit:0}];
       if(prepaid>0)lines.push({project:projectId,account:'prepaid_rent',debit:0,credit:prepaid});
       if(payable>0)lines.push({project:projectId,account:'payable',debit:0,credit:payable});
       validateLines(lines);
-      const memo='إثبات مصروف إيجار عن الفترة حتى '+periodEnd,journalId=uid();
-      ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,periodEnd,memo,'bill',JSON.stringify(lines),source,time));
-      w.journals.push({id:journalId,date:periodEnd,memo,kind:'bill',lines,source,created:time});known.add(source);
+      const memo='إثبات مصروف إيجار عن الفترة حتى '+recognitionDate,journalId=uid();
+      ops.push(db.prepare('INSERT OR IGNORE INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)').bind(journalId,owner,recognitionDate,memo,'bill',JSON.stringify(lines),source,time));
+      w.journals.push({id:journalId,date:recognitionDate,memo,kind:'bill',lines,source,created:time});known.add(source);
      }
     }
-   }else break;
+   }
+   if(periodEnd>today())break;
    cursor=iso(dayNo(periodEnd)+1);
   }
  }

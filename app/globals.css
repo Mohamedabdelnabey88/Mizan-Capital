@@ -822,3 +822,50 @@ button,.btn,[role="button"],[role="combobox"]{touch-action:manipulation}
 .project-asset-items>div{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:5px 0;font-size:11px}
 .project-asset-items>div span{color:var(--muted-foreground,#77827f);min-width:0;overflow-wrap:anywhere}
 .project-asset-items>div b{white-space:nowrap;font-size:11px}
+
+
+/* Project organizer: costs, due dates and tenant contracts first */
+.project-organizer-card{padding:22px;min-width:0;overflow:hidden;border:1px solid #dce8e1;border-radius:20px;background:linear-gradient(155deg,#fff 0%,#fbfdfb 72%,#f4f8f5 100%);box-shadow:0 9px 25px rgba(28,59,42,.055);}
+.project-organizer-head{display:flex;align-items:center;gap:12px;min-width:0;margin-bottom:20px;}
+.project-organizer-symbol{width:46px;height:46px;display:grid;place-items:center;flex:0 0 auto;border-radius:14px;background:#eaf4ed;color:#2e6a47;}
+.project-organizer-name{min-width:0;flex:1;}
+.project-organizer-name h2{margin:0;color:#173b2a;font-size:21px;line-height:1.45;font-weight:850;overflow-wrap:anywhere;}
+.project-organizer-name p{margin:3px 0 0;color:#748179;font-size:12px;line-height:1.7;}
+.project-organizer-head>.tag{max-width:130px;white-space:normal;text-align:center;line-height:1.55;}
+.project-organizer-head .icon-button{flex:0 0 auto;}
+.project-organizer-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:15px;}
+.project-organizer-stat{min-width:0;padding:14px 13px;border:1px solid #e3ece5;border-radius:14px;background:rgba(255,255,255,.92);display:flex;flex-direction:column;gap:6px;}
+.project-organizer-stat>span{font-size:12px;line-height:1.6;color:#66756b;}
+.project-organizer-stat>strong{font-size:clamp(16px,1.3vw,21px);line-height:1.45;font-weight:850;color:#234c34;overflow-wrap:anywhere;}
+.project-organizer-stat>small{font-size:10px;line-height:1.6;color:#849087;}
+.project-organizer-contract{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px;padding:5px 2px 12px;margin-bottom:13px;border-bottom:1px solid #e7eee8;}
+.project-organizer-contract>div{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:9px 0;min-width:0;}
+.project-organizer-contract span{font-size:12px;color:#77837a;line-height:1.65;flex:0 0 auto;}
+.project-organizer-contract strong{font-size:12px;font-weight:750;color:#354b3c;line-height:1.7;text-align:left;overflow-wrap:anywhere;}
+.project-organizer-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:15px 0 12px;}
+.project-organizer-actions .btn{min-width:0;min-height:46px;padding:10px 8px;display:flex;align-items:center;justify-content:center;gap:7px;white-space:normal;line-height:1.55;font-size:12px;text-align:center;border-radius:11px;}
+.project-organizer-actions .btn svg{flex:0 0 auto;}
+.project-organizer-ledger{margin-top:9px;border:1px solid #e3ebe5;border-radius:13px;background:rgba(255,255,255,.7);overflow:hidden;}
+.project-organizer-ledger>summary,.project-legacy-tools>summary{min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;cursor:pointer;list-style:none;font-size:13px;font-weight:800;color:#315640;}
+.project-organizer-ledger>summary::-webkit-details-marker,.project-legacy-tools>summary::-webkit-details-marker{display:none;}
+.project-organizer-ledger>summary::marker,.project-legacy-tools>summary::marker{content:"";display:none;}
+.project-organizer-ledger>summary svg,.project-legacy-tools>summary svg{flex:0 0 auto;transition:transform .18s ease;color:#718477;}
+.project-organizer-ledger[open]>summary svg,.project-legacy-tools[open]>summary svg{transform:rotate(-90deg);}
+.project-organizer-empty{padding:0 14px 14px;margin:0;color:#7a877e;font-size:12px;line-height:1.9;}
+.project-organizer-cost-list,.project-organizer-due-list{padding:0 13px 10px;border-top:1px solid #e8eee9;}
+.project-organizer-cost-row,.project-organizer-due-row,.project-organizer-contract-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:11px 1px;border-bottom:1px solid #edf1ed;min-width:0;}
+.project-organizer-cost-row:last-child,.project-organizer-due-row:last-child,.project-organizer-contract-row:last-child{border-bottom:0;}
+.project-organizer-cost-row>div,.project-organizer-due-row>div,.project-organizer-contract-row>div{min-width:0;display:flex;flex-direction:column;gap:3px;}
+.project-organizer-cost-row strong,.project-organizer-due-row strong,.project-organizer-contract-row strong{font-size:12px;color:#344b3a;line-height:1.6;overflow-wrap:anywhere;}
+.project-organizer-cost-row small,.project-organizer-due-row small,.project-organizer-contract-row small{font-size:10px;color:#7f8a82;line-height:1.7;overflow-wrap:anywhere;}
+.project-organizer-cost-row>b,.project-organizer-due-row>b,.project-organizer-contract-row>b{font-size:13px;color:#274d35;white-space:nowrap;}
+.project-organizer-paid{font-size:10px;color:#26704a;background:#eaf5ed;border-radius:8px;padding:5px 7px;white-space:nowrap;}
+.project-organizer-foot-actions{display:flex;gap:8px;flex-wrap:wrap;padding:10px 13px 13px;border-top:1px solid #e8eee9;}
+.project-organizer-foot-actions .btn{font-size:11px;min-height:38px;}
+.project-legacy-tools{margin-top:18px;border:1px solid #e1e9e3;border-radius:15px;background:#f8faf8;overflow:hidden;}
+.project-legacy-tools>summary{background:#f1f6f2;}
+.project-legacy-panels{padding:12px;display:grid;gap:12px;}
+.project-legacy-panels .panel{margin:0;min-width:0;}
+@media(max-width:760px){.project-organizer-card{padding:16px 14px;border-radius:17px}.project-organizer-head{gap:9px;align-items:flex-start}.project-organizer-symbol{width:40px;height:40px;border-radius:12px}.project-organizer-name h2{font-size:19px}.project-organizer-head>.tag{max-width:95px;font-size:10px}.project-organizer-stats{gap:7px}.project-organizer-stat{padding:11px 9px;gap:5px}.project-organizer-stat>span{font-size:11px}.project-organizer-stat>strong{font-size:15px}.project-organizer-stat>small{font-size:9px}.project-organizer-contract{gap:0 12px}.project-organizer-contract>div{gap:6px;flex-direction:column}.project-organizer-contract span,.project-organizer-contract strong{font-size:11px}.project-organizer-actions{grid-template-columns:1fr;gap:8px}.project-organizer-actions .btn{min-height:44px;font-size:12px}.project-organizer-cost-row,.project-organizer-due-row,.project-organizer-contract-row{gap:7px}.project-organizer-cost-row>b,.project-organizer-due-row>b,.project-organizer-contract-row>b{font-size:12px}}
+@media(max-width:420px){.project-organizer-stats{grid-template-columns:1fr}.project-organizer-stat{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:3px 8px}.project-organizer-stat>strong{grid-column:2;grid-row:1 / span 2;text-align:left}.project-organizer-stat>small{grid-column:1}.project-organizer-contract{grid-template-columns:1fr 1fr}.project-organizer-head>.tag{display:none}.project-organizer-cost-row,.project-organizer-due-row,.project-organizer-contract-row{grid-template-columns:minmax(0,1fr) auto}.project-organizer-cost-row .text-button,.project-organizer-due-row .text-button,.project-organizer-contract-row .tag,.project-organizer-paid{grid-column:1 / -1;justify-self:start}}
+@media(prefers-reduced-motion:reduce){.project-organizer-ledger>summary svg,.project-legacy-tools>summary svg{transition:none}}

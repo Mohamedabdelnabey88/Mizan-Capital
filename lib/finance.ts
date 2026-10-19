@@ -109,8 +109,8 @@ export function expectedCollectionsInRange(w:Workspace,project='all',start='0000
  for(const [pid,r] of latestPlans){const d=r.data as any;const rows=Array.isArray(d.expectedReceiptInstallments)&&d.expectedReceiptInstallments.length?d.expectedReceiptInstallments:(d.expectedReceiptDate?[{date:d.expectedReceiptDate,amountMicro:Math.max(0,Math.round(Number(d.netTargetMicro||0)/1000))*1000}]:[]);for(const row of rows){const amount=Math.max(0,Math.round(Number(row.amountMicro||0)/1000));if(!amount)continue;for(const date of installmentDates(row)){if(date<start||date>end)continue;const key=pid+'|'+date+'|'+amount;if(existing.has(key))continue;total+=amount;}}}
  return total;
 }
-export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,outlay=0){
- const openingBalance=balance(w,project),now=today(), opening=(openingBalance.cash||0)+(openingBalance.bank||0)-Math.round(outlay);
+export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,outlay=0,startDate=today()){
+ const openingBalance=balance(w,project,startDate),now=startDate, opening=(openingBalance.cash||0)+(openingBalance.bank||0)-Math.round(outlay);
  const days=Array.from({length:91},(_,i)=>({date:dayAdd(now,i),income:0,out:0,cash:0,min:0}));
  const byDate=new Map(days.map(d=>[d.date,d]));
  for(const r of w.records){

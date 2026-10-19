@@ -127,6 +127,9 @@ try{
   w=await (await call()).json();const activeFundingRepayments=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id&&r.data.status!=='cancelled');
   assert.equal(activeFundingRepayments.reduce((sum,r)=>sum+Number(r.data.amount||0),0),100000);
   assert.equal(w.journals.filter(j=>j.source==='fundingRepayment:'+activeFundingRepayments[0].id).length,1);checks+=4;
+  const repaymentJournalCount=w.journals.length,repaymentRecordCount=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id).length;
+  await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:fundingForCancelledRepayment.id,amount:1,date,memo:'يجب رفض تجاوز التمويل'}}},400);
+  w=await (await call()).json();assert.equal(w.journals.length,repaymentJournalCount);assert.equal(w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id).length,repaymentRecordCount);checks+=3;
   // Rental units and tenant contracts create dated receivables/income obligations and reject overlapping contracts.
   await expectStatus({method:'POST',body:{action:'propertyUnit',requestId:crypto.randomUUID(),payload:{project,name:'محل اختبار 1',unitType:'retail',operatingMode:'rent',area:40}}},200);
   w=await (await call()).json();const unit=w.records.find(r=>r.kind==='propertyUnit'&&r.data.name==='محل اختبار 1');assert(unit,'property unit must persist');

@@ -447,14 +447,14 @@ else if(action==='lease'){
 }
 else if(action==='cancelContract'){
  const contract=find(str(p.contractId,100));
- if(!['lease','tenantLease'].includes(contract.kind))throw Error('نوع العقد غير مدعوم للإلغاء.');
+ if(!['lease','tenantLease','projectTenantLease'].includes(contract.kind)&&!(contract.kind==='projectCommitment'&&contract.data.costType==='rent'))throw Error('نوع العقد غير مدعوم للإلغاء.');
  if(contract.data.status==='cancelled'||contract.data.status==='terminated')throw Error('هذا العقد ملغى بالفعل.');
  const reason=str(p.reason,1000);
  if(reason.length<3)throw Error('اكتب سبب إلغاء واضحًا.');
  const cancelledAt=today();
  update(contract,{...contract.data,status:'cancelled',cancelledAt,cancellationReason:reason});
- const isTenantLease=contract.kind==='tenantLease';
- const linked=w.records.filter(r=>r.kind==='obligation'&&(isTenantLease?r.data.tenantLeaseId===contract.id:r.data.leaseId===contract.id));
+ const linkField=contract.kind==='lease'?'leaseId':contract.kind==='tenantLease'?'tenantLeaseId':contract.kind==='projectTenantLease'?'projectTenantLeaseId':'projectCommitmentId';
+ const linked=w.records.filter(r=>r.kind==='obligation'&&r.data[linkField]===contract.id);
  let cancelledCount=0,cancelledTotal=0;
  for(const obligation of linked){
   const d=obligation.data;

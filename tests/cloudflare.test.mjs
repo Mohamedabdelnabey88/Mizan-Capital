@@ -446,7 +446,7 @@ try{
   checks+=6;
 
   // Existing project rental records must also support contract cancellation without touching prior accounting.
-  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:contractTestProject,title:'إيجار قائم لاختبار صفحة العقود',costType:'rent',totalAmount:2000,scheduleType:'custom',installments:contractTomorrow+',1000\\n'+contractAfterTomorrow+',1000'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:contractTestProject,title:'إيجار قائم لاختبار صفحة العقود',costType:'rent',totalAmount:2000,scheduleType:'custom',installments:contractTomorrow+',1000\n'+contractAfterTomorrow+',1000'}}},200);
   w=await (await call()).json();
   const rentCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='إيجار قائم لاختبار صفحة العقود');
   assert(rentCommitment,'existing rent commitments must be available as contract records');

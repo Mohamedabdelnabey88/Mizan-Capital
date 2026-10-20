@@ -527,13 +527,15 @@ else if(action==='cancelFunding'){
  if(fd.status==='cancelled')throw Error('هذا التمويل ملغى بالفعل.');
  const repayments=w.records.filter(x=>x.kind==='fundingRepayment'&&x.data.fundingId===funding.id&&x.data.status!=='cancelled');
  if(repayments.length)throw Error('لا يمكن إلغاء التمويل بعد وجود استرداد مرتبط به. اعكس الاسترداد أولًا.');
- const related=w.records.filter(x=>x.id!==funding.id&&((x.kind==='fundingRepayment'&&x.data.fundingId===funding.id)||(x.data&&x.data.fundingId===funding.id)));
+ const related=w.records.filter(x=>x.id!==funding.id&&((x.kind==='fundingRepayment'&&x.data.fundingId===funding.id&&x.data.status!=='cancelled')||(x.kind!=='fundingRepayment'&&x.data&&x.data.fundingId===funding.id)));
  if(related.length)throw Error('لا يمكن إلغاء التمويل لأنه مرتبط بحركة أخرى. صحح الحركة التابعة أولًا.');
  const original=w.journals.find(j=>j.source==='projectFunding:'+funding.id);
  if(!original)throw Error('لم يتم العثور على القيد الأصلي للتمويل.');
  if(w.journals.some(j=>j.reversal===original.id))throw Error('تم عكس قيد التمويل بالفعل.');
  const cancelDate=date(p.date||today());
  if(cancelDate<date(fd.date))throw Error('تاريخ الإلغاء لا يمكن أن يسبق تاريخ التمويل.');
+ const availableCash=balance(w,String(fd.project||''),cancelDate).cash||0;
+ if(Number(fd.amount||0)>availableCash)throw Error('لا يمكن إلغاء التمويل لأن النقدية المتاحة في المشروع لا تكفي لعكس المبلغ بأمان.');
  journal('reversal','عكس تمويل: '+(fd.memo||fd.project)+' — '+str(p.reason||'تصحيح تمويل',200),cancelDate,original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
  update(funding,{...fd,status:'cancelled',cancelledAt:cancelDate,cancelReason:str(p.reason||'تصحيح تمويل',200)});
  description='إلغاء تمويل مع عكس أثره المحاسبي: '+funding.id;
@@ -566,6 +568,28 @@ else if(action==='fundingRepayment'){
  const rid=put('fundingRepayment',{fundingId:funding.id,project:recipient.id,sourceType:fd.sourceType,sourceProject:fd.sourceProject||'',amount,date:dt,memo:str(p.memo||memo,300)});
  journal('fundingRepayment',memo+' — '+recipient.data.name,dt,lines,'fundingRepayment:'+rid);
  description='استرداد مرتبط بالتمويل الأصلي: '+funding.id;
+}
+else if(action==='cancelFundingRepayment'){
+ const repayment=find(p.id,'fundingRepayment'),rd=repayment.data as any;
+ if(rd.status==='cancelled')throw Error('تم عكس استرداد التمويل بالفعل.');
+ const funding=w.records.find(x=>x.kind==='projectFunding'&&x.id===rd.fundingId);
+ if(!funding)throw Error('لم يتم العثور على التمويل المرتبط بهذا الاسترداد.');
+ const original=w.journals.find(j=>j.source==='fundingRepayment:'+repayment.id);
+ if(!original)throw Error('لم يتم العثور على القيد الأصلي للاسترداد.');
+ if(w.journals.some(j=>j.reversal===original.id))throw Error('تم عكس قيد الاسترداد بالفعل.');
+ const cancelDate=date(p.date||today());
+ if(cancelDate<date(rd.date||original.date))throw Error('تاريخ العكس لا يمكن أن يسبق تاريخ الاسترداد.');
+ const recipient=project(String(rd.project||funding.data.project||''));
+ guardProject(recipient.id);
+ if(rd.sourceType==='project'){
+  const lender=project(String(rd.sourceProject||funding.data.sourceProject||''));
+  guardProject(lender.id);
+  const available=balance(w,lender.id,cancelDate).cash||0;
+  if(Number(rd.amount||0)>available)throw Error('لا يمكن عكس الاسترداد لأن النقدية المتاحة لدى المشروع المُموِّل لا تكفي لإرجاع المبلغ.');
+ }
+ journal('reversal','عكس استرداد تمويل: '+str(p.reason||'تصحيح استرداد',200),cancelDate,original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
+ update(repayment,{...rd,status:'cancelled',cancelledAt:cancelDate,cancelReason:str(p.reason||'تصحيح استرداد',200)});
+ description='عكس استرداد التمويل مع الاحتفاظ بالأصل وسجل المراجعة: '+repayment.id;
 }
 else if(action==='employee'){project(p.project);const salary=cents(p.salary),start=date(p.firstDate),count=Math.trunc(num(p.months??12,1,24));if(!salary)throw Error('أدخل راتبًا أكبر من صفر.');const rid=put('employee',{name:str(p.name),job:str(p.job),project:p.project,salary,baseSalary:cents(p.baseSalary??p.salary),housingAllowance:cents(p.housingAllowance||0),transportAllowance:cents(p.transportAllowance||0),otherAllowance:cents(p.otherAllowance||0),incentiveType:['none','fixed','percent'].includes(p.incentiveType)?p.incentiveType:'none',incentiveValue:Number(p.incentiveValue||0),hireDate:start,contractEnd:p.contractEnd?date(p.contractEnd):'',firstDate:start,months:count,status:'active'});for(let i=0;i<count;i++)due({project:p.project,title:'راتب '+p.name,amount:salary,date:monthAdd(start,i),direction:'out',category:'salary',employee:rid,certainty:100});description='إضافة موظف وجدولة راتبه: '+p.name;}
 else if(action==='employeeUpdate'){const r=find(p.id,'employee');const salary=cents(p.salary),effective=date(p.effectiveFrom||today());if(!salary)throw Error('أدخل راتبًا أكبر من صفر.');if(r.data.status!=='active'&&p.status==='active')throw Error('لا يمكن إعادة تنشيط الموظف بهذا المسار؛ أنشئ تاريخ خدمة جديدًا.');const pendingSalary=w.records.filter(x=>x.kind==='obligation'&&x.data.employee===r.id&&x.data.status==='pending'&&x.data.date>=effective);for(const o of pendingSalary)update(o,{...o.data,status:'replaced',reason:'تعديل ملف الموظف/الأجر'});const next={...r.data,name:str(p.name),job:str(p.job),salary,baseSalary:cents(p.baseSalary??p.salary),housingAllowance:cents(p.housingAllowance||0),transportAllowance:cents(p.transportAllowance||0),otherAllowance:cents(p.otherAllowance||0),incentiveType:['none','fixed','percent'].includes(p.incentiveType)?p.incentiveType:'none',incentiveValue:Number(p.incentiveValue||0),hireDate:p.hireDate?date(p.hireDate):r.data.hireDate,contractEnd:p.contractEnd?date(p.contractEnd):'',status:p.status||r.data.status};update(r,next);const months=Math.trunc(num(p.months??12,1,24));for(let i=0;i<months;i++)due({project:r.data.project,title:'راتب '+next.name,amount:salary,date:monthAdd(effective,i),direction:'out',category:'salary',employee:r.id,certainty:100});description='تحديث ملف وأجر الموظف: '+next.name;}

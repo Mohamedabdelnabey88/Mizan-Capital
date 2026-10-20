@@ -490,6 +490,24 @@ try{
   assert.equal(capitalizedJournal.lines.filter(l=>l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0,'capitalized cost must not directly affect profit');
   checks+=3;
 
+  // Deleting a project with financial history must archive it, not reverse/delete its accounting history.
+  const archivedProjectId=await createTestProject('مشروع اختبار حماية التاريخ');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,sourceType:'personal',amount:500,date,memo:'تمويل تاريخ المشروع'}}},200);
+  w=await (await call()).json();
+  const archivedProjectRecord=w.records.find(r=>r.id===archivedProjectId&&r.kind==='project');
+  const archivedFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.project===archivedProjectId);
+  const archivedFundingJournal=w.journals.find(j=>j.source==='projectFunding:'+archivedFunding.id);
+  assert(archivedFundingJournal,'test funding must have a posted journal before project archive');
+  await expectStatus({method:'POST',body:{action:'deleteProject',requestId:crypto.randomUUID(),payload:{id:archivedProjectId,version:archivedProjectRecord.version,confirmName:archivedProjectRecord.data.name,reason:'اختبار حماية التاريخ المحاسبي'}}},200);
+  w=await (await call()).json();
+  const archivedProjectAfter=w.records.find(r=>r.id===archivedProjectId&&r.kind==='project');
+  assert.equal(archivedProjectAfter.data.status,'archived','project with posted financial history must be soft-archived');
+  assert(w.journals.some(j=>j.id===archivedFundingJournal.id),'archiving must preserve the original funding journal');
+  assert(!w.journals.some(j=>j.reversal===archivedFundingJournal.id),'archiving must not reverse historical profit/cash effects');
+  assert(w.records.some(r=>r.id===archivedFunding.id),'archiving must preserve linked financial records');
+  await expectStatus({method:'POST',body:{action:'projectCost',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,title:'يجب رفض التكلفة الجديدة',amount:10,date,category:'other',paymentAccount:'cash',treatment:'expense'}}},400);
+  checks+=5;
+
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');
   assert.match(logout.headers.get('set-cookie')||'',/Max-Age=0/);checks++;

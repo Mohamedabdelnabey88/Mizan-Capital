@@ -286,6 +286,22 @@ try{
   assert.equal(rentCollectionJournal.lines.reduce((n,l)=>n+l.debit,0),rentCollectionJournal.lines.reduce((n,l)=>n+l.credit,0));
   assert(rentCollectionJournal.lines.some(l=>l.account==='revenue'&&l.credit===nextRentAmount+rentAmount));checks+=5;
 
+  // Concurrent inter-project transfers must lock the shared source project, not only each destination.
+  async function createTestProject(name){
+    await expectStatus({method:'POST',body:{action:'project',requestId:crypto.randomUUID(),payload:{name,activity:'اختبار التزامن',mode:'operating',ownership:100,reserve:0,payout:30}}},200);
+    w=await (await call()).json();const created=w.records.find(r=>r.kind==='project'&&r.data.name===name);assert(created,'test project must persist');return created.id;
+  }
+  const sourceProject=await createTestProject('مشروع مصدر اختبار التزامن');
+  const destinationA=await createTestProject('مشروع مستلم اختبار التزامن أ');
+  const destinationB=await createTestProject('مشروع مستلم اختبار التزامن ب');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:sourceProject,sourceType:'personal',amount:1000,date,memo:'رصيد مصدر لاختبار التحويل'}}},200);
+  const competingTransfers=await Promise.all([destinationA,destinationB].map(destination=>call({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:destination,sourceType:'project',sourceProject,amount:700,date,memo:'اختبار تحويل متزامن'}}})));
+  assert.deepEqual(competingTransfers.map(res=>res.status).sort((a,b)=>a-b),[200,400],'shared source project must not fund two concurrent transfers that exceed its cash');
+  w=await (await call()).json();
+  const acceptedTransfers=w.records.filter(r=>r.kind==='projectFunding'&&r.data.sourceType==='project'&&r.data.sourceProject===sourceProject&&r.data.memo==='اختبار تحويل متزامن');
+  assert.equal(acceptedTransfers.length,1,'exactly one inter-project transfer may consume the shared source cash');
+  assert.equal(acceptedTransfers.reduce((sum,r)=>sum+Number(r.data.amount||0),0),70000);checks+=3;
+
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');
   assert.match(logout.headers.get('set-cookie')||'',/Max-Age=0/);checks++;

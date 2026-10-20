@@ -458,6 +458,38 @@ try{
   assert.deepEqual(w.records.filter(r=>r.kind==='obligation'&&r.data.projectCommitmentId===rentCommitment.id).sort((a,b)=>a.data.date.localeCompare(b.data.date)).map(r=>r.data.status),['cancelled','cancelled']);
   checks+=4;
 
+  // Actual project costs must post exactly one balanced journal and affect profit only when classified as expense.
+  const projectCostTestProject=await createTestProject('مشروع اختبار ترحيل التكلفة');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:projectCostTestProject,sourceType:'personal',amount:1000,date,memo:'تمويل تكلفة المشروع'}}},200);
+  const costRequestId=crypto.randomUUID();
+  const costPayload={action:'projectCost',requestId:costRequestId,payload:{project:projectCostTestProject,title:'اختبار مصروف فعلي',amount:100,date,category:'maintenance',paymentAccount:'cash',treatment:'expense'}};
+  await expectStatus({method:'POST',body:costPayload},200);
+  w=await (await call()).json();
+  const projectCostRecord=w.records.find(r=>r.kind==='projectCost'&&r.data.project===projectCostTestProject&&r.data.title==='اختبار مصروف فعلي');
+  assert(projectCostRecord,'actual project cost record must persist');
+  const projectCostJournal=w.journals.find(j=>j.source==='project-cost:'+projectCostRecord.id);
+  assert(projectCostJournal,'actual project cost must create a linked accounting journal');
+  assert.equal(projectCostJournal.lines.reduce((n,l)=>n+l.debit,0),10000,'cost journal debit must match amount in halalas');
+  assert.equal(projectCostJournal.lines.reduce((n,l)=>n+l.credit,0),10000,'cost journal credit must balance exactly');
+  assert(projectCostJournal.lines.some(l=>l.account==='expense'&&l.debit===10000),'expense treatment must debit operating expense');
+  assert(projectCostJournal.lines.some(l=>l.account==='cash'&&l.credit===10000),'expense treatment must credit selected payment account');
+  assert.equal((await (await call()).json()).journals.filter(j=>j.source==='project-cost:'+projectCostRecord.id).length,1);
+  const replay=await call({method:'POST',body:costPayload});
+  assert.equal(replay.status,200,'replaying the same request must be idempotent');
+  w=await (await call()).json();
+  assert.equal(w.journals.filter(j=>j.source==='project-cost:'+projectCostRecord.id).length,1,'replayed cost request must not post a duplicate journal');
+  checks+=7;
+
+  // Capitalized project costs must be recorded as assets and must not reduce current profit.
+  await expectStatus({method:'POST',body:{action:'projectCost',requestId:crypto.randomUUID(),payload:{project:projectCostTestProject,title:'اختبار تكلفة رأسمالية',amount:200,date,category:'construction',paymentAccount:'cash',treatment:'asset'}}},200);
+  w=await (await call()).json();
+  const capitalizedCost=w.records.find(r=>r.kind==='projectCost'&&r.data.project===projectCostTestProject&&r.data.title==='اختبار تكلفة رأسمالية');
+  const capitalizedJournal=w.journals.find(j=>j.source==='project-cost:'+capitalizedCost.id);
+  assert(capitalizedJournal,'capitalized cost must create a linked journal');
+  assert(capitalizedJournal.lines.some(l=>l.account==='investment'&&l.debit===20000),'capitalized cost must debit project investment asset');
+  assert.equal(capitalizedJournal.lines.filter(l=>l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0,'capitalized cost must not directly affect profit');
+  checks+=3;
+
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');
   assert.match(logout.headers.get('set-cookie')||'',/Max-Age=0/);checks++;

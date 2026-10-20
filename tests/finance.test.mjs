@@ -277,6 +277,12 @@ await ok('dailyReport',{project:ownerP2,date:T,manager:'مدير المالك 2'
 await ok('entry',{project:ownerP2,kind:'expense',amount:1000,date:T,memo:'مصروف المالك 2'});
 await ok('setOwnerPolicy',{percent:20,effectiveFrom:T});
 w=await read();
+// Isolate the owner-distribution fixture from the unrelated project that will be archived later in this test.
+const archiveFixtureProject=w.records.find(r=>r.id===a&&r.kind==='project');
+const archiveFixtureOriginalMode=archiveFixtureProject.data.mode;
+await db.prepare('UPDATE records SET data=?,version=version+1 WHERE id=? AND owner=?')
+  .bind(JSON.stringify({...archiveFixtureProject.data,mode:'investment'}),a,'test-owner').run();
+w=await read();
 assert.equal(f.profit(w,ownerP1,T,T).net,800000);
 assert.equal(f.profit(w,ownerP2,T,T).net,400000);
 const ownerProfitBefore=f.profit(w,'all',T,T).net,ownerYear=Number(T.slice(0,4)),ownerReport=f.annualOwnerReport(w,ownerYear),ownerBeforeBalances=new Map(ownerReport.rows.map(x=>[x.project,f.balance(w,x.project)])),positiveOwnerRows=ownerReport.rows.filter(x=>x.profit>0),expectedOwnerTotal=Math.floor(ownerReport.totalProfit*2000/10000),positiveOwnerProfit=positiveOwnerRows.reduce((sum,x)=>sum+x.profit,0),expectedOwnerAllocations=[];let allocationRemaining=expectedOwnerTotal;for(let i=0;i<positiveOwnerRows.length;i++){const x=positiveOwnerRows[i],amount=i===positiveOwnerRows.length-1?allocationRemaining:Math.floor(expectedOwnerTotal*x.profit/positiveOwnerProfit);allocationRemaining-=amount;if(amount>0)expectedOwnerAllocations.push({project:x.project,amount});}
@@ -293,6 +299,11 @@ assert.equal(f.accountingControlTotals(w,T,T,'all').balanceCheck,0);
 assert.equal(f.accountingControlTotals(w,T,T,'all').cashFlowDifference,0);
 await fail('annualOwnerDistribution',{year:Number(T.slice(0,4)),paymentAccount:'bank'});
 checks+=12;
+w=await read();
+const archiveFixtureProjectAfter=w.records.find(r=>r.id===a&&r.kind==='project');
+await db.prepare('UPDATE records SET data=?,version=version+1 WHERE id=? AND owner=?')
+  .bind(JSON.stringify({...archiveFixtureProjectAfter.data,mode:archiveFixtureOriginalMode}),a,'test-owner').run();
+w=await read();
 
 // Independent Balance Sheet + Cash Flow reconciliation fixture: the same ledger must satisfy both controls.
 const reconciliationFixture={records:[],audit:[],journals:[

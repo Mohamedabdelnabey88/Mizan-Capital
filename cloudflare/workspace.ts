@@ -152,6 +152,8 @@ else if(action==='projectCost'){
  const category=['purchase','construction','maintenance','fees','utilities','other'].includes(p.category)?p.category:'other';
  const title=str(p.title||'تكلفة مشروع',200),notes=String(p.notes||'').trim().slice(0,1000);
  const paymentAccount=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';
+ const available=Number(balance(w,pr.id,dt)[paymentAccount]||0);
+ if(amount>available)throw Error('الرصيد المتاح في '+(paymentAccount==='cash'?'الصندوق':'الحساب البنكي')+' لا يكفي لتسجيل التكلفة. سجّل التمويل/الرصيد الافتتاحي الصحيح أو اختر حساب الدفع الفعلي.');
  const treatment=['expense','asset'].includes(p.treatment)?p.treatment:'expense';
  const debitAccount=treatment==='asset'?'investment':'expense';
  const costId=put('projectCost',{project:pr.id,title,amount,date:dt,category,notes,status:'active',paymentAccount,treatment,createdAt:time});
@@ -165,6 +167,8 @@ else if(action==='postLegacyProjectCost'){
  const pr=project(String(d.project||'')),dt=date(String(d.date||today())),amount=Number(d.amount||0);
  if(!Number.isSafeInteger(amount)||amount<=0)throw Error('قيمة التكلفة القديمة غير صحيحة؛ راجع السجل قبل الترحيل.');
  const paymentAccount=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';
+ const available=Number(balance(w,pr.id,dt)[paymentAccount]||0);
+ if(amount>available)throw Error('الرصيد المسجل في حساب الدفع لا يكفي لترحيل التكلفة القديمة بأمان. راجع الرصيد الافتتاحي والحساب المستخدم قبل الترحيل.');
  const treatment=['expense','asset'].includes(p.treatment)?p.treatment:'expense';
  const debitAccount=treatment==='asset'?'investment':'expense';
  journal('projectCost',(treatment==='asset'?'ترحيل تكلفة رأسمالية قديمة: ':'ترحيل مصروف قديم: ')+String(d.title||'تكلفة مشروع'),dt,pair(pr.id,debitAccount,paymentAccount,amount),'project-cost:'+cost.id);

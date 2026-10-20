@@ -270,7 +270,7 @@ try{
   w=await (await call()).json();
   const organizerCost=w.records.find(r=>r.kind==='projectCost'&&r.data.title==='تكلفة تنظيمية تجريبية');
   assert(organizerCost);assert.equal(organizerCost.data.amount,200000);assert.equal(organizerCost.data.project,project);assert.equal(organizerCost.data.notes,'بدون مصدر سيولة');
-  const organizerJournalCount=w.journals.length;checks+=4;
+  let organizerJournalCount=w.journals.length;checks+=4;
 
   const commitmentFirst=nextMonth(date),commitmentSecond=nextMonth(commitmentFirst);
   await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'أقساط مقاول تنظيمية',party:'مقاول تجريبي',totalAmount:3000,installments:commitmentFirst+',1500\n'+commitmentSecond+',1500'}}},200);
@@ -289,6 +289,59 @@ try{
   assert.deepEqual(periodicCommitment.data.installments.map(x=>x.date),[commitmentFirst,commitmentThird,commitmentSixth]);
   assert(periodicCommitment.data.installments.every(x=>x.amount===300000));assert.equal(w.journals.length,organizerJournalCount);checks+=4;
 
+  // Property hierarchy: create a parent and multiple independent units, and protect parents from accidental deletion.
+  await expectStatus({method:'POST',body:{action:'project',requestId:crypto.randomUUID(),payload:{name:'أرض اختبار شجرة العقارات',propertyRole:'land_leased',parentId:'none',unitCount:3,unitLabel:'محل',managementMode:'preparing'}}},200);
+  w=await (await call()).json();
+  const propertyParent=w.records.find(r=>r.kind==='project'&&r.data.name==='أرض اختبار شجرة العقارات');
+  const propertyChildren=w.records.filter(r=>r.kind==='project'&&r.data.parentId===propertyParent?.id);
+  assert(propertyParent);assert.equal(propertyParent.data.propertyRole,'land_leased');assert.equal(propertyChildren.length,3);
+  assert.deepEqual(propertyChildren.map(r=>r.data.unitNumber).sort((a,b)=>a-b),[1,2,3]);
+  assert(propertyChildren.every(r=>r.data.propertyRole==='unit'&&r.data.managementMode==='vacant'));
+  await expectStatus({method:'POST',body:{action:'deleteProject',requestId:crypto.randomUUID(),payload:{id:propertyParent.id,confirmName:propertyParent.data.name,reason:'اختبار حماية المشروع الرئيسي',date}}},400);
+  checks+=5;
+
+  // Settling a construction installment capitalizes it once; it must not be treated as operating expense.
+  const constructionDueDate=nextMonth(date);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'قسط إنشاء رأسمالي للاختبار',costType:'construction',totalAmount:1200,scheduleType:'once',firstDate:constructionDueDate}}},200);
+  w=await (await call()).json();
+  const constructionCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قسط إنشاء رأسمالي للاختبار');
+  const constructionDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===constructionCommitment?.id&&r.data.status==='pending');
+  const beforeConstructionWorkspace=await (await call()).json();
+  const profitBeforeConstruction=beforeConstructionWorkspace.journals.filter(j=>j.lines.some(l=>l.project===project&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===project&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0);
+  await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:constructionDue.id,date,paymentAccount:'bank'}}},200);
+  w=await (await call()).json();
+  const constructionAsset=w.records.find(r=>r.kind==='projectAsset'&&r.data.sourceObligation===constructionDue.id);
+  const constructionJournal=w.journals.find(j=>j.source==='project-asset:'+constructionAsset?.id);
+  assert(constructionAsset);assert(constructionJournal);
+  assert(constructionJournal.lines.some(l=>l.project===project&&l.account==='fixed'&&l.debit===120000));
+  assert(constructionJournal.lines.some(l=>l.project===project&&l.account==='bank'&&l.credit===120000));
+  assert.equal(w.journals.filter(j=>j.source==='project-asset:'+constructionAsset.id).length,1);
+  const profitAfterConstruction=w.journals.filter(j=>j.lines.some(l=>l.project===project&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===project&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0);
+  assert.equal(profitAfterConstruction,profitBeforeConstruction,'capital construction payments must not reduce operating profit');
+  checks+=6;
+  organizerJournalCount=w.journals.length;
+
+  // Land rent is recognized as operating expense on the due date and paid against the accrued payable exactly once.
+  const rentExpenseProject=await createTestProject('مشروع اختبار مصروف إيجار الأرض');
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:rentExpenseProject,title:'قسط إيجار أرض للاختبار',costType:'rent',totalAmount:800,scheduleType:'custom',installments:date+',800'}}},200);
+  w=await (await call()).json();
+  const landRentCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قسط إيجار أرض للاختبار');
+  const landRentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===landRentCommitment?.id&&r.data.status==='pending');
+  const landRentAccrual=w.journals.find(j=>j.source==='obligation-accrual:'+landRentDue?.id);
+  assert(landRentAccrual,'rent due today must accrue as an expense and payable');
+  assert(landRentAccrual.lines.some(l=>l.project===rentExpenseProject&&l.account==='expense'&&l.debit===80000));
+  const rentProfitBeforeSettlement=w.journals.filter(j=>j.lines.some(l=>l.project===rentExpenseProject&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===rentExpenseProject&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0);
+  await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:landRentDue.id,date,paymentAccount:'bank'}}},200);
+  w=await (await call()).json();
+  const rentSettlement=w.journals.find(j=>j.source==='project-commitment-payment:'+landRentDue.id);
+  assert(rentSettlement,'settling rent must post a payable settlement journal');
+  assert(rentSettlement.lines.some(l=>l.project===rentExpenseProject&&l.account==='payable'&&l.debit===80000));
+  const rentProfitAfterSettlement=w.journals.filter(j=>j.lines.some(l=>l.project===rentExpenseProject&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===rentExpenseProject&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0);
+  assert.equal(rentProfitAfterSettlement,rentProfitBeforeSettlement,'settling accrued rent must not expense the same amount twice');
+  assert.equal(w.journals.filter(j=>j.source==='project-commitment-payment:'+landRentDue.id).length,1);
+  checks+=6;
+  organizerJournalCount=w.journals.length;
+
   const rentStartDate='2026-01-15';
   await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project,title:'عقد مستثمر تجريبي',tenantName:'مستثمر تجريبي',totalAmount:6000,monthlyAmount:2000,startDate:rentStartDate,endDate:nextMonth(nextMonth(rentStartDate)),scheduleType:'monthly',paymentDate:rentStartDate}}},200);
   w=await (await call()).json();
@@ -296,6 +349,12 @@ try{
   assert(organizerLease);assert.equal(organizerLease.data.tenantName,'مستثمر تجريبي');assert.equal(organizerLease.data.endDate,nextMonth(nextMonth(rentStartDate)));
   const organizerRentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId===organizerLease.id&&r.data.status==='pending');
   assert(organizerRentDue);assert.equal(organizerRentDue.data.direction,'in');assert.equal(w.journals.length,organizerJournalCount);checks+=5;
+  const annualRentProject=await createTestProject('مشروع اختبار الإيجار السنوي');
+  await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project:annualRentProject,title:'عقد إيجار سنوي للاختبار',tenantName:'مستأجر سنوي',totalAmount:24000,startDate:'2026-01-01',endDate:'2027-12-31',scheduleType:'yearly',paymentDate:'2026-10-01'}}},200);
+  w=await (await call()).json();
+  const annualRent=w.records.find(r=>r.kind==='projectTenantLease'&&r.data.title==='عقد إيجار سنوي للاختبار');
+  assert(annualRent);assert.deepEqual(annualRent.data.installments.map(x=>x.date),['2026-10-01','2027-10-01']);
+  assert.equal(annualRent.data.installments.reduce((sum,x)=>sum+x.amount,0),2400000);checks+=3;
   // Rent deferral must replace the original scheduled due, merge into the next unpaid installment, and never create cash/revenue journals.
   const rentDeferralDate=nextMonth(organizerRentDue.data.date);
   const nextOrganizerRentDue=w.records.filter(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId===organizerLease.id&&r.data.status==='pending'&&r.id!==organizerRentDue.id&&r.data.date>=rentDeferralDate).sort((a,b)=>a.data.date.localeCompare(b.data.date))[0];
@@ -319,7 +378,10 @@ try{
   w=await (await call()).json();
   assert.equal(w.records.find(r=>r.id===organizerCommitmentDue.id).data.status,'paid');
   assert.equal(w.records.find(r=>r.id===organizerCommitment.id).data.installments.filter(x=>x.status==='paid').length,1);
-  assert.equal(w.journals.length,organizerJournalCount);checks+=3;
+  const organizerConstructionAsset=w.records.find(r=>r.kind==='projectAsset'&&r.data.sourceObligation===organizerCommitmentDue.id);
+  assert(organizerConstructionAsset,'settled construction installment must be tracked as a capitalized asset');
+  assert(w.journals.some(j=>j.source==='project-asset:'+organizerConstructionAsset.id),'settled construction installment must post a balanced asset journal');
+  assert.equal(w.journals.length,organizerJournalCount+1);checks+=5;
   await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:nextOrganizerRentDue.id,date:nextOrganizerRentDue.data.date}}},200);
   w=await (await call()).json();
   assert.equal(w.records.find(r=>r.id===nextOrganizerRentDue.id).data.status,'paid');

@@ -200,7 +200,10 @@ try{
   w=await (await call()).json();
   assert.equal(w.records.find(r=>r.id===legacyTenantDue.id).data.status,'paid');
   assert.equal(w.records.find(r=>r.id===tenantLease.id).data.installments.filter(x=>x.status==='paid').length,1);
-  assert.equal(w.journals.length,legacyLeaseJournalCount);checks+=4;
+  const legacyTenantReceiptJournal=w.journals.find(j=>j.source==='tenant-rent-payment:'+legacyTenantDue.id);
+  assert(legacyTenantReceiptJournal,'legacy tenant rent receipt must post a journal');
+  assert(legacyTenantReceiptJournal.lines.some(l=>l.account==='revenue'&&l.credit===Number(legacyTenantDue.data.amount||0)),'legacy tenant receipt must increase operating revenue');
+  assert.equal(w.journals.length,legacyLeaseJournalCount+1);checks+=6;
   // Full loan edits correct the receipt and rebuild unpaid installments with reversing journals.
   await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{name:'قرض قابل للتعديل',amount:12000,monthlyPayment:1100,months:12,start:date,firstDate:nextMonth(date)}}},200);
   w=await (await call()).json();const editableLoan=w.records.find(r=>r.kind==='loan'&&r.data.name==='قرض قابل للتعديل');

@@ -155,7 +155,7 @@ else if(action==='projectCost'){
  description='تسجيل تكلفة مباشرة للمشروع دون اشتراط تحديد مصدر السيولة: '+pr.data.name+' — '+title;
 }
 else if(action==='projectCommitment'){
- const pr=find(str(p.project),'project'),title=str(p.title||'التزام مشروع',200),party=String(p.party||'').trim().slice(0,200),total=cents(p.totalAmount);
+ const pr=find(str(p.project),'project'),title=str(p.title||'التزام مشروع',200),party=String(p.party||'').trim().slice(0,200),total=cents(p.totalAmount),costType=['construction','rent','expense'].includes(p.costType)?p.costType:'construction';
  if(total<=0)throw Error('أدخل إجمالي الالتزام أكبر من صفر.');
  const scheduleType=['once','monthly','quarterly','semiannual','yearly','custom'].includes(p.scheduleType)?p.scheduleType:(p.installments?'custom':'monthly'),firstDate=date(p.firstDate||today());
  const installments:{date:string;amount:number;status:string;obligationId:string}[]=[];
@@ -172,8 +172,8 @@ else if(action==='projectCommitment'){
  if(installments.reduce((sum,x)=>sum+x.amount,0)!==total)throw Error('مجموع الأقساط يجب أن يساوي إجمالي الالتزام بالضبط.');
  installments.sort((a,b)=>a.date.localeCompare(b.date));
  const commitmentId=uid();
- for(let i=0;i<installments.length;i++){const item=installments[i],obligationId=uid();item.obligationId=obligationId;due({project:pr.id,title:'قسط التزام — '+title+' / '+(i+1),amount:item.amount,date:item.date,direction:'out',category:'payable',certainty:100,projectCommitmentId:commitmentId,commitmentInstallment:i+1,party},obligationId);}
- put('projectCommitment',{project:pr.id,title,party,totalAmount:total,scheduleType,createdOn:today(),status:'active',installments},commitmentId);
+ for(let i=0;i<installments.length;i++){const item=installments[i],obligationId=uid();item.obligationId=obligationId;due({project:pr.id,title:'قسط التزام — '+title+' / '+(i+1),amount:item.amount,date:item.date,direction:'out',category:costType==='rent'||costType==='expense'?'expense':'payable',certainty:100,projectCommitmentId:commitmentId,commitmentInstallment:i+1,party,costType},obligationId);}
+ put('projectCommitment',{project:pr.id,title,party,totalAmount:total,scheduleType,costType,createdOn:today(),status:'active',installments},commitmentId);
  description='إضافة التزام مشروع وجدولة '+installments.length+' قسطًا دون اشتراط مصدر السيولة: '+title;
 }
 else if(action==='projectTenantLease'){
@@ -224,6 +224,14 @@ else if(action==='projectSchedulePayment'){
   if(receiptAccount==='receivable')throw Error('اختر حساب التحصيل الفعلي؛ لا يمكن تسجيل التحصيل على حساب آجل.');
   journal('income','تحصيل إيجار مشروع فعلي: '+String(d.title||'إيجار مستأجر'),paidOn,pair(d.project,receiptAccount,'revenue',Number(d.amount||0)),'project-tenant-rent-payment:'+r.id);
  }
+ if(d.projectCommitmentId&&d.direction==='out'){
+  const commitment=w.records.find(x=>x.kind==='projectCommitment'&&x.id===d.projectCommitmentId);
+  const costType=String(d.costType||commitment?.data.costType||'construction');
+  const accrued=w.journals.find(j=>j.source==='obligation-accrual:'+r.id);
+  const pay=['cash','bank','mada','visa','mastercard'].includes(p.paymentAccount)?p.paymentAccount:'cash';
+  if(accrued)journal('settle','سداد قسط مشروع: '+String(d.title||'التزام مشروع'),paidOn,[{project:d.project,account:'payable',debit:Number(d.amount||0),credit:0},{project:d.project,account:pay,debit:0,credit:Number(d.amount||0)}],'project-commitment-payment:'+r.id);
+  else {const debitAccount=costType==='construction'?'fixed':'expense';journal(costType==='construction'?'projectAsset':'expense','سداد '+(costType==='construction'?'تكلفة إنشاء رأسمالية':'مصروف مشروع')+': '+String(d.title||'التزام مشروع'),paidOn,[{project:d.project,account:debitAccount,debit:Number(d.amount||0),credit:0},{project:d.project,account:pay,debit:0,credit:Number(d.amount||0)}],'project-commitment-payment:'+r.id);}
+ }
  const parentId=d.projectCommitmentId||d.projectTenantLeaseId||d.tenantLeaseId,parentKind=d.projectCommitmentId?'projectCommitment':d.projectTenantLeaseId?'projectTenantLease':'tenantLease';
  const parent=find(parentId,parentKind);
  const installments=(Array.isArray(parent.data.installments)?parent.data.installments:[]).map((x:any,i:number)=>x.obligationId===r.id||(parentKind==='tenantLease'&&i+1===Number(d.leaseInstallment))?{...x,status:'paid',paidOn,obligationId:r.id}:x);
@@ -258,7 +266,7 @@ else if(action==='deferRentInstallment'){
  description='ترحيل قسط إيجار '+d.title+' إلى '+targetDate+' دون تسجيل تحصيل فعلي';
 }
 else if(action==='project'){
- const projectId=uid(),name=str(p.name),parentId=String(p.parentId||'').trim(),propertyRole=['standard','land_owned','land_leased','building','unit'].includes(p.propertyRole)?p.propertyRole:'standard';
+ const projectId=uid(),name=str(p.name),parentIdRaw=String(p.parentId||'').trim(),parentId=parentIdRaw==='none'?'':parentIdRaw,propertyRole=['standard','land_owned','land_leased','building','unit'].includes(p.propertyRole)?p.propertyRole:'standard';
  const parent=parentId?find(parentId,'project'):null;
  if(parent&&parent.data.propertyRole==='unit')throw Error('لا يمكن إنشاء تفرع داخل وحدة عقارية؛ اختر المشروع الرئيسي أو المبنى.');
  const unitCountRaw=Number(p.unitCount||0),unitCount=Number.isInteger(unitCountRaw)&&unitCountRaw>=0&&unitCountRaw<=100?unitCountRaw:0;

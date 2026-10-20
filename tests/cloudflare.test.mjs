@@ -306,7 +306,8 @@ try{
   w=await (await call()).json();
   const constructionCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قسط إنشاء رأسمالي للاختبار');
   const constructionDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===constructionCommitment?.id&&r.data.status==='pending');
-  const profitBeforeConstruction= (await call()).ok ? (await (await call()).json()).journals.filter(j=>j.lines.some(l=>l.project===project&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===project&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0) : 0;
+  const beforeConstructionWorkspace=await (await call()).json();
+  const profitBeforeConstruction=beforeConstructionWorkspace.journals.filter(j=>j.lines.some(l=>l.project===project&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===project&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0);
   await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:constructionDue.id,date,paymentAccount:'bank'}}},200);
   w=await (await call()).json();
   const constructionAsset=w.records.find(r=>r.kind==='projectAsset'&&r.data.sourceObligation===constructionDue.id);

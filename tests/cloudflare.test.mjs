@@ -130,6 +130,17 @@ try{
   const repaymentJournalCount=w.journals.length,repaymentRecordCount=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id).length;
   await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:fundingForCancelledRepayment.id,amount:1,date,memo:'يجب رفض تجاوز التمويل'}}},400);
   w=await (await call()).json();assert.equal(w.journals.length,repaymentJournalCount);assert.equal(w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id).length,repaymentRecordCount);checks+=3;
+  // Concurrent repayment requests must not both consume the same outstanding funding balance.
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project,sourceType:'personal',amount:1000,date,memo:'تمويل لاختبار الاسترداد المتزامن'}}},200);
+  w=await (await call()).json();const concurrentFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل لاختبار الاسترداد المتزامن');
+  assert(concurrentFunding,'funding record must persist before concurrent repayment test');
+  const concurrentRepayments=await Promise.all([1,2].map(()=>call({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:concurrentFunding.id,amount:700,date,memo:'اختبار استرداد متزامن'}}})));
+  const concurrentStatuses=concurrentRepayments.map(res=>res.status).sort((a,b)=>a-b);
+  assert.deepEqual(concurrentStatuses,[200,400],'only one competing repayment may succeed against the same outstanding balance');
+  w=await (await call()).json();
+  const concurrentActive=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===concurrentFunding.id&&r.data.status!=='cancelled');
+  assert.equal(concurrentActive.reduce((sum,r)=>sum+Number(r.data.amount||0),0),70000,'accepted concurrent repayment must not exceed the original 1000 SAR funding');
+  assert.equal(w.journals.filter(j=>concurrentActive.some(x=>j.source==='fundingRepayment:'+x.id)).length,1,'only one journal may be posted for the competing repayment requests');checks+=4;
   // Rental units and tenant contracts create dated receivables/income obligations and reject overlapping contracts.
   await expectStatus({method:'POST',body:{action:'propertyUnit',requestId:crypto.randomUUID(),payload:{project,name:'محل اختبار 1',unitType:'retail',operatingMode:'rent',area:40}}},200);
   w=await (await call()).json();const unit=w.records.find(r=>r.kind==='propertyUnit'&&r.data.name==='محل اختبار 1');assert(unit,'property unit must persist');

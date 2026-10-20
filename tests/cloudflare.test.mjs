@@ -357,7 +357,10 @@ try{
   w=await (await call()).json();
   assert.equal(w.records.find(r=>r.id===organizerCommitmentDue.id).data.status,'paid');
   assert.equal(w.records.find(r=>r.id===organizerCommitment.id).data.installments.filter(x=>x.status==='paid').length,1);
-  assert.equal(w.journals.length,organizerJournalCount);checks+=3;
+  const organizerConstructionAsset=w.records.find(r=>r.kind==='projectAsset'&&r.data.sourceObligation===organizerCommitmentDue.id);
+  assert(organizerConstructionAsset,'settled construction installment must be tracked as a capitalized asset');
+  assert(w.journals.some(j=>j.source==='project-asset:'+organizerConstructionAsset.id),'settled construction installment must post a balanced asset journal');
+  assert.equal(w.journals.length,organizerJournalCount+1);checks+=5;
   await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:nextOrganizerRentDue.id,date:nextOrganizerRentDue.data.date}}},200);
   w=await (await call()).json();
   assert.equal(w.records.find(r=>r.id===nextOrganizerRentDue.id).data.status,'paid');

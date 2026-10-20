@@ -151,8 +151,12 @@ else if(action==='projectCost'){
  if(amount<=0)throw Error('أدخل مبلغًا أكبر من صفر.');
  const category=['purchase','construction','maintenance','fees','utilities','other'].includes(p.category)?p.category:'other';
  const title=str(p.title||'تكلفة مشروع',200),notes=String(p.notes||'').trim().slice(0,1000);
- put('projectCost',{project:pr.id,title,amount,date:dt,category,notes,status:'active',createdAt:time});
- description='تسجيل تكلفة مباشرة للمشروع دون اشتراط تحديد مصدر السيولة: '+pr.data.name+' — '+title;
+ const paymentAccount=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';
+ const treatment=['expense','asset'].includes(p.treatment)?p.treatment:'expense';
+ const debitAccount=treatment==='asset'?'investment':'expense';
+ const costId=put('projectCost',{project:pr.id,title,amount,date:dt,category,notes,status:'active',paymentAccount,treatment,createdAt:time});
+ journal('projectCost',(treatment==='asset'?'إثبات تكلفة رأسمالية للمشروع: ':'إثبات مصروف فعلي للمشروع: ')+title,dt,pair(pr.id,debitAccount,paymentAccount,amount),'project-cost:'+costId);
+ description=(treatment==='asset'?'تسجيل تكلفة رأسمالية':'تسجيل مصروف فعلي')+' للمشروع: '+pr.data.name+' — '+title;
 }
 else if(action==='projectCommitment'){
  const pr=find(str(p.project),'project'),title=str(p.title||'التزام مشروع',200),party=String(p.party||'').trim().slice(0,200),total=cents(p.totalAmount),costType=['construction','rent','expense'].includes(p.costType)?p.costType:'construction';

@@ -522,7 +522,10 @@ try{
   // Deleting a project with financial history must archive it, not reverse/delete its accounting history.
   const archivedProjectId=await createTestProject('مشروع اختبار حماية التاريخ');
   await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,sourceType:'personal',amount:500,date,memo:'تمويل تاريخ المشروع'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,title:'التزام يجب تسويته بعد الأرشفة',costType:'expense',totalAmount:50,scheduleType:'once',firstDate:date,installmentCount:1}}},200);
   w=await (await call()).json();
+  const archivedProjectDue=w.records.find(r=>r.kind==='obligation'&&r.data.project===archivedProjectId&&r.data.title.includes('التزام يجب تسويته'));
+  assert(archivedProjectDue,'project obligation must remain available for settlement after archival');
   const archivedProjectRecord=w.records.find(r=>r.id===archivedProjectId&&r.kind==='project');
   const archivedFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.project===archivedProjectId);
   const archivedFundingJournal=w.journals.find(j=>j.source==='projectFunding:'+archivedFunding.id);
@@ -535,7 +538,22 @@ try{
   assert(!w.journals.some(j=>j.reversal===archivedFundingJournal.id),'archiving must not reverse historical profit/cash effects');
   assert(w.records.some(r=>r.id===archivedFunding.id),'archiving must preserve linked financial records');
   await expectStatus({method:'POST',body:{action:'projectCost',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,title:'يجب رفض التكلفة الجديدة',amount:10,date,category:'other',paymentAccount:'cash',treatment:'expense'}}},400);
-  checks+=5;
+  await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:archivedProjectDue.id,date,paymentAccount:'cash'}}},200);
+  w=await (await call()).json();
+  assert.equal(w.records.find(r=>r.id===archivedProjectDue.id).data.status,'paid','existing project obligations must remain settleable after archival');
+  assert(w.journals.some(j=>j.source==='project-commitment-payment:'+archivedProjectDue.id),'settling archived-project obligation must still post accounting');
+  checks+=7;
+
+  // An empty project may still be permanently deleted together with its unfinancial baseline plan.
+  const emptyProjectId=await createTestProject('مشروع فارغ قابل للحذف');
+  w=await (await call()).json();
+  const emptyProjectRecord=w.records.find(r=>r.id===emptyProjectId&&r.kind==='project');
+  assert(emptyProjectRecord);
+  await expectStatus({method:'POST',body:{action:'deleteProject',requestId:crypto.randomUUID(),payload:{id:emptyProjectId,version:emptyProjectRecord.version,confirmName:emptyProjectRecord.data.name,reason:'حذف مشروع اختبار فارغ'}}},200);
+  w=await (await call()).json();
+  assert(!w.records.some(r=>r.id===emptyProjectId),'empty project should be permanently deleted');
+  assert(!w.records.some(r=>r.kind==='projectPlan'&&r.data.project===emptyProjectId),'empty project baseline plan should be removed with the empty project');
+  checks+=3;
 
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');

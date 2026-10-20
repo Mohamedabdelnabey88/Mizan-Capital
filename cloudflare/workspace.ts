@@ -520,20 +520,22 @@ else if(action==='annualOwnerDistribution'){
  put('ownerSettlement',{year,fiscalYearId:fy.id||'',fiscalYearStart:fy.start,fiscalYearEnd:fy.end,percentBps:pct,totalProfit,totalOwner,allocations,status:'paid',paidOn:today(),paymentAccount:p.paymentAccount||'bank'},uid());
  description='اعتماد توزيع المالك السنوي لعام '+year;
 }
-else if(action==='projectFunding'){const target=project(p.project);const amount=cents(p.amount);const dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغ التمويل.');const source=['personal','project','external'].includes(p.sourceType)?p.sourceType:'personal';let lines:Line[];let sourceLabel='تمويل شخصي';if(source==='project'){if(!p.sourceProject||p.sourceProject===p.project)throw Error('اختر مشروعًا آخر كمصدر للتمويل.');project(p.sourceProject);lines=[...pair(p.sourceProject,'inter_receivable','cash',amount),...pair(p.project,'cash','inter_payable',amount)];sourceLabel='تمويل من مشروع آخر';}else if(source==='external'){lines=pair(p.project,'cash','payable',amount);sourceLabel='تمويل خارجي مستحق';}else{lines=pair(p.project,'cash','capital',amount);}const rid=put('projectFunding',{project:p.project,sourceType:source,sourceProject:source==='project'?p.sourceProject:'',amount,date:dt,memo:str(p.memo||sourceLabel,300)});journal('transfer',sourceLabel+' — '+target.data.name,dt,lines,'projectFunding:'+rid);description='تمويل '+target.data.name+' — '+sourceLabel;}
+else if(action==='projectFunding'){const target=project(p.project);const amount=cents(p.amount);const dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغ التمويل.');const source=['personal','project','external'].includes(p.sourceType)?p.sourceType:'personal';let lines:Line[];let sourceLabel='تمويل شخصي';if(source==='project'){if(!p.sourceProject||p.sourceProject===p.project)throw Error('اختر مشروعًا آخر كمصدر للتمويل.');project(p.sourceProject);guardProject(p.sourceProject);const available=balance(w,p.sourceProject,dt).cash||0;if(amount>available)throw Error('رصيد النقدية المتاح في المشروع المصدر لا يكفي لهذا التحويل.');lines=[...pair(p.sourceProject,'inter_receivable','cash',amount),...pair(p.project,'cash','inter_payable',amount)];sourceLabel='تمويل من مشروع آخر';}else if(source==='external'){lines=pair(p.project,'cash','payable',amount);sourceLabel='تمويل خارجي مستحق';}else{lines=pair(p.project,'cash','capital',amount);}const rid=put('projectFunding',{project:p.project,sourceType:source,sourceProject:source==='project'?p.sourceProject:'',amount,date:dt,memo:str(p.memo||sourceLabel,300)});journal('transfer',sourceLabel+' — '+target.data.name,dt,lines,'projectFunding:'+rid);description='تمويل '+target.data.name+' — '+sourceLabel;}
 else if(action==='cancelFunding'){
  const funding=find(p.id,'projectFunding');
  const fd=funding.data as any;
  if(fd.status==='cancelled')throw Error('هذا التمويل ملغى بالفعل.');
  const repayments=w.records.filter(x=>x.kind==='fundingRepayment'&&x.data.fundingId===funding.id&&x.data.status!=='cancelled');
  if(repayments.length)throw Error('لا يمكن إلغاء التمويل بعد وجود استرداد مرتبط به. اعكس الاسترداد أولًا.');
- const related=w.records.filter(x=>x.id!==funding.id&&((x.kind==='fundingRepayment'&&x.data.fundingId===funding.id)||(x.data&&x.data.fundingId===funding.id)));
+ const related=w.records.filter(x=>x.id!==funding.id&&((x.kind==='fundingRepayment'&&x.data.fundingId===funding.id&&x.data.status!=='cancelled')||(x.kind!=='fundingRepayment'&&x.data&&x.data.fundingId===funding.id)));
  if(related.length)throw Error('لا يمكن إلغاء التمويل لأنه مرتبط بحركة أخرى. صحح الحركة التابعة أولًا.');
  const original=w.journals.find(j=>j.source==='projectFunding:'+funding.id);
  if(!original)throw Error('لم يتم العثور على القيد الأصلي للتمويل.');
  if(w.journals.some(j=>j.reversal===original.id))throw Error('تم عكس قيد التمويل بالفعل.');
  const cancelDate=date(p.date||today());
  if(cancelDate<date(fd.date))throw Error('تاريخ الإلغاء لا يمكن أن يسبق تاريخ التمويل.');
+ const availableCash=balance(w,String(fd.project||''),cancelDate).cash||0;
+ if(Number(fd.amount||0)>availableCash)throw Error('لا يمكن إلغاء التمويل لأن النقدية المتاحة في المشروع لا تكفي لعكس المبلغ بأمان.');
  journal('reversal','عكس تمويل: '+(fd.memo||fd.project)+' — '+str(p.reason||'تصحيح تمويل',200),cancelDate,original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
  update(funding,{...fd,status:'cancelled',cancelledAt:cancelDate,cancelReason:str(p.reason||'تصحيح تمويل',200)});
  description='إلغاء تمويل مع عكس أثره المحاسبي: '+funding.id;
@@ -546,12 +548,14 @@ else if(action==='fundingRepayment'){
  const recipient=project(fd.project),amount=cents(p.amount),dt=date(p.date||today());
  if(!amount)throw Error('أدخل مبلغ الاسترداد.');
  if(dt<date(fd.date))throw Error('تاريخ الاسترداد لا يمكن أن يسبق تاريخ التمويل.');
- const prior=w.records.filter(x=>x.kind==='fundingRepayment'&&x.data.fundingId===funding.id).reduce((s,x)=>s+Number(x.data.amount||0),0);
+ const availableCash=balance(w,recipient.id,dt).cash||0;
+ if(amount>availableCash)throw Error('النقدية المتاحة في المشروع لا تكفي لتنفيذ استرداد التمويل.');
+ const prior=w.records.filter(x=>x.kind==='fundingRepayment'&&x.data.fundingId===funding.id&&x.data.status!=='cancelled').reduce((s,x)=>s+Number(x.data.amount||0),0);
  const outstanding=Math.max(0,Number(fd.amount||0)-prior);
  if(amount>outstanding)throw Error('مبلغ الاسترداد يتجاوز رأس المال المتبقي لهذا التمويل.');
  let lines:Line[],memo='';
  if(fd.sourceType==='project'){
-   const lender=project(fd.sourceProject);
+   const lender=project(fd.sourceProject);guardProject(lender.id);
    lines=[...pair(recipient.id,'inter_payable','cash',amount),...pair(lender.id,'cash','inter_receivable',amount)];
    memo='استرداد تمويل مشروع → مشروع';
  }else if(fd.sourceType==='external'){
@@ -564,6 +568,28 @@ else if(action==='fundingRepayment'){
  const rid=put('fundingRepayment',{fundingId:funding.id,project:recipient.id,sourceType:fd.sourceType,sourceProject:fd.sourceProject||'',amount,date:dt,memo:str(p.memo||memo,300)});
  journal('fundingRepayment',memo+' — '+recipient.data.name,dt,lines,'fundingRepayment:'+rid);
  description='استرداد مرتبط بالتمويل الأصلي: '+funding.id;
+}
+else if(action==='cancelFundingRepayment'){
+ const repayment=find(p.id,'fundingRepayment'),rd=repayment.data as any;
+ if(rd.status==='cancelled')throw Error('تم عكس استرداد التمويل بالفعل.');
+ const funding=w.records.find(x=>x.kind==='projectFunding'&&x.id===rd.fundingId);
+ if(!funding)throw Error('لم يتم العثور على التمويل المرتبط بهذا الاسترداد.');
+ const original=w.journals.find(j=>j.source==='fundingRepayment:'+repayment.id);
+ if(!original)throw Error('لم يتم العثور على القيد الأصلي للاسترداد.');
+ if(w.journals.some(j=>j.reversal===original.id))throw Error('تم عكس قيد الاسترداد بالفعل.');
+ const cancelDate=date(p.date||today());
+ if(cancelDate<date(rd.date||original.date))throw Error('تاريخ العكس لا يمكن أن يسبق تاريخ الاسترداد.');
+ const recipient=project(String(rd.project||funding.data.project||''));
+ guardProject(recipient.id);
+ if(rd.sourceType==='project'){
+  const lender=project(String(rd.sourceProject||funding.data.sourceProject||''));
+  guardProject(lender.id);
+  const available=balance(w,lender.id,cancelDate).cash||0;
+  if(Number(rd.amount||0)>available)throw Error('لا يمكن عكس الاسترداد لأن النقدية المتاحة لدى المشروع المُموِّل لا تكفي لإرجاع المبلغ.');
+ }
+ journal('reversal','عكس استرداد تمويل: '+str(p.reason||'تصحيح استرداد',200),cancelDate,original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
+ update(repayment,{...rd,status:'cancelled',cancelledAt:cancelDate,cancelReason:str(p.reason||'تصحيح استرداد',200)});
+ description='عكس استرداد التمويل مع الاحتفاظ بالأصل وسجل المراجعة: '+repayment.id;
 }
 else if(action==='employee'){project(p.project);const salary=cents(p.salary),start=date(p.firstDate),count=Math.trunc(num(p.months??12,1,24));if(!salary)throw Error('أدخل راتبًا أكبر من صفر.');const rid=put('employee',{name:str(p.name),job:str(p.job),project:p.project,salary,baseSalary:cents(p.baseSalary??p.salary),housingAllowance:cents(p.housingAllowance||0),transportAllowance:cents(p.transportAllowance||0),otherAllowance:cents(p.otherAllowance||0),incentiveType:['none','fixed','percent'].includes(p.incentiveType)?p.incentiveType:'none',incentiveValue:Number(p.incentiveValue||0),hireDate:start,contractEnd:p.contractEnd?date(p.contractEnd):'',firstDate:start,months:count,status:'active'});for(let i=0;i<count;i++)due({project:p.project,title:'راتب '+p.name,amount:salary,date:monthAdd(start,i),direction:'out',category:'salary',employee:rid,certainty:100});description='إضافة موظف وجدولة راتبه: '+p.name;}
 else if(action==='employeeUpdate'){const r=find(p.id,'employee');const salary=cents(p.salary),effective=date(p.effectiveFrom||today());if(!salary)throw Error('أدخل راتبًا أكبر من صفر.');if(r.data.status!=='active'&&p.status==='active')throw Error('لا يمكن إعادة تنشيط الموظف بهذا المسار؛ أنشئ تاريخ خدمة جديدًا.');const pendingSalary=w.records.filter(x=>x.kind==='obligation'&&x.data.employee===r.id&&x.data.status==='pending'&&x.data.date>=effective);for(const o of pendingSalary)update(o,{...o.data,status:'replaced',reason:'تعديل ملف الموظف/الأجر'});const next={...r.data,name:str(p.name),job:str(p.job),salary,baseSalary:cents(p.baseSalary??p.salary),housingAllowance:cents(p.housingAllowance||0),transportAllowance:cents(p.transportAllowance||0),otherAllowance:cents(p.otherAllowance||0),incentiveType:['none','fixed','percent'].includes(p.incentiveType)?p.incentiveType:'none',incentiveValue:Number(p.incentiveValue||0),hireDate:p.hireDate?date(p.hireDate):r.data.hireDate,contractEnd:p.contractEnd?date(p.contractEnd):'',status:p.status||r.data.status};update(r,next);const months=Math.trunc(num(p.months??12,1,24));for(let i=0;i<months;i++)due({project:r.data.project,title:'راتب '+next.name,amount:salary,date:monthAdd(effective,i),direction:'out',category:'salary',employee:r.id,certainty:100});description='تحديث ملف وأجر الموظف: '+next.name;}

@@ -118,6 +118,72 @@ try{
   assert.equal(assetJournal.lines.reduce((n,l)=>n+l.debit,0),assetJournal.lines.reduce((n,l)=>n+l.credit,0));checks+=4;
   await expectStatus({method:'POST',body:{action:'projectAsset',requestId:crypto.randomUUID(),payload:{project,category:'equipment',amount:8000,date,paymentAccount:'cash',description:'يجب رفض تجاوز السيولة'}}},400);
   await expectStatus({method:'POST',body:{action:'projectAsset',requestId:crypto.randomUUID(),payload:{project,category:'equipment',amount:1,date:'2000-01-01',paymentAccount:'cash',description:'يجب رفض استخدام سيولة مستقبلية'}}},400);
+  // Cancelled funding repayments must not reduce the outstanding balance available for a valid repayment.
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project,sourceType:'personal',amount:1000,date,memo:'تمويل لاسترداد ملغى تجريبي'}}},200);
+  w=await (await call()).json();const fundingForCancelledRepayment=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل لاسترداد ملغى تجريبي');
+  assert(fundingForCancelledRepayment,'funding record must persist before repayment lifecycle test');
+  await db.prepare('INSERT INTO records(id,owner,kind,data,created) VALUES(?,?,?,?,?)').bind('cancelled-repayment-fixture','cloudflare-owner','fundingRepayment',JSON.stringify({fundingId:fundingForCancelledRepayment.id,project,sourceType:'personal',amount:100000,date,status:'cancelled',memo:'fixture already reversed'}),new Date().toISOString()).run();
+  await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:fundingForCancelledRepayment.id,amount:1000,date,memo:'استرداد صحيح بعد استبعاد الملغى'}}},200);
+  w=await (await call()).json();const activeFundingRepayments=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id&&r.data.status!=='cancelled');
+  assert.equal(activeFundingRepayments.reduce((sum,r)=>sum+Number(r.data.amount||0),0),100000);
+  assert.equal(w.journals.filter(j=>j.source==='fundingRepayment:'+activeFundingRepayments[0].id).length,1);checks+=4;
+  // A repayment can be reversed with a balanced journal, while retaining its audit record.
+  const reversibleFundingProject=await createTestProject('مشروع اختبار عكس الاسترداد');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:reversibleFundingProject,sourceType:'personal',amount:2000,date,memo:'تمويل لعكس الاسترداد'}}},200);
+  w=await (await call()).json();const reversibleFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل لعكس الاسترداد');
+  await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:reversibleFunding.id,amount:500,date,memo:'استرداد قابل للعكس'}}},200);
+  w=await (await call()).json();const reversibleRepayment=w.records.find(r=>r.kind==='fundingRepayment'&&r.data.fundingId===reversibleFunding.id&&r.data.status!=='cancelled');
+  const reversibleJournal=w.journals.find(j=>j.source==='fundingRepayment:'+reversibleRepayment.id);
+  await expectStatus({method:'POST',body:{action:'cancelFundingRepayment',requestId:crypto.randomUUID(),payload:{id:reversibleRepayment.id,reason:'اختبار عكس'}}},200);
+  w=await (await call()).json();const cancelledRepayment=w.records.find(r=>r.id===reversibleRepayment.id);
+  const repaymentReversal=w.journals.find(j=>j.reversal===reversibleJournal.id);
+  assert.equal(cancelledRepayment.data.status,'cancelled');assert(repaymentReversal,'reversal journal must reference the original repayment');
+  assert.equal(repaymentReversal.lines.reduce((sum,l)=>sum+l.debit,0),repaymentReversal.lines.reduce((sum,l)=>sum+l.credit,0));
+  assert.equal(w.journals.filter(j=>j.source==='fundingRepayment:'+reversibleRepayment.id).length,1,'original repayment journal must be retained');
+  const beforeCancelFunding=w.journals.length;
+  await expectStatus({method:'POST',body:{action:'cancelFunding',requestId:crypto.randomUUID(),payload:{id:reversibleFunding.id,date,reason:'اختبار إلغاء بعد عكس الاسترداد'}}},200);
+  w=await (await call()).json();assert.equal(w.records.find(r=>r.id===reversibleFunding.id).data.status,'cancelled');
+  assert.equal(w.journals.length,beforeCancelFunding+1,'funding cancellation adds one reversal after repayment reversal');checks+=7;
+
+  // Reversing a project-to-project repayment must be blocked if the lender has already spent the returned cash.
+  const lenderCashGuard=await createTestProject('مشروع مُموِّل لاختبار عكس الاسترداد');
+  const borrowerCashGuard=await createTestProject('مشروع مستفيد لاختبار عكس الاسترداد');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:lenderCashGuard,sourceType:'personal',amount:1000,date,memo:'رصيد مُموِّل لعكس الاسترداد'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:borrowerCashGuard,sourceType:'project',sourceProject:lenderCashGuard,amount:500,date,memo:'تمويل بين مشروعين لعكس الاسترداد'}}},200);
+  w=await (await call()).json();const borrowerFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل بين مشروعين لعكس الاسترداد');
+  await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:borrowerFunding.id,amount:200,date,memo:'استرداد يختبر رصيد المُموِّل'}}},200);
+  w=await (await call()).json();const guardedRepayment=w.records.find(r=>r.kind==='fundingRepayment'&&r.data.fundingId===borrowerFunding.id&&r.data.status!=='cancelled');
+  const guardedOriginal=w.journals.find(j=>j.source==='fundingRepayment:'+guardedRepayment.id);
+  await expectStatus({method:'POST',body:{action:'entry',requestId:crypto.randomUUID(),payload:{project:lenderCashGuard,amount:700,date,kind:'expense',memo:'استهلاك النقدية المعادة'}}},200);
+  w=await (await call()).json();const guardedJournalCount=w.journals.length;
+  await expectStatus({method:'POST',body:{action:'cancelFundingRepayment',requestId:crypto.randomUUID(),payload:{id:guardedRepayment.id,reason:'يجب رفض العكس دون نقدية'}}},400);
+  w=await (await call()).json();
+  assert.equal(w.journals.length,guardedJournalCount,'rejected reversal must not post a journal');
+  assert.equal(w.records.find(r=>r.id===guardedRepayment.id).data.status,undefined,'rejected reversal must not change repayment status');
+  assert(!w.journals.some(j=>j.reversal===guardedOriginal.id),'rejected reversal must not create a reversal journal');checks+=3;
+
+  // Cancelling funding is also rejected if the project has already spent the original cash.
+  const spentFundingProject=await createTestProject('مشروع اختبار إلغاء تمويل مستهلك');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:spentFundingProject,sourceType:'personal',amount:1000,date,memo:'تمويل سيتم استهلاكه'}}},200);
+  await expectStatus({method:'POST',body:{action:'entry',requestId:crypto.randomUUID(),payload:{project:spentFundingProject,amount:1000,date,kind:'expense',memo:'استهلاك التمويل بالكامل'}}},200);
+  w=await (await call()).json();const spentFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل سيتم استهلاكه'),spentJournalCount=w.journals.length;
+  await expectStatus({method:'POST',body:{action:'cancelFunding',requestId:crypto.randomUUID(),payload:{id:spentFunding.id,date,reason:'يجب رفض إلغاء تمويل مستهلك'}}},400);
+  w=await (await call()).json();assert.equal(w.journals.length,spentJournalCount);assert.notEqual(w.records.find(r=>r.id===spentFunding.id).data.status,'cancelled');checks+=2;
+
+  const repaymentJournalCount=w.journals.length,repaymentRecordCount=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id).length;
+  await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:fundingForCancelledRepayment.id,amount:1,date,memo:'يجب رفض تجاوز التمويل'}}},400);
+  w=await (await call()).json();assert.equal(w.journals.length,repaymentJournalCount);assert.equal(w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id).length,repaymentRecordCount);checks+=3;
+  // Concurrent repayment requests must not both consume the same outstanding funding balance.
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project,sourceType:'personal',amount:1000,date,memo:'تمويل لاختبار الاسترداد المتزامن'}}},200);
+  w=await (await call()).json();const concurrentFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل لاختبار الاسترداد المتزامن');
+  assert(concurrentFunding,'funding record must persist before concurrent repayment test');
+  const concurrentRepayments=await Promise.all([1,2].map(()=>call({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:concurrentFunding.id,amount:700,date,memo:'اختبار استرداد متزامن'}}})));
+  const concurrentStatuses=concurrentRepayments.map(res=>res.status).sort((a,b)=>a-b);
+  assert.deepEqual(concurrentStatuses,[200,400],'only one competing repayment may succeed against the same outstanding balance');
+  w=await (await call()).json();
+  const concurrentActive=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===concurrentFunding.id&&r.data.status!=='cancelled');
+  assert.equal(concurrentActive.reduce((sum,r)=>sum+Number(r.data.amount||0),0),70000,'accepted concurrent repayment must not exceed the original 1000 SAR funding');
+  assert.equal(w.journals.filter(j=>concurrentActive.some(x=>j.source==='fundingRepayment:'+x.id)).length,1,'only one journal may be posted for the competing repayment requests');checks+=4;
   // Rental units and tenant contracts create dated receivables/income obligations and reject overlapping contracts.
   await expectStatus({method:'POST',body:{action:'propertyUnit',requestId:crypto.randomUUID(),payload:{project,name:'محل اختبار 1',unitType:'retail',operatingMode:'rent',area:40}}},200);
   w=await (await call()).json();const unit=w.records.find(r=>r.kind==='propertyUnit'&&r.data.name==='محل اختبار 1');assert(unit,'property unit must persist');
@@ -262,6 +328,35 @@ try{
   assert(rentCollectionJournal,'confirmed project rent collection must post to the ledger');
   assert.equal(rentCollectionJournal.lines.reduce((n,l)=>n+l.debit,0),rentCollectionJournal.lines.reduce((n,l)=>n+l.credit,0));
   assert(rentCollectionJournal.lines.some(l=>l.account==='revenue'&&l.credit===nextRentAmount+rentAmount));checks+=5;
+
+  // Concurrent inter-project transfers must lock the shared source project, not only each destination.
+  async function createTestProject(name){
+    await expectStatus({method:'POST',body:{action:'project',requestId:crypto.randomUUID(),payload:{name,activity:'اختبار التزامن',mode:'operating',ownership:100,reserve:0,payout:30}}},200);
+    w=await (await call()).json();const created=w.records.find(r=>r.kind==='project'&&r.data.name===name);assert(created,'test project must persist');return created.id;
+  }
+  const sourceProject=await createTestProject('مشروع مصدر اختبار التزامن');
+  const destinationA=await createTestProject('مشروع مستلم اختبار التزامن أ');
+  const destinationB=await createTestProject('مشروع مستلم اختبار التزامن ب');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:sourceProject,sourceType:'personal',amount:1000,date,memo:'رصيد مصدر لاختبار التحويل'}}},200);
+  const competingTransfers=await Promise.all([destinationA,destinationB].map(destination=>call({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:destination,sourceType:'project',sourceProject,amount:700,date,memo:'اختبار تحويل متزامن'}}})));
+  assert.deepEqual(competingTransfers.map(res=>res.status).sort((a,b)=>a-b),[200,400],'shared source project must not fund two concurrent transfers that exceed its cash');
+  w=await (await call()).json();
+  const acceptedTransfers=w.records.filter(r=>r.kind==='projectFunding'&&r.data.sourceType==='project'&&r.data.sourceProject===sourceProject&&r.data.memo==='اختبار تحويل متزامن');
+  assert.equal(acceptedTransfers.length,1,'exactly one inter-project transfer may consume the shared source cash');
+  assert.equal(acceptedTransfers.reduce((sum,r)=>sum+Number(r.data.amount||0),0),70000);checks+=3;
+
+  // Repayment must not make the recipient project's cash balance negative.
+  const cashGuardProject=await createTestProject('مشروع اختبار كفاية النقدية');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:cashGuardProject,sourceType:'personal',amount:1000,date,memo:'تمويل اختبار النقدية'}}},200);
+  await expectStatus({method:'POST',body:{action:'entry',requestId:crypto.randomUUID(),payload:{project:cashGuardProject,amount:1000,date,kind:'expense',memo:'استهلاك النقدية'}}},200);
+  w=await (await call()).json();const cashGuardFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل اختبار النقدية');
+  assert(cashGuardFunding,'funding record must persist for cash guard test');
+  const journalsBeforeCashGuard=w.journals.length;
+  await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:cashGuardFunding.id,amount:1,date,memo:'استرداد دون نقدية'}}},400);
+  w=await (await call()).json();
+  assert.equal(w.journals.length,journalsBeforeCashGuard,'rejected repayment must not post a journal');
+  assert.equal(w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===cashGuardFunding.id).length,0,'rejected repayment must not create a repayment record');
+  checks+=3;
 
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');

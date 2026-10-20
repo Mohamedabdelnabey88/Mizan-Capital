@@ -104,9 +104,28 @@ export function expectedCollectionsInRange(w:Workspace,project='all',start='0000
  const incoming=obligationRows.filter(r=>r.data?.status==='pending');
  let total=incoming.reduce((sum,r)=>sum+Math.max(0,Math.round(Number(r.data.amount||0))),0);
  const existing=new Set(obligationRows.map(r=>String(r.data.project||'')+'|'+String(r.data.date||'')+'|'+Math.round(Number(r.data.amount||0))));
- const latestPlans=new Map<string,RecordItem>();
- for(const r of w.records.filter(x=>x.kind==='projectPlan')){const pid=String(r.data?.project||'');if(project!=='all'&&pid!==project)continue;const prior=latestPlans.get(pid);const effective=String(r.data?.effectiveFrom||'');const previous=String(prior?.data?.effectiveFrom||'');if(!prior||effective>previous||(effective===previous&&String((r as any).created||'')>=String((prior as any).created||'')))latestPlans.set(pid,r);}
- for(const [pid,r] of latestPlans){const d=r.data as any;const rows=Array.isArray(d.expectedReceiptInstallments)&&d.expectedReceiptInstallments.length?d.expectedReceiptInstallments:(d.expectedReceiptDate?[{date:d.expectedReceiptDate,amountMicro:Math.max(0,Math.round(Number(d.netTargetMicro||0)/1000))*1000}]:[]);for(const row of rows){const amount=Math.max(0,Math.round(Number(row.amountMicro||0)/1000));if(!amount)continue;for(const date of installmentDates(row)){if(date<start||date>end)continue;const key=pid+'|'+date+'|'+amount;if(existing.has(key))continue;total+=amount;}}}
+ const plansByProject=new Map<string,RecordItem[]>();
+ for(const r of w.records.filter(x=>x.kind==='projectPlan')){
+  const pid=String(r.data?.project||'');if(project!=='all'&&pid!==project)continue;
+  const list=plansByProject.get(pid)||[];list.push(r);plansByProject.set(pid,list);
+ }
+ for(const [pid,plans] of plansByProject){
+  plans.sort((a,b)=>String(a.data?.effectiveFrom||'0000-01-01').localeCompare(String(b.data?.effectiveFrom||'0000-01-01'))||String((a as any).created||'').localeCompare(String((b as any).created||'')));
+  const activePlans=plans.filter((plan,index)=>index===plans.length-1||String(plan.data?.effectiveFrom||'0000-01-01')!==String(plans[index+1].data?.effectiveFrom||'0000-01-01'));
+  for(let index=0;index<activePlans.length;index++){
+   const r=activePlans[index],d=r.data as any;
+   const effective=String(d.effectiveFrom||'0000-01-01');
+   const nextEffective=index+1<activePlans.length?String(activePlans[index+1].data?.effectiveFrom||'0000-01-01'):'9999-12-31';
+   const rows=Array.isArray(d.expectedReceiptInstallments)&&d.expectedReceiptInstallments.length?d.expectedReceiptInstallments:(d.expectedReceiptDate?[{date:d.expectedReceiptDate,amountMicro:Math.max(0,Math.round(Number(d.netTargetMicro||0)/1000))*1000}]:[]);
+   for(const row of rows){
+    const amount=Math.max(0,Math.round(Number(row.amountMicro||0)/1000));if(!amount)continue;
+    for(const date of installmentDates(row)){
+     if(date<start||date>end||date<effective||date>=nextEffective)continue;
+     const key=pid+'|'+date+'|'+amount;if(existing.has(key))continue;total+=amount;
+    }
+   }
+  }
+ }
  return total;
 }
 export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,outlay=0,startDate=today()){
@@ -121,9 +140,29 @@ export function forecast(w:Workspace,project='all',reserve=0,shock=0,delay=0,out
   if(d.direction==='in')point.income+=Math.round(d.amount*(1-shock/100));else point.out+=d.amount;
  }
  // Planned net-profit collections affect forecast liquidity only; they never create journal entries.
- const latestPlans=new Map<string,any>();
- for(const r of w.records.filter(x=>x.kind==='projectPlan')){const d=r.data as any;const prior=latestPlans.get(String(d.project||''));if(!prior||String(d.effectiveFrom||'')>=String(prior.effectiveFrom||''))latestPlans.set(String(d.project||''),d);}
- for(const [pid,d] of latestPlans){if(project!=='all'&&pid!==project)continue;const installments=Array.isArray(d.expectedReceiptInstallments)&&d.expectedReceiptInstallments.length?d.expectedReceiptInstallments:[{date:d.expectedReceiptDate,amountMicro:Math.max(0,Math.round(Number(d.netTargetMicro||0)/1000))*1000}];for(const installment of installments){const amount=Math.max(0,Math.round(Number(installment.amountMicro||0)/1000));if(!amount)continue;for(const receipt of installmentDates(installment)){if(receipt<now||!byDate.has(receipt))continue;const duplicate=w.records.some(r=>r.kind==='obligation'&&r.data.status==='pending'&&r.data.direction==='in'&&r.data.project===pid&&String(r.data.date)===receipt&&Math.round(Number(r.data.amount||0))===amount);if(!duplicate)byDate.get(receipt)!.income+=amount;}}}
+ const plansByProject=new Map<string,RecordItem[]>();
+ for(const r of w.records.filter(x=>x.kind==='projectPlan')){
+  const pid=String(r.data?.project||'');if(project!=='all'&&pid!==project)continue;
+  const list=plansByProject.get(pid)||[];list.push(r);plansByProject.set(pid,list);
+ }
+ for(const [pid,plans] of plansByProject){
+  plans.sort((a,b)=>String(a.data?.effectiveFrom||'0000-01-01').localeCompare(String(b.data?.effectiveFrom||'0000-01-01'))||String((a as any).created||'').localeCompare(String((b as any).created||'')));
+  const activePlans=plans.filter((plan,index)=>index===plans.length-1||String(plan.data?.effectiveFrom||'0000-01-01')!==String(plans[index+1].data?.effectiveFrom||'0000-01-01'));
+  for(let index=0;index<activePlans.length;index++){
+   const r=activePlans[index],d=r.data as any;
+   const effective=String(d.effectiveFrom||'0000-01-01');
+   const nextEffective=index+1<activePlans.length?String(activePlans[index+1].data?.effectiveFrom||'0000-01-01'):'9999-12-31';
+   const installments=Array.isArray(d.expectedReceiptInstallments)&&d.expectedReceiptInstallments.length?d.expectedReceiptInstallments:(d.expectedReceiptDate?[{date:d.expectedReceiptDate,amountMicro:Math.max(0,Math.round(Number(d.netTargetMicro||0)/1000))*1000}]:[]);
+   for(const installment of installments){
+    const amount=Math.max(0,Math.round(Number(installment.amountMicro||0)/1000));if(!amount)continue;
+    for(const receipt of installmentDates(installment)){
+     if(receipt<now||!byDate.has(receipt)||receipt<effective||receipt>=nextEffective)continue;
+     const duplicate=w.records.some(r=>r.kind==='obligation'&&r.data.status==='pending'&&r.data.direction==='in'&&r.data.project===pid&&String(r.data.date)===receipt&&Math.round(Number(r.data.amount||0))===amount);
+     if(!duplicate)byDate.get(receipt)!.income+=amount;
+    }
+   }
+  }
+ }
  let cash=opening,min=opening,firstGap:string|undefined=opening<reserve?now:undefined;
  for(const d of days){d.min=cash-d.out;cash=d.min+d.income;d.cash=cash;min=Math.min(min,d.min);if(!firstGap&&d.min<reserve)firstGap=d.date;}
  const buckets=Array.from({length:13},(_,i)=>{const week=days.slice(i*7,i*7+7);return {date:week[0].date,income:week.reduce((s,d)=>s+d.income,0),out:week.reduce((s,d)=>s+d.out,0),cash:week[6].cash,min:Math.min(...week.map(d=>d.min))};});
@@ -178,8 +217,17 @@ export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=
  const opening=(openingBalance.cash||0)+(openingBalance.bank||0);
  const rows=new Map<string,CashFlowRow>();
  const get=(date:string)=>{let r=rows.get(date);if(!r){r={date,operatingIn:0,operatingOut:0,investingIn:0,investingOut:0,financingIn:0,financingOut:0,transferIn:0,transferOut:0,otherIn:0,otherOut:0,net:0};rows.set(date,r);}return r;};
- const category=(j:{kind:string;memo:string;lines:Line[]})=>{
+ const category=(j:{id?:string;kind:string;memo:string;lines:Line[];reversal?:string},seen=new Set<string>()):string=>{
   const kind=j.kind;
+  // A reversing journal belongs to the same cash-flow category as its original.
+  // Otherwise the reversal is incorrectly reported as "other" and distorts category totals.
+  if(kind==='reversal'&&j.reversal){
+   const original=w.journals.find(x=>x.id===j.reversal);
+   if(original&&original.id!==j.id&&!seen.has(original.id)){
+    const next=new Set(seen);if(j.id)next.add(j.id);
+    return category(original,next);
+   }
+  }
   if(['income','collect','dailyReport','cardSettlement','expense','paybill','cogs','inventory','salary'].includes(kind))return 'operating';
   if(['asset','invest','dividend','returnCapital','investmentStart','investmentReturn'].includes(kind))return 'investing';
   if(['capital','loan','prepay','distribution','annualOwnerDistribution'].includes(kind))return 'financing';
@@ -192,7 +240,27 @@ export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=
   }
   return 'other';
  };
- for(const j of w.journals){if(j.date<start||j.date>end)continue;const hasLoanComponent=j.lines.some(l=>l.account==='loan'||l.account==='interest');const interestOut=(hasLoanComponent&&(j.kind==='settle'||j.kind==='prepay'))?j.lines.filter(l=>l.account==='interest').reduce((s,l)=>s+l.debit-l.credit,0):0;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(l.account!=='cash'&&l.account!=='bank')continue;const r=get(j.date),cat=category(j),inflow=l.debit,outflow=l.credit;const loanSettlement=hasLoanComponent&&(j.kind==='settle'||j.kind==='prepay');if(loanSettlement){if(outflow){r.operatingOut+=Math.min(outflow,Math.max(0,interestOut));r.financingOut+=Math.max(0,outflow-Math.min(outflow,Math.max(0,interestOut)));}else if(inflow){r.financingIn+=inflow;}}else{if(inflow){(r as any)[cat+'In']+=inflow;}if(outflow){(r as any)[cat+'Out']+=outflow;}}r.net+=inflow-outflow;}}
+ for(const j of w.journals){
+  if(j.date<start||j.date>end)continue;
+  const sourceJournal=j.kind==='reversal'&&j.reversal?w.journals.find(x=>x.id===j.reversal):undefined;
+  const sourceKind=sourceJournal?.kind||j.kind;
+  const hasLoanComponent=j.lines.some(l=>l.account==='loan'||l.account==='interest');
+  const loanSettlement=hasLoanComponent&&(sourceKind==='settle'||sourceKind==='prepay');
+  const interestAmount=loanSettlement?Math.abs(j.lines.filter(l=>l.account==='interest').reduce((sum,l)=>sum+l.debit-l.credit,0)):0;
+  for(const l of j.lines){
+   if(project!=='all'&&l.project!==project)continue;
+   if(l.account!=='cash'&&l.account!=='bank')continue;
+   const r=get(j.date),cat=category(j),inflow=l.debit,outflow=l.credit;
+   if(loanSettlement){
+    if(outflow){const interestPart=Math.min(outflow,interestAmount);r.operatingOut+=interestPart;r.financingOut+=outflow-interestPart;}
+    else if(inflow){const interestPart=Math.min(inflow,interestAmount);r.operatingIn+=interestPart;r.financingIn+=inflow-interestPart;}
+   }else{
+    if(inflow){(r as any)[cat+'In']+=inflow;}
+    if(outflow){(r as any)[cat+'Out']+=outflow;}
+   }
+   r.net+=inflow-outflow;
+  }
+ }
  const days=[...rows.values()].sort((a,b)=>a.date.localeCompare(b.date));
  let running=opening;for(const r of days){running+=r.net;}
  return {opening,rows:days,net:running-opening,closing:running};

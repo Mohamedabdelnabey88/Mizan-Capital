@@ -127,6 +127,24 @@ try{
   w=await (await call()).json();const activeFundingRepayments=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id&&r.data.status!=='cancelled');
   assert.equal(activeFundingRepayments.reduce((sum,r)=>sum+Number(r.data.amount||0),0),100000);
   assert.equal(w.journals.filter(j=>j.source==='fundingRepayment:'+activeFundingRepayments[0].id).length,1);checks+=4;
+  // A repayment can be reversed with a balanced journal, while retaining its audit record.
+  const reversibleFundingProject=await createTestProject('مشروع اختبار عكس الاسترداد');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:reversibleFundingProject,sourceType:'personal',amount:2000,date,memo:'تمويل لعكس الاسترداد'}}},200);
+  w=await (await call()).json();const reversibleFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل لعكس الاسترداد');
+  await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:reversibleFunding.id,amount:500,date,memo:'استرداد قابل للعكس'}}},200);
+  w=await (await call()).json();const reversibleRepayment=w.records.find(r=>r.kind==='fundingRepayment'&&r.data.fundingId===reversibleFunding.id&&r.data.status!=='cancelled');
+  const reversibleJournal=w.journals.find(j=>j.source==='fundingRepayment:'+reversibleRepayment.id);
+  await expectStatus({method:'POST',body:{action:'cancelFundingRepayment',requestId:crypto.randomUUID(),payload:{id:reversibleRepayment.id,reason:'اختبار عكس'}}},200);
+  w=await (await call()).json();const cancelledRepayment=w.records.find(r=>r.id===reversibleRepayment.id);
+  const repaymentReversal=w.journals.find(j=>j.reversal===reversibleJournal.id);
+  assert.equal(cancelledRepayment.data.status,'cancelled');assert(repaymentReversal,'reversal journal must reference the original repayment');
+  assert.equal(repaymentReversal.lines.reduce((sum,l)=>sum+l.debit,0),repaymentReversal.lines.reduce((sum,l)=>sum+l.credit,0));
+  assert.equal(w.journals.filter(j=>j.source==='fundingRepayment:'+reversibleRepayment.id).length,1,'original repayment journal must be retained');
+  const beforeCancelFunding=w.journals.length;
+  await expectStatus({method:'POST',body:{action:'cancelFunding',requestId:crypto.randomUUID(),payload:{id:reversibleFunding.id,date,reason:'اختبار إلغاء بعد عكس الاسترداد'}}},200);
+  w=await (await call()).json();assert.equal(w.records.find(r=>r.id===reversibleFunding.id).data.status,'cancelled');
+  assert.equal(w.journals.length,beforeCancelFunding+1,'funding cancellation adds one reversal after repayment reversal');checks+=7;
+
   const repaymentJournalCount=w.journals.length,repaymentRecordCount=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id).length;
   await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:fundingForCancelledRepayment.id,amount:1,date,memo:'يجب رفض تجاوز التمويل'}}},400);
   w=await (await call()).json();assert.equal(w.journals.length,repaymentJournalCount);assert.equal(w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id).length,repaymentRecordCount);checks+=3;

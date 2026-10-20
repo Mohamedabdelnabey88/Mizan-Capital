@@ -490,6 +490,32 @@ try{
   assert.equal(capitalizedJournal.lines.filter(l=>l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0,'capitalized cost must not directly affect profit');
   checks+=3;
 
+  // Cancelling a posted project cost must reverse its ledger entry and retain the record.
+  await expectStatus({method:'POST',body:{action:'cancelProjectCost',requestId:crypto.randomUUID(),payload:{id:projectCostRecord.id,date,reason:'اختبار إلغاء مصروف'}}},200);
+  w=await (await call()).json();
+  const cancelledProjectCost=w.records.find(r=>r.id===projectCostRecord.id);
+  assert.equal(cancelledProjectCost.data.status,'cancelled');
+  assert(w.journals.some(j=>j.reversal===projectCostJournal.id),'cancelling a posted cost must add a reversal instead of deleting the journal');
+  checks+=2;
+
+  // Legacy costs are never auto-posted; explicit review posts them once with selected account/treatment.
+  const legacyCostId='legacy-cost-'+crypto.randomUUID();
+  await db.prepare('INSERT INTO records(id,owner,kind,data,version,created) VALUES(?,?,?,?,?,?)')
+    .bind(legacyCostId,'cloudflare-owner','projectCost',JSON.stringify({project:projectCostTestProject,title:'تكلفة قديمة غير مرحّلة',amount:5000,date,category:'maintenance',notes:'legacy test',status:'active',createdAt:new Date().toISOString()}),1,new Date().toISOString()).run();
+  w=await (await call()).json();
+  assert(!w.journals.some(j=>j.source==='project-cost:'+legacyCostId),'legacy costs must not silently alter historical cash/profit');
+  await expectStatus({method:'POST',body:{action:'postLegacyProjectCost',requestId:crypto.randomUUID(),payload:{id:legacyCostId,paymentAccount:'cash',treatment:'expense'}}},200);
+  w=await (await call()).json();
+  const legacyCostJournal=w.journals.find(j=>j.source==='project-cost:'+legacyCostId);
+  assert(legacyCostJournal,'reviewed legacy cost must be posted to the ledger');
+  assert(legacyCostJournal.lines.some(l=>l.account==='expense'&&l.debit===5000));
+  await expectStatus({method:'POST',body:{action:'postLegacyProjectCost',requestId:crypto.randomUUID(),payload:{id:legacyCostId,paymentAccount:'cash',treatment:'expense'}}},400);
+  await expectStatus({method:'POST',body:{action:'cancelProjectCost',requestId:crypto.randomUUID(),payload:{id:legacyCostId,date,reason:'اختبار إلغاء تكلفة قديمة'}}},200);
+  w=await (await call()).json();
+  assert.equal(w.records.find(r=>r.id===legacyCostId).data.status,'cancelled');
+  assert(w.journals.some(j=>j.reversal===legacyCostJournal.id));
+  checks+=5;
+
   // Deleting a project with financial history must archive it, not reverse/delete its accounting history.
   const archivedProjectId=await createTestProject('مشروع اختبار حماية التاريخ');
   await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,sourceType:'personal',amount:500,date,memo:'تمويل تاريخ المشروع'}}},200);

@@ -263,20 +263,24 @@ w=await read();const cancelledFunding=w.records.find(r=>r.kind==='projectFunding
 await ok('cancelFunding',{id:cancelledFunding.id,date:T,reason:'اختبار إلغاء'});
 await fail('fundingRepayment',{fundingId:cancelledFunding.id,amount:1,date:T,memo:'لا يجوز استرداد تمويل ملغى'});
 checks+=8;
-// Full project deletion is explicit and destructive, so require exact project-name confirmation.
+// Project deletion must archive financial history instead of deleting records or reversing historical activity.
 w=await read();
 const projectToDelete=w.records.find(r=>r.kind==='project'&&r.id===a);
 assert(projectToDelete);
 await fail('deleteProject',{id:a,confirmName:'اسم خاطئ',reason:'اختبار'});
-await ok('deleteProject',{id:a,confirmName:projectToDelete.data.name,reason:'حذف بيانات اختبار'});
+const journalsBeforeProjectArchive=w.journals.filter(j=>j.lines.some(l=>l.project===a));
+const journalCountBeforeProjectArchive=w.journals.length;
+await ok('deleteProject',{id:a,confirmName:projectToDelete.data.name,reason:'اختبار أرشفة مع حفظ التاريخ'});
 w=await read();
-assert.equal(w.records.some(r=>r.id===a),false);
-assert.equal(w.records.some(r=>r.data&&Object.values(r.data).some(v=>v===a)),false);
+const archivedProject=w.records.find(r=>r.kind==='project'&&r.id===a);
+assert(archivedProject);
+assert.equal(archivedProject.data.status,'archived');
+assert(w.records.some(r=>r.id!==a&&r.data&&Object.values(r.data).some(v=>v===a)),'linked project history must remain available');
+assert.equal(w.journals.length,journalCountBeforeProjectArchive,'archiving must not generate reversals that erase historical activity');
 const remainingProjectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===a));
-assert(remainingProjectJournals.length>0);
-assert(remainingProjectJournals.filter(j=>!j.reversal).every(j=>w.journals.some(x=>x.reversal===j.id)));
+assert.equal(remainingProjectJournals.length,journalsBeforeProjectArchive.length);
 assert.equal(Object.values(f.balance(w)).reduce((sum,v)=>sum+v,0),0);
-checks+=4;
+checks+=5;
 
 // Annual owner settlement: entitlement must be based on fiscal-year profit, allocated exactly once, and remain a distribution (not an expense).
 await ok('project',{name:'مالك 1',activity:'اختبار',mode:'operating',ownership:100,reserve:0,payout:100});

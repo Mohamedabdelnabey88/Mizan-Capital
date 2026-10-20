@@ -270,7 +270,7 @@ try{
   w=await (await call()).json();
   const organizerCost=w.records.find(r=>r.kind==='projectCost'&&r.data.title==='تكلفة تنظيمية تجريبية');
   assert(organizerCost);assert.equal(organizerCost.data.amount,200000);assert.equal(organizerCost.data.project,project);assert.equal(organizerCost.data.notes,'بدون مصدر سيولة');
-  const organizerJournalCount=w.journals.length;checks+=4;
+  let organizerJournalCount=w.journals.length;checks+=4;
 
   const commitmentFirst=nextMonth(date),commitmentSecond=nextMonth(commitmentFirst);
   await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'أقساط مقاول تنظيمية',party:'مقاول تجريبي',totalAmount:3000,installments:commitmentFirst+',1500\n'+commitmentSecond+',1500'}}},200);
@@ -319,6 +319,7 @@ try{
   const profitAfterConstruction=w.journals.filter(j=>j.lines.some(l=>l.project===project&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===project&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0);
   assert.equal(profitAfterConstruction,profitBeforeConstruction,'capital construction payments must not reduce operating profit');
   checks+=6;
+  organizerJournalCount=w.journals.length;
 
   const rentStartDate='2026-01-15';
   await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project,title:'عقد مستثمر تجريبي',tenantName:'مستثمر تجريبي',totalAmount:6000,monthlyAmount:2000,startDate:rentStartDate,endDate:nextMonth(nextMonth(rentStartDate)),scheduleType:'monthly',paymentDate:rentStartDate}}},200);

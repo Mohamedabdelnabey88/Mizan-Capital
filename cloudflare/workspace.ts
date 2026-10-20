@@ -546,6 +546,8 @@ else if(action==='fundingRepayment'){
  const recipient=project(fd.project),amount=cents(p.amount),dt=date(p.date||today());
  if(!amount)throw Error('أدخل مبلغ الاسترداد.');
  if(dt<date(fd.date))throw Error('تاريخ الاسترداد لا يمكن أن يسبق تاريخ التمويل.');
+ const availableCash=balance(w,recipient.id,dt).cash||0;
+ if(amount>availableCash)throw Error('النقدية المتاحة في المشروع لا تكفي لتنفيذ استرداد التمويل.');
  const prior=w.records.filter(x=>x.kind==='fundingRepayment'&&x.data.fundingId===funding.id&&x.data.status!=='cancelled').reduce((s,x)=>s+Number(x.data.amount||0),0);
  const outstanding=Math.max(0,Number(fd.amount||0)-prior);
  if(amount>outstanding)throw Error('مبلغ الاسترداد يتجاوز رأس المال المتبقي لهذا التمويل.');

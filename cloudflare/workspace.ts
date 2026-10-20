@@ -520,7 +520,7 @@ else if(action==='annualOwnerDistribution'){
  put('ownerSettlement',{year,fiscalYearId:fy.id||'',fiscalYearStart:fy.start,fiscalYearEnd:fy.end,percentBps:pct,totalProfit,totalOwner,allocations,status:'paid',paidOn:today(),paymentAccount:p.paymentAccount||'bank'},uid());
  description='اعتماد توزيع المالك السنوي لعام '+year;
 }
-else if(action==='projectFunding'){const target=project(p.project);const amount=cents(p.amount);const dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغ التمويل.');const source=['personal','project','external'].includes(p.sourceType)?p.sourceType:'personal';let lines:Line[];let sourceLabel='تمويل شخصي';if(source==='project'){if(!p.sourceProject||p.sourceProject===p.project)throw Error('اختر مشروعًا آخر كمصدر للتمويل.');project(p.sourceProject);lines=[...pair(p.sourceProject,'inter_receivable','cash',amount),...pair(p.project,'cash','inter_payable',amount)];sourceLabel='تمويل من مشروع آخر';}else if(source==='external'){lines=pair(p.project,'cash','payable',amount);sourceLabel='تمويل خارجي مستحق';}else{lines=pair(p.project,'cash','capital',amount);}const rid=put('projectFunding',{project:p.project,sourceType:source,sourceProject:source==='project'?p.sourceProject:'',amount,date:dt,memo:str(p.memo||sourceLabel,300)});journal('transfer',sourceLabel+' — '+target.data.name,dt,lines,'projectFunding:'+rid);description='تمويل '+target.data.name+' — '+sourceLabel;}
+else if(action==='projectFunding'){const target=project(p.project);const amount=cents(p.amount);const dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغ التمويل.');const source=['personal','project','external'].includes(p.sourceType)?p.sourceType:'personal';let lines:Line[];let sourceLabel='تمويل شخصي';if(source==='project'){if(!p.sourceProject||p.sourceProject===p.project)throw Error('اختر مشروعًا آخر كمصدر للتمويل.');project(p.sourceProject);guardProject(p.sourceProject);lines=[...pair(p.sourceProject,'inter_receivable','cash',amount),...pair(p.project,'cash','inter_payable',amount)];sourceLabel='تمويل من مشروع آخر';}else if(source==='external'){lines=pair(p.project,'cash','payable',amount);sourceLabel='تمويل خارجي مستحق';}else{lines=pair(p.project,'cash','capital',amount);}const rid=put('projectFunding',{project:p.project,sourceType:source,sourceProject:source==='project'?p.sourceProject:'',amount,date:dt,memo:str(p.memo||sourceLabel,300)});journal('transfer',sourceLabel+' — '+target.data.name,dt,lines,'projectFunding:'+rid);description='تمويل '+target.data.name+' — '+sourceLabel;}
 else if(action==='cancelFunding'){
  const funding=find(p.id,'projectFunding');
  const fd=funding.data as any;
@@ -551,7 +551,7 @@ else if(action==='fundingRepayment'){
  if(amount>outstanding)throw Error('مبلغ الاسترداد يتجاوز رأس المال المتبقي لهذا التمويل.');
  let lines:Line[],memo='';
  if(fd.sourceType==='project'){
-   const lender=project(fd.sourceProject);
+   const lender=project(fd.sourceProject);guardProject(lender.id);
    lines=[...pair(recipient.id,'inter_payable','cash',amount),...pair(lender.id,'cash','inter_receivable',amount)];
    memo='استرداد تمويل مشروع → مشروع';
  }else if(fd.sourceType==='external'){

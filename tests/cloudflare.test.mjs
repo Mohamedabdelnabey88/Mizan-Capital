@@ -302,6 +302,19 @@ try{
   assert.equal(acceptedTransfers.length,1,'exactly one inter-project transfer may consume the shared source cash');
   assert.equal(acceptedTransfers.reduce((sum,r)=>sum+Number(r.data.amount||0),0),70000);checks+=3;
 
+  // Repayment must not make the recipient project's cash balance negative.
+  const cashGuardProject=await createTestProject('مشروع اختبار كفاية النقدية');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:cashGuardProject,sourceType:'personal',amount:1000,date,memo:'تمويل اختبار النقدية'}}},200);
+  await expectStatus({method:'POST',body:{action:'entry',requestId:crypto.randomUUID(),payload:{project:cashGuardProject,amount:1000,date,kind:'expense',memo:'استهلاك النقدية'}}},200);
+  w=await (await call()).json();const cashGuardFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل اختبار النقدية');
+  assert(cashGuardFunding,'funding record must persist for cash guard test');
+  const journalsBeforeCashGuard=w.journals.length;
+  await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:cashGuardFunding.id,amount:1,date,memo:'استرداد دون نقدية'}}},400);
+  w=await (await call()).json();
+  assert.equal(w.journals.length,journalsBeforeCashGuard,'rejected repayment must not post a journal');
+  assert.equal(w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===cashGuardFunding.id).length,0,'rejected repayment must not create a repayment record');
+  checks+=3;
+
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');
   assert.match(logout.headers.get('set-cookie')||'',/Max-Age=0/);checks++;

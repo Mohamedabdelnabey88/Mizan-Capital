@@ -420,6 +420,30 @@ try{
   assert.equal(w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===cashGuardFunding.id).length,0,'rejected repayment must not create a repayment record');
   checks+=3;
 
+  // Contract cancellation must preserve settled history and stop only future pending installments.
+  const contractTestProject=await createTestProject('مشروع اختبار إلغاء العقد');
+  const addDays=(iso,n)=>new Date(Date.parse(iso+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
+  const contractTomorrow=addDays(date,1),contractAfterTomorrow=addDays(date,2);
+  await expectStatus({method:'POST',body:{action:'lease',requestId:crypto.randomUUID(),payload:{project:contractTestProject,title:'عقد اختبار الإلغاء',totalAmount:3000,startDate:date,endDate:contractAfterTomorrow,scheduleType:'custom',installments:[date+',1000',contractTomorrow+',1000',contractAfterTomorrow+',1000'].join('\\n')}}},200);
+  w=await (await call()).json();
+  const testLease=w.records.find(r=>r.kind==='lease'&&r.data.title==='عقد اختبار الإلغاء');
+  assert(testLease,'lease contract must persist');
+  let testInstallments=w.records.filter(r=>r.kind==='obligation'&&r.data.leaseId===testLease.id).sort((a,b)=>a.data.date.localeCompare(b.data.date));
+  assert.equal(testInstallments.length,3,'contract should generate all installments');
+  await expectStatus({method:'POST',body:{action:'settle',requestId:crypto.randomUUID(),payload:{id:testInstallments[0].id,date,paymentAccount:'bank'}}},200);
+  w=await (await call()).json();
+  const settledJournal=w.journals.find(j=>j.source==='obligation:'+testInstallments[0].id);
+  assert(settledJournal,'settled installment journal must exist before cancellation');
+  await expectStatus({method:'POST',body:{action:'cancelContract',requestId:crypto.randomUUID(),payload:{contractId:testLease.id,reason:'اختبار آلي لإلغاء العقد'}}},200);
+  w=await (await call()).json();
+  const cancelledLease=w.records.find(r=>r.id===testLease.id);
+  testInstallments=w.records.filter(r=>r.kind==='obligation'&&r.data.leaseId===testLease.id).sort((a,b)=>a.data.date.localeCompare(b.data.date));
+  assert.equal(cancelledLease.data.status,'cancelled','contract must be archived as cancelled');
+  assert.equal(testInstallments[0].data.status,'paid','settled installment must remain paid');
+  assert.deepEqual(testInstallments.slice(1).map(r=>r.data.status),['cancelled','cancelled'],'only future pending installments should be cancelled');
+  assert(w.journals.some(j=>j.id===settledJournal.id),'historical settlement journal must remain intact');
+  checks+=6;
+
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');
   assert.match(logout.headers.get('set-cookie')||'',/Max-Age=0/);checks++;

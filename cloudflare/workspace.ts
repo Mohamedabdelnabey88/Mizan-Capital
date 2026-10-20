@@ -257,10 +257,27 @@ else if(action==='deferRentInstallment'){
  update(parent,{...parent.data,installments:revised,updatedAt:time});
  description='ترحيل قسط إيجار '+d.title+' إلى '+targetDate+' دون تسجيل تحصيل فعلي';
 }
-else if(action==='project'){const projectId=uid();const monthlyRevenueMicro=planMoneyMicro(p.expectedMonthlyRevenue||0,'الإيراد الشهري المتوقع');const dailyRevenueMicro=planMoneyMicro(p.expectedDailyRevenue||0,'الإيراد اليومي المتوقع');const monthlyExpenseMicro=planMoneyMicro(p.expectedMonthlyExpense||0,'المصروف الشهري المتوقع');const monthlyNetMicro=planMoneyMicro(p.expectedNetMonthly||0,'صافي الدخل الشهري المتوقع');put('project',{name:str(p.name),activity:p.activity?str(p.activity,200):'متابعة مشروع',mode:['operating','investment'].includes(p.mode)?p.mode:'operating',managementMode:['self','leased','preparing','vacant'].includes(p.managementMode)?p.managementMode:'self',ownership:num(p.ownership,0.01,100),reserve:cents(p.reserve||0),payout:num(p.payout??30,0,100),expectedNetMonthly:monthlyNetMicro/1000,partner:p.partner?str(p.partner):'',closedThrough:''},projectId);if(p.mode==='operating')put('projectPlan',{project:projectId,effectiveFrom:date(p.planEffectiveFrom||today()),revenueMonthlyMicro:monthlyRevenueMicro,revenueDailyMicro:dailyRevenueMicro,expenseMonthlyMicro:monthlyExpenseMicro,expenseDailyMicro:0,netMonthlyMicro:monthlyNetMicro,source:'original_baseline',label:'الخطة الأصلية'});description='إضافة مشروع: '+p.name;}
+else if(action==='project'){
+ const projectId=uid(),name=str(p.name),parentId=String(p.parentId||'').trim(),propertyRole=['standard','land_owned','land_leased','building','unit'].includes(p.propertyRole)?p.propertyRole:'standard';
+ const parent=parentId?find(parentId,'project'):null;
+ if(parent&&parent.data.propertyRole==='unit')throw Error('لا يمكن إنشاء تفرع داخل وحدة عقارية؛ اختر المشروع الرئيسي أو المبنى.');
+ const unitCountRaw=Number(p.unitCount||0),unitCount=Number.isInteger(unitCountRaw)&&unitCountRaw>=0&&unitCountRaw<=100?unitCountRaw:0;
+ if(unitCount>0&&(parent||!['land_owned','land_leased','building'].includes(propertyRole)))throw Error('إنشاء وحدات متعددة متاح للمشروع العقاري الرئيسي فقط.');
+ const monthlyRevenueMicro=planMoneyMicro(p.expectedMonthlyRevenue||0,'الإيراد الشهري المتوقع'),dailyRevenueMicro=planMoneyMicro(p.expectedDailyRevenue||0,'الإيراد اليومي المتوقع'),monthlyExpenseMicro=planMoneyMicro(p.expectedMonthlyExpense||0,'المصروف الشهري المتوقع'),monthlyNetMicro=planMoneyMicro(p.expectedNetMonthly||0,'صافي الدخل الشهري المتوقع');
+ const base={name,activity:p.activity?str(p.activity,200):'متابعة مشروع',mode:['operating','investment'].includes(p.mode)?p.mode:'operating',managementMode:['self','leased','preparing','vacant'].includes(p.managementMode)?p.managementMode:propertyRole==='unit'?'vacant':'self',ownership:num(p.ownership??100,0.01,100),reserve:cents(p.reserve||0),payout:num(p.payout??30,0,100),expectedNetMonthly:monthlyNetMicro/1000,partner:p.partner?str(p.partner):'',closedThrough:'',parentId:parent?.id||'',propertyRole,unitNumber:null};
+ put('project',base,projectId);
+ if(base.mode==='operating')put('projectPlan',{project:projectId,effectiveFrom:date(p.planEffectiveFrom||today()),revenueMonthlyMicro:monthlyRevenueMicro,revenueDailyMicro:dailyRevenueMicro,expenseMonthlyMicro:monthlyExpenseMicro,expenseDailyMicro:0,netMonthlyMicro:monthlyNetMicro,source:'original_baseline',label:'الخطة الأصلية'});
+ for(let i=1;i<=unitCount;i++){
+  const childId=uid(),childName=name+' — '+(p.unitLabel?str(p.unitLabel,40)+' ':'')+i;
+  put('project',{...base,name:childName,activity:'وحدة عقارية تابعة لـ '+name,managementMode:'vacant',parentId:projectId,propertyRole:'unit',unitNumber:i,expectedNetMonthly:0,reserve:0},childId);
+  if(base.mode==='operating')put('projectPlan',{project:childId,effectiveFrom:date(p.planEffectiveFrom||today()),revenueMonthlyMicro:0,revenueDailyMicro:0,expenseMonthlyMicro:0,expenseDailyMicro:0,netMonthlyMicro:0,source:'original_baseline',label:'الخطة الأصلية'});
+ }
+ description='إضافة مشروع'+(parent?' فرعيًا تحت '+parent.data.name:'')+': '+name+(unitCount?' وإنشاء '+unitCount+' وحدة عقارية':'');
+}
 else if(action==='deleteProject'){
  const r=find(p.id,'project');
  const projectId=r.id;
+ if(w.records.some(x=>x.kind==='project'&&String(x.data.parentId||'')===projectId))throw Error('لا يمكن حذف مشروع رئيسي لديه فروع. احذف أو انقل الوحدات التابعة أولًا حتى لا تضيع بياناتها المالية.');
  const confirmName=str(p.confirmName||'',120);
  if(confirmName!==String(r.data.name||''))throw Error('اكتب اسم المشروع كاملًا لتأكيد الحذف.');
  const linkedRecords=w.records.filter(x=>x.id!==projectId&&x.data&&Object.values(x.data).some(v=>v===projectId));

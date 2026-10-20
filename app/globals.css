@@ -1012,3 +1012,183 @@ img, canvas, video, svg { max-width: 100%; }
 @media (prefers-reduced-motion: reduce) {
   .btn, .icon-button { transition: none; }
 }
+
+
+/* Mizan responsive design system — shared by every workspace page */
+:root {
+  --mizan-space-1: 4px;
+  --mizan-space-2: 8px;
+  --mizan-space-3: 12px;
+  --mizan-space-4: 16px;
+  --mizan-space-5: 20px;
+  --mizan-space-6: 24px;
+  --mizan-focus: 0 0 0 3px rgba(15,118,110,.2);
+}
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overflow-x: clip; }
+.main-shell, .page-content, .panel, .panel-head, .panel > *, .stat-card,
+.project-card, .project-card-premium, .loan-card, .decision-card,
+.dashboard-overview, .financial-report, .monthly-close-toolbar,
+.monthly-close-summary, .project-organizer-card, .overview-section-tile,
+.project-filter-wrap, .finance-dialog, form, fieldset {
+  min-width: 0;
+  max-width: 100%;
+}
+.page-content { width: 100%; }
+.page-heading { min-width: 0; }
+.page-heading > div:first-child { min-width: 0; flex: 1 1 320px; }
+.page-heading h1 { font-size: clamp(23px, 2.1vw, 31px); line-height: 1.42; overflow-wrap: anywhere; }
+.page-heading p, .panel-head p, .stat-foot, .eyebrow { overflow-wrap: anywhere; }
+.heading-actions, .inline-actions, .project-card-actions, .project-organizer-actions,
+.project-organizer-foot-actions, .dialog-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.heading-actions > *, .inline-actions > *, .dialog-actions > * { min-width: 0; }
+.stat-grid, .project-grid, .dashboard-overview, .simulator-grid,
+.form-grid, .stacked-form, .inline-stats, .mini-stats, .settings-list,
+.project-organizer-stats, .project-amounts-premium, .project-organizer-ledger {
+  min-width: 0;
+}
+.stat-card, .project-card, .project-card-premium, .loan-card, .decision-card,
+.overview-section-tile, .project-organizer-card {
+  overflow-wrap: anywhere;
+}
+.stat-card h2, .loan-amount, .report-total, .project-net-highlight > strong,
+.project-organizer-stat b, .project-amounts-premium b {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.panel-head > * { min-width: 0; }
+.filterbar { flex-wrap: wrap; align-items: center; gap: 12px; }
+.scope-picker { flex: 1 1 240px; min-width: 0; }
+.scope-picker .picker { min-width: 0; }
+.period-filter { flex: 1 1 300px; min-width: 0; flex-wrap: wrap; }
+.filter-caption { min-width: 0; overflow-wrap: anywhere; }
+.search-box, .project-search, .project-filter-control { min-width: 0; max-width: 100%; }
+.field { min-width: 0; }
+.field label, .field > label { overflow-wrap: anywhere; }
+.field input, .field select, .field textarea, .picker, select { min-width: 0; max-width: 100%; }
+button, .btn, a { overflow-wrap: anywhere; }
+.btn { white-space: normal; line-height: 1.45; }
+.text-button { white-space: normal; text-align: start; }
+table { border-collapse: separate; border-spacing: 0; }
+.table-wrap, .responsive-table, [data-slot="table-container"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.table-wrap table, .responsive-table table, [data-slot="table-container"] table {
+  min-width: 620px;
+}
+[data-slot="table-cell"], [data-slot="table-head"] {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.calendar-header { flex-wrap: wrap; gap: 10px; }
+.calendar-grid { min-width: 0; }
+.calendar-cell { min-width: 0; overflow: hidden; }
+.calendar-chip { max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
+.finance-dialog { width: min(96vw, 760px); max-height: min(88dvh, 900px); overflow-y: auto; overscroll-behavior: contain; }
+.finance-dialog input, .finance-dialog select, .finance-dialog textarea { min-width: 0; }
+img, video, canvas, iframe { max-width: 100%; }
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid rgba(15,118,110,.62);
+  outline-offset: 2px;
+}
+@media (max-width: 1100px) {
+  .page-content { padding-left: 24px; padding-right: 24px; }
+  .topbar { padding-left: 24px; padding-right: 24px; gap: 12px; }
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-overview { grid-template-columns: minmax(0, 1fr); }
+  .filter-caption { flex: 1 1 100%; margin-right: 0; }
+  .project-organizer-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .page-content { padding: 20px 16px 24px; }
+  .topbar { min-height: 64px; height: auto; padding: 12px 16px; align-items: flex-start; }
+  .breadcrumb { min-width: 0; gap: 8px; flex-wrap: wrap; }
+  .top-actions { min-width: 0; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .today-label { display: none; }
+  .page-heading { align-items: flex-start; gap: 14px; flex-direction: column; margin-bottom: 18px; }
+  .heading-actions { width: 100%; }
+  .heading-actions .btn { flex: 1 1 150px; }
+  .filterbar { padding: 12px; gap: 10px; margin-bottom: 18px; }
+  .scope-picker, .period-filter { flex-basis: 100%; width: 100%; }
+  .period-filter { border-right: 0; border-top: 1px solid var(--border); padding: 10px 0 0; }
+  .period-filter input { flex: 1 1 110px; width: auto; min-width: 0; }
+  .stat-grid { gap: 12px; }
+  .stat-card { padding: 18px 15px 14px; }
+  .stat-card h2 { font-size: clamp(20px, 4vw, 27px); }
+  .panel-head { padding: 17px 16px 13px; }
+  .project-grid { gap: 12px; }
+  .project-card-premium { border-radius: 16px; }
+  .project-net-highlight > strong { font-size: clamp(21px, 5vw, 27px); }
+  .monthly-close-toolbar, .monthly-close-summary { flex-wrap: wrap; }
+  .project-organizer-head { flex-wrap: wrap; align-items: flex-start; }
+  .project-organizer-actions { width: 100%; }
+  .project-organizer-actions .btn { flex: 1 1 130px; }
+  .report-tabs { overflow-x: auto; max-width: 100%; }
+  .calendar-grid { gap: 3px; }
+  .calendar-cell { padding: 4px 2px; }
+  .calendar-chip { font-size: 10px; line-height: 1.35; }
+  .finance-dialog { width: calc(100vw - 20px); max-width: 620px; max-height: 88dvh; padding: 16px; }
+}
+@media (max-width: 520px) {
+  h2 { font-size: 20px; }
+  .page-content { padding: 16px 12px 20px; }
+  .topbar { padding: 10px 12px; }
+  .top-actions { gap: 6px; }
+  .icon-button { width: 34px; height: 34px; flex: 0 0 auto; }
+  .breadcrumb { font-size: 12px; }
+  .page-heading h1 { font-size: 23px; letter-spacing: -.35px; }
+  .page-heading p { font-size: 13px; line-height: 1.7; }
+  .heading-actions { gap: 8px; }
+  .heading-actions .btn { flex-basis: 100%; width: 100%; }
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .stat-card { padding: 16px 12px 12px; border-radius: 13px; }
+  .stat-top { gap: 7px; font-size: 11px; align-items: flex-start; }
+  .stat-top svg { width: 26px; height: 26px; padding: 5px; }
+  .stat-card h2 { font-size: clamp(18px, 5vw, 23px); line-height: 1.4; }
+  .stat-foot { font-size: 11px; line-height: 1.5; }
+  .project-grid { grid-template-columns: minmax(0, 1fr); }
+  .project-amounts-premium, .project-organizer-stats, .project-organizer-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .project-organizer-stat { padding: 10px; }
+  .project-organizer-stat b { font-size: 14px; }
+  .project-actions-grid { grid-template-columns: minmax(0, 1fr); }
+  .project-card-overview .project-actions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .project-card-overview .project-actions-grid .btn.full { min-width: 0; white-space: normal; }
+  .form-grid, .simulator-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .stacked-form { gap: 12px; }
+  .inline-stats, .mini-stats { grid-template-columns: minmax(0, 1fr); }
+  .panel { border-radius: 13px; }
+  .panel-head { gap: 10px; padding: 15px 13px 12px; }
+  .panel-head h3 { font-size: 15px; }
+  .panel-head .btn, .panel-head .text-button { flex: 0 1 auto; }
+  .decision-mini { grid-template-columns: minmax(0, 1fr) !important; }
+  .calendar-cell { min-height: 62px; font-size: 11px; }
+  .calendar-chip { display: block; font-size: 9px; }
+  .project-filter-menu { max-width: calc(100vw - 24px); }
+  .project-filter-chip { max-width: 100%; white-space: normal; }
+  .dialog-actions { flex-direction: column-reverse; align-items: stretch; }
+  .dialog-actions .btn { width: 100%; }
+  .page-footer { flex-wrap: wrap; gap: 8px; }
+}
+@media (max-width: 360px) {
+  .page-content { padding-left: 9px; padding-right: 9px; }
+  .stat-grid { grid-template-columns: minmax(0, 1fr); }
+  .period-filter { gap: 5px; }
+  .period-filter input { flex-basis: 100%; }
+  .project-card-overview .project-actions-grid { grid-template-columns: minmax(0, 1fr); }
+  .project-amounts-premium, .project-organizer-stats { grid-template-columns: minmax(0, 1fr); }
+  .calendar-cell { min-height: 52px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

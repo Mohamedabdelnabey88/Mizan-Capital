@@ -40,7 +40,7 @@ export function projectPerformance(w:Workspace,projectId:string,start:string,end
   const expectedRevenueMicro=sum('expectedRevenueMicro'),expectedExpenseMicro=sum('expectedExpenseMicro'),expectedNetMicro=sum('expectedNetMicro');
   const actualRevenueMicro=sum('actualRevenueMicro'),actualExpenseMicro=sum('actualExpenseMicro'),actualNetMicro=actualRevenueMicro-actualExpenseMicro;
   const reportedDays=days.filter(d=>d.reported).length,unreportedDays=days.length-reportedDays;
-  const forecastRevenueMicro=reportedDays?Math.round(actualRevenueMicro/days.length*days.length/reportedDays):0;
+  const forecastRevenueMicro=reportedDays?Math.round(actualRevenueMicro*days.length/reportedDays):0;
   const forecastNetMicro=forecastRevenueMicro-expectedExpenseMicro;
   return {projectId,start,end,expectedRevenueMicro,expectedExpenseMicro,expectedNetMicro,actualRevenueMicro,actualExpenseMicro,actualNetMicro,varianceRevenueMicro:actualRevenueMicro-expectedRevenueMicro,varianceNetMicro:actualNetMicro-expectedNetMicro,attainmentPct:expectedRevenueMicro?actualRevenueMicro/expectedRevenueMicro*100:0,reportedDays,unreportedDays,forecastRevenueMicro,forecastNetMicro,days};
 }

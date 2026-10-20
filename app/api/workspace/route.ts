@@ -2,6 +2,8 @@ const BACKEND='https://mizan-capital.famaradona89.workers.dev';
 const UPSTREAM_TIMEOUT_MS=12000;
 
 async function proxy(request:Request){
+  // Fail closed: Vercel preview must never read or mutate the production D1 workspace.
+  if(process.env.VERCEL_ENV==='preview')return Response.json({error:'نسخة المعاينة غير متصلة بقاعدة اختبار مستقلة. لم يتم الاتصال بالبيانات المالية.'},{status:503,headers:{'Cache-Control':'no-store'}});
   try{
     const target=new URL('/api/workspace',BACKEND);
     const headers=new Headers();

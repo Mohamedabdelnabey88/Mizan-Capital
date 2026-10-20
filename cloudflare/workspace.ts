@@ -137,7 +137,7 @@ else if(action==='deleteFiscalYear'){
 }
 else if(action==='deleteRecord'){
  const r=find(p.id);
- const financialKinds=new Set(['projectFunding','fundingRepayment','dailyReport','dailyReportCorrection','entry','obligation','lease','landPurchase','settlement','loan','loanSchedule','journal','ownerSettlement','ownerDistribution','investmentCycle','investmentReturn','payroll','payrollAdjustment','closing','fiscalYear']);
+ const financialKinds=new Set(['projectCost','projectFunding','fundingRepayment','dailyReport','dailyReportCorrection','entry','obligation','lease','landPurchase','settlement','loan','loanSchedule','journal','ownerSettlement','ownerDistribution','investmentCycle','investmentReturn','payroll','payrollAdjustment','closing','fiscalYear']);
  if(financialKinds.has(r.kind)) throw Error('السجل المالي لا يُحذف نهائيًا حتى لا يختفي أثره من الأستاذ والتقارير. استخدم عكس القيد أو التصحيح من الشاشة المناسبة.');
  const refs=w.records.filter(x=>x.id!==r.id&&JSON.stringify(x.data).includes(r.id));
  const journalRefs=w.journals.filter(j=>j.source===r.id||j.reversal===r.id||JSON.stringify(j.lines).includes(r.id));
@@ -157,6 +157,32 @@ else if(action==='projectCost'){
  const costId=put('projectCost',{project:pr.id,title,amount,date:dt,category,notes,status:'active',paymentAccount,treatment,createdAt:time});
  journal('projectCost',(treatment==='asset'?'إثبات تكلفة رأسمالية للمشروع: ':'إثبات مصروف فعلي للمشروع: ')+title,dt,pair(pr.id,debitAccount,paymentAccount,amount),'project-cost:'+costId);
  description=(treatment==='asset'?'تسجيل تكلفة رأسمالية':'تسجيل مصروف فعلي')+' للمشروع: '+pr.data.name+' — '+title;
+}
+else if(action==='postLegacyProjectCost'){
+ const cost=find(str(p.id),'projectCost'),d=cost.data;
+ if(d.status==='deleted'||d.status==='cancelled')throw Error('سجل التكلفة ملغى ولا يمكن ترحيله.');
+ if(w.journals.some(j=>j.source==='project-cost:'+cost.id))throw Error('هذه التكلفة مرحّلة محاسبيًا بالفعل أو لها قيد تاريخي؛ لا تكرر الترحيل.');
+ const pr=project(String(d.project||'')),dt=date(String(d.date||today())),amount=Number(d.amount||0);
+ if(!Number.isSafeInteger(amount)||amount<=0)throw Error('قيمة التكلفة القديمة غير صحيحة؛ راجع السجل قبل الترحيل.');
+ const paymentAccount=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';
+ const treatment=['expense','asset'].includes(p.treatment)?p.treatment:'expense';
+ const debitAccount=treatment==='asset'?'investment':'expense';
+ journal('projectCost',(treatment==='asset'?'ترحيل تكلفة رأسمالية قديمة: ':'ترحيل مصروف قديم: ')+String(d.title||'تكلفة مشروع'),dt,pair(pr.id,debitAccount,paymentAccount,amount),'project-cost:'+cost.id);
+ update(cost,{...d,paymentAccount,treatment,postedAt:time,postingMethod:'legacy-review'});
+ description='ترحيل تكلفة قديمة بعد تحديد حساب الدفع وطبيعة المعالجة المحاسبية';
+}
+else if(action==='cancelProjectCost'){
+ const cost=find(str(p.id),'projectCost'),d=cost.data;
+ if(['deleted','cancelled'].includes(d.status))throw Error('سجل التكلفة ملغى بالفعل.');
+ const original=w.journals.find(j=>j.source==='project-cost:'+cost.id);
+ const dt=date(p.date||today());
+ if(original){
+   if(w.journals.some(j=>j.reversal===original.id))throw Error('يوجد قيد عكسي لهذه التكلفة بالفعل؛ راجع سجل التدقيق قبل أي تعديل إضافي.');
+   if(dt<original.date)throw Error('تاريخ إلغاء التكلفة لا يمكن أن يسبق تاريخ القيد الأصلي.');
+   journal('reversal','عكس تكلفة مشروع: '+String(d.title||cost.id)+' — '+str(p.reason||'إلغاء تكلفة',200),dt,original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
+ }
+ update(cost,{...d,status:'cancelled',cancelledAt:dt,cancellationReason:str(p.reason||'إلغاء تكلفة من سجل المشروع',200)});
+ description=original?'إلغاء تكلفة مع عكس قيدها المحاسبي والحفاظ على سجل التدقيق':'إلغاء سجل تكلفة غير مرحّل مع الاحتفاظ بالتاريخ';
 }
 else if(action==='projectCommitment'){
  const pr=project(str(p.project)),title=str(p.title||'التزام مشروع',200),party=String(p.party||'').trim().slice(0,200),total=cents(p.totalAmount),costType=['construction','rent','expense'].includes(p.costType)?p.costType:'construction';

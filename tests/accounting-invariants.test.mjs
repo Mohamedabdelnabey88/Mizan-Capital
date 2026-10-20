@@ -233,4 +233,21 @@ assert.equal(projectForecast.forecastRevenueMicro,10000000,'forecast must multip
 assert.equal(projectForecast.expectedExpenseMicro,1000000);
 assert.equal(projectForecast.forecastNetMicro,9000000,'forecast net must subtract the selected-period planned expenses from forecast revenue');
 
+// Project cost cash flow follows accounting treatment: operating expense vs capitalized project asset.
+const projectCostFlowWorkspace={records:[],audit:[],journals:[
+  {id:'project-cost-expense',date:'2026-05-01',memo:'مصروف مشروع',kind:'projectCost',source:'project-cost:expense',lines:[
+    {project:'p1',account:'expense',debit:10000,credit:0},
+    {project:'p1',account:'cash',debit:0,credit:10000}
+  ]},
+  {id:'project-cost-asset',date:'2026-05-02',memo:'أصل مشروع',kind:'projectCost',source:'project-cost:asset',lines:[
+    {project:'p1',account:'investment',debit:20000,credit:0},
+    {project:'p1',account:'bank',debit:0,credit:20000}
+  ]}
+]};
+const projectCostCashFlow=f.actualCashFlow(projectCostFlowWorkspace,'p1','2026-05-01','2026-05-31');
+assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-01').operatingOut,10000,'expense-treated project cost must be operating cash outflow');
+assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-01').otherOut,0,'expense-treated project cost must not be classified as other outflow');
+assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-02').investingOut,20000,'capitalized project cost must be investing cash outflow');
+assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-02').otherOut,0,'capitalized project cost must not be classified as other outflow');
+
 console.log('Accounting invariant tests passed: balanced journals, loan principal vs interest, profit isolation, forecast isolation, balance sheet, cash-flow reconciliation, inter-project funding, and invalid journal rejection.');

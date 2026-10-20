@@ -277,11 +277,13 @@ await ok('dailyReport',{project:ownerP2,date:T,manager:'مدير المالك 2'
 await ok('entry',{project:ownerP2,kind:'expense',amount:1000,date:T,memo:'مصروف المالك 2'});
 await ok('setOwnerPolicy',{percent:20,effectiveFrom:T});
 w=await read();
-// Isolate the owner-distribution fixture from the unrelated project that will be archived later in this test.
-const archiveFixtureProject=w.records.find(r=>r.id===a&&r.kind==='project');
-const archiveFixtureOriginalMode=archiveFixtureProject.data.mode;
-await db.prepare('UPDATE records SET data=?,version=version+1 WHERE id=? AND owner=?')
-  .bind(JSON.stringify({...archiveFixtureProject.data,mode:'investment'}),a,'test-owner').run();
+// Isolate the owner-distribution fixture from unrelated projects created by earlier tests.
+const isolatedProjectModes=new Map(w.records.filter(r=>r.kind==='project'&&![ownerP1,ownerP2].includes(r.id)&&r.data.mode==='operating').map(r=>[r.id,r.data.mode]));
+for(const isolatedId of isolatedProjectModes.keys()){
+  const record=w.records.find(r=>r.id===isolatedId);
+  await db.prepare('UPDATE records SET data=?,version=version+1 WHERE id=? AND owner=?')
+    .bind(JSON.stringify({...record.data,mode:'investment'}),isolatedId,'test-owner').run();
+}
 w=await read();
 assert.equal(f.profit(w,ownerP1,T,T).net,800000);
 assert.equal(f.profit(w,ownerP2,T,T).net,400000);
@@ -300,9 +302,11 @@ assert.equal(f.accountingControlTotals(w,T,T,'all').cashFlowDifference,0);
 await fail('annualOwnerDistribution',{year:Number(T.slice(0,4)),paymentAccount:'bank'});
 checks+=12;
 w=await read();
-const archiveFixtureProjectAfter=w.records.find(r=>r.id===a&&r.kind==='project');
-await db.prepare('UPDATE records SET data=?,version=version+1 WHERE id=? AND owner=?')
-  .bind(JSON.stringify({...archiveFixtureProjectAfter.data,mode:archiveFixtureOriginalMode}),a,'test-owner').run();
+for(const [isolatedId,originalMode] of isolatedProjectModes){
+  const record=w.records.find(r=>r.id===isolatedId);
+  await db.prepare('UPDATE records SET data=?,version=version+1 WHERE id=? AND owner=?')
+    .bind(JSON.stringify({...record.data,mode:originalMode}),isolatedId,'test-owner').run();
+}
 w=await read();
 
 // Independent Balance Sheet + Cash Flow reconciliation fixture: the same ledger must satisfy both controls.

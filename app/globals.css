@@ -1223,3 +1223,16 @@ img, video, canvas, iframe { max-width: 100%; }
 @container (max-width:520px){.project-organizer-stats{grid-template-columns:1fr}.project-organizer-stat{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:3px 8px}.project-organizer-stat>strong{grid-column:2;grid-row:1 / span 2;text-align:start}.project-organizer-stat>small{grid-column:1}.project-organizer-actions{grid-template-columns:1fr}.project-organizer-contract{grid-template-columns:repeat(2,minmax(0,1fr))}.project-child-grid{grid-template-columns:1fr}.project-child-list-head{align-items:flex-start;flex-direction:column}}
 @media(max-width:760px){.project-organizer-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.project-child-grid{grid-template-columns:1fr}.project-child-item{padding:11px}.project-child-item-value{max-width:110px}}
 @media(max-width:420px){.project-organizer-actions{grid-template-columns:1fr}.project-organizer-contract{grid-template-columns:repeat(2,minmax(0,1fr))}.project-child-list{padding:11px}.project-child-item{grid-template-columns:32px minmax(0,1fr) auto;gap:8px}.project-child-item-icon{width:32px;height:32px}.project-child-item-value{font-size:10px;max-width:95px}}
+
+
+/* Property contract setup and richer unit summary */
+.project-contract-missing{display:flex;flex-direction:column;gap:4px;margin:0 0 12px;padding:12px 14px;border:1px solid #ead8a7;border-radius:12px;background:#fffaf0}
+.project-contract-missing strong{font-size:12px;font-weight:850;color:#7a5515}
+.project-contract-missing span{font-size:11px;line-height:1.7;color:#705f3c}
+.project-child-item-copy{align-items:flex-start}
+.project-child-item-copy small{display:block;max-width:100%;overflow-wrap:anywhere}
+.project-child-item-value{display:flex;align-items:center;gap:8px;max-width:180px}
+.project-child-net{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+.project-child-net small{font-size:10px;line-height:1.5;color:#829087;white-space:normal}
+.project-child-net>*{max-width:100%;overflow-wrap:anywhere}
+@media(max-width:760px){.project-child-item-value{max-width:145px}.project-child-item-copy small{font-size:10px}}

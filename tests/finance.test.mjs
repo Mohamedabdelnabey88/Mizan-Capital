@@ -263,24 +263,7 @@ w=await read();const cancelledFunding=w.records.find(r=>r.kind==='projectFunding
 await ok('cancelFunding',{id:cancelledFunding.id,date:T,reason:'اختبار إلغاء'});
 await fail('fundingRepayment',{fundingId:cancelledFunding.id,amount:1,date:T,memo:'لا يجوز استرداد تمويل ملغى'});
 checks+=8;
-// Project deletion must archive financial history instead of deleting records or reversing historical activity.
-w=await read();
-const projectToDelete=w.records.find(r=>r.kind==='project'&&r.id===a);
-assert(projectToDelete);
-await fail('deleteProject',{id:a,confirmName:'اسم خاطئ',reason:'اختبار'});
-const journalsBeforeProjectArchive=w.journals.filter(j=>j.lines.some(l=>l.project===a));
-const journalCountBeforeProjectArchive=w.journals.length;
-await ok('deleteProject',{id:a,confirmName:projectToDelete.data.name,reason:'اختبار أرشفة مع حفظ التاريخ'});
-w=await read();
-const archivedProject=w.records.find(r=>r.kind==='project'&&r.id===a);
-assert(archivedProject);
-assert.equal(archivedProject.data.status,'archived');
-assert(w.records.some(r=>r.id!==a&&r.data&&Object.values(r.data).some(v=>v===a)),'linked project history must remain available');
-assert.equal(w.journals.length,journalCountBeforeProjectArchive,'archiving must not generate reversals that erase historical activity');
-const remainingProjectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===a));
-assert.equal(remainingProjectJournals.length,journalsBeforeProjectArchive.length);
-assert.equal(Object.values(f.balance(w)).reduce((sum,v)=>sum+v,0),0);
-checks+=5;
+
 
 // Annual owner settlement: entitlement must be based on fiscal-year profit, allocated exactly once, and remain a distribution (not an expense).
 await ok('project',{name:'مالك 1',activity:'اختبار',mode:'operating',ownership:100,reserve:0,payout:100});
@@ -461,6 +444,25 @@ await fail('cancelDue',{id:landInstallments[1].id,reason:'اختبار منع إ
 w=await read();
 assert.equal(w.records.find(r=>r.id===landInstallments[1].id)?.data.status,'pending','a land installment cannot be cancelled without updating the contract liability');
 checks+=13;
+
+// Project deletion must archive financial history instead of deleting records or reversing historical activity.
+w=await read();
+const projectToDelete=w.records.find(r=>r.kind==='project'&&r.id===a);
+assert(projectToDelete);
+await fail('deleteProject',{id:a,confirmName:'اسم خاطئ',reason:'اختبار'});
+const journalsBeforeProjectArchive=w.journals.filter(j=>j.lines.some(l=>l.project===a));
+const journalCountBeforeProjectArchive=w.journals.length;
+await ok('deleteProject',{id:a,confirmName:projectToDelete.data.name,reason:'اختبار أرشفة مع حفظ التاريخ'});
+w=await read();
+const archivedProject=w.records.find(r=>r.kind==='project'&&r.id===a);
+assert(archivedProject);
+assert.equal(archivedProject.data.status,'archived');
+assert(w.records.some(r=>r.id!==a&&r.data&&Object.values(r.data).some(v=>v===a)),'linked project history must remain available');
+assert.equal(w.journals.length,journalCountBeforeProjectArchive,'archiving must not generate reversals that erase historical activity');
+const remainingProjectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===a));
+assert.equal(remainingProjectJournals.length,journalsBeforeProjectArchive.length);
+assert.equal(Object.values(f.balance(w)).reduce((sum,v)=>sum+v,0),0);
+checks+=5;
 
 // Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
 w=await read();

@@ -373,7 +373,7 @@ else if(action==='tenantLease'){
  if(end<start)throw Error('نهاية العقد يجب أن تكون بعد بدايته.');
  if(total<=0)throw Error('أدخل إجمالي إيجار أكبر من صفر.');
  if(w.records.some(r=>r.kind==='tenantLease'&&r.data.unitId===unit.id&&r.data.status==='active'&&String(r.data.startDate)<=end&&String(r.data.endDate)>=start))throw Error('توجد مدة عقد متداخلة لهذه الوحدة. أنهِ العقد السابق أو اختر فترة مختلفة.');
- const mode=['once','monthly','quarterly','semiannual','custom'].includes(p.scheduleType)?p.scheduleType:'monthly';
+ const mode=['once','monthly','quarterly','semiannual','yearly','custom'].includes(p.scheduleType)?p.scheduleType:'monthly';
  let installments:{date:string;amount:number}[]=[];
  if(mode==='custom'){
   const raw=str(p.installments||'',12000);
@@ -404,7 +404,7 @@ else if(action==='lease'){
  const end=date(p.endDate);
  if(end<start)throw Error('تاريخ نهاية عقد الإيجار لا يمكن أن يسبق بدايته.');
  if(!total)throw Error('أدخل إجمالي قيمة الإيجار.');
- const mode=['once','monthly','quarterly','semiannual','custom'].includes(p.scheduleType)?p.scheduleType:'once';
+ const mode=['once','monthly','quarterly','semiannual','yearly','custom'].includes(p.scheduleType)?p.scheduleType:'once';
  const leaseId=uid();
  let installments:{date:string;amount:number}[]=[];
  if(mode==='custom'){

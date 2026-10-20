@@ -145,6 +145,31 @@ try{
   w=await (await call()).json();assert.equal(w.records.find(r=>r.id===reversibleFunding.id).data.status,'cancelled');
   assert.equal(w.journals.length,beforeCancelFunding+1,'funding cancellation adds one reversal after repayment reversal');checks+=7;
 
+  // Reversing a project-to-project repayment must be blocked if the lender has already spent the returned cash.
+  const lenderCashGuard=await createTestProject('مشروع مُموِّل لاختبار عكس الاسترداد');
+  const borrowerCashGuard=await createTestProject('مشروع مستفيد لاختبار عكس الاسترداد');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:lenderCashGuard,sourceType:'personal',amount:1000,date,memo:'رصيد مُموِّل لعكس الاسترداد'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:borrowerCashGuard,sourceType:'project',sourceProject:lenderCashGuard,amount:500,date,memo:'تمويل بين مشروعين لعكس الاسترداد'}}},200);
+  w=await (await call()).json();const borrowerFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل بين مشروعين لعكس الاسترداد');
+  await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:borrowerFunding.id,amount:200,date,memo:'استرداد يختبر رصيد المُموِّل'}}},200);
+  w=await (await call()).json();const guardedRepayment=w.records.find(r=>r.kind==='fundingRepayment'&&r.data.fundingId===borrowerFunding.id&&r.data.status!=='cancelled');
+  const guardedOriginal=w.journals.find(j=>j.source==='fundingRepayment:'+guardedRepayment.id);
+  await expectStatus({method:'POST',body:{action:'entry',requestId:crypto.randomUUID(),payload:{project:lenderCashGuard,amount:700,date,kind:'expense',memo:'استهلاك النقدية المعادة'}}},200);
+  w=await (await call()).json();const guardedJournalCount=w.journals.length;
+  await expectStatus({method:'POST',body:{action:'cancelFundingRepayment',requestId:crypto.randomUUID(),payload:{id:guardedRepayment.id,reason:'يجب رفض العكس دون نقدية'}}},400);
+  w=await (await call()).json();
+  assert.equal(w.journals.length,guardedJournalCount,'rejected reversal must not post a journal');
+  assert.equal(w.records.find(r=>r.id===guardedRepayment.id).data.status,undefined,'rejected reversal must not change repayment status');
+  assert(!w.journals.some(j=>j.reversal===guardedOriginal.id),'rejected reversal must not create a reversal journal');checks+=3;
+
+  // Cancelling funding is also rejected if the project has already spent the original cash.
+  const spentFundingProject=await createTestProject('مشروع اختبار إلغاء تمويل مستهلك');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:spentFundingProject,sourceType:'personal',amount:1000,date,memo:'تمويل سيتم استهلاكه'}}},200);
+  await expectStatus({method:'POST',body:{action:'entry',requestId:crypto.randomUUID(),payload:{project:spentFundingProject,amount:1000,date,kind:'expense',memo:'استهلاك التمويل بالكامل'}}},200);
+  w=await (await call()).json();const spentFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.memo==='تمويل سيتم استهلاكه'),spentJournalCount=w.journals.length;
+  await expectStatus({method:'POST',body:{action:'cancelFunding',requestId:crypto.randomUUID(),payload:{id:spentFunding.id,date,reason:'يجب رفض إلغاء تمويل مستهلك'}}},400);
+  w=await (await call()).json();assert.equal(w.journals.length,spentJournalCount);assert.notEqual(w.records.find(r=>r.id===spentFunding.id).data.status,'cancelled');checks+=2;
+
   const repaymentJournalCount=w.journals.length,repaymentRecordCount=w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id).length;
   await expectStatus({method:'POST',body:{action:'fundingRepayment',requestId:crypto.randomUUID(),payload:{fundingId:fundingForCancelledRepayment.id,amount:1,date,memo:'يجب رفض تجاوز التمويل'}}},400);
   w=await (await call()).json();assert.equal(w.journals.length,repaymentJournalCount);assert.equal(w.records.filter(r=>r.kind==='fundingRepayment'&&r.data.fundingId===fundingForCancelledRepayment.id).length,repaymentRecordCount);checks+=3;

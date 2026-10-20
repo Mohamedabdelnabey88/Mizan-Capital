@@ -177,7 +177,7 @@ else if(action==='projectCommitment'){
  description='إضافة التزام مشروع وجدولة '+installments.length+' قسطًا دون اشتراط مصدر السيولة: '+title;
 }
 else if(action==='projectTenantLease'){
- const pr=find(str(p.project),'project'),tenantName=str(p.tenantName,200),title=str(p.title||'عقد تأجير المشروع',200),start=date(p.startDate),end=date(p.endDate),mode=['once','monthly','quarterly','semiannual','custom'].includes(p.scheduleType)?p.scheduleType:'monthly';let total=cents(p.totalAmount);
+ const pr=find(str(p.project),'project'),tenantName=str(p.tenantName,200),title=str(p.title||'عقد تأجير المشروع',200),start=date(p.startDate),end=date(p.endDate),mode=['once','monthly','quarterly','semiannual','yearly','custom'].includes(p.scheduleType)?p.scheduleType:'monthly';let total=cents(p.totalAmount);
  if(mode!=='monthly'&&total<=0)throw Error('أدخل إجمالي قيمة العقد أكبر من صفر.');
  if(end<start)throw Error('نهاية العقد يجب ألا تسبق بدايته.');
  if(w.records.some(r=>r.kind==='projectTenantLease'&&r.data.project===pr.id&&r.data.status==='active'&&String(r.data.startDate)<=end&&String(r.data.endDate)>=start))throw Error('يوجد عقد تأجير آخر متداخل على المشروع خلال هذه المدة.');
@@ -196,7 +196,7 @@ else if(action==='projectTenantLease'){
    if(!installments.length)throw Error('لا توجد استحقاقات شهرية داخل مدة العقد.');
    total=installments.reduce((sum,x)=>sum+x.amount,0);
   }else{
-   const step=mode==='quarterly'?3:6;
+   const step=mode==='yearly'?12:mode==='quarterly'?3:6;
    const startMonth=Number(start.slice(0,4))*12+Number(start.slice(5,7))-1,endMonth=Number(end.slice(0,4))*12+Number(end.slice(5,7))-1;
    const count=Math.floor((endMonth-startMonth)/step)+1,base=Math.floor(total/count);let remaining=total;
    for(let i=0;i<count;i++){const dueDate=monthAdd(first,i*step);if(dueDate>end)break;const amount=i===count-1?remaining:base;if(amount>0){installments.push({date:dueDate,amount,status:'pending',obligationId:''});remaining-=amount;}}
@@ -383,7 +383,7 @@ else if(action==='tenantLease'){
   const first=date(p.paymentDate||start);
   if(mode==='once')installments=[{date:first,amount:total}];
   else{
-   const step=mode==='monthly'?1:mode==='quarterly'?3:6;
+   const step=mode==='monthly'?1:mode==='quarterly'?3:mode==='yearly'?12:6;
    const startMonth=Number(start.slice(0,4))*12+Number(start.slice(5,7))-1,endMonth=Number(end.slice(0,4))*12+Number(end.slice(5,7))-1;
    const count=Math.floor((endMonth-startMonth)/step)+1,base=Math.floor(total/count);let remaining=total;
    for(let i=0;i<count;i++){const dueDate=monthAdd(first,i*step);if(dueDate>end&&i>0)break;const amount=i===count-1?remaining:base;if(amount>0){installments.push({date:dueDate,amount});remaining-=amount;}}

@@ -424,7 +424,7 @@ try{
   const contractTestProject=await createTestProject('مشروع اختبار إلغاء العقد');
   const addDays=(iso,n)=>new Date(Date.parse(iso+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
   const contractTomorrow=addDays(date,1),contractAfterTomorrow=addDays(date,2);
-  await expectStatus({method:'POST',body:{action:'lease',requestId:crypto.randomUUID(),payload:{project:contractTestProject,title:'عقد اختبار الإلغاء',totalAmount:3000,startDate:date,endDate:contractAfterTomorrow,scheduleType:'custom',installments:[date+',1000',contractTomorrow+',1000',contractAfterTomorrow+',1000'].join('\\n')}}},200);
+  await expectStatus({method:'POST',body:{action:'lease',requestId:crypto.randomUUID(),payload:{project:contractTestProject,title:'عقد اختبار الإلغاء',totalAmount:3000,startDate:date,endDate:contractAfterTomorrow,scheduleType:'custom',installments:[date+',1000',contractTomorrow+',1000',contractAfterTomorrow+',1000'].join('\n')}}},200);
   w=await (await call()).json();
   const testLease=w.records.find(r=>r.kind==='lease'&&r.data.title==='عقد اختبار الإلغاء');
   assert(testLease,'lease contract must persist');

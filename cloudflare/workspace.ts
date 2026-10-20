@@ -300,6 +300,7 @@ else if(action==='deferRentInstallment'){
 else if(action==='project'){
  const projectId=uid(),name=str(p.name),parentIdRaw=String(p.parentId||'').trim(),parentId=parentIdRaw==='none'?'':parentIdRaw,propertyRole=['standard','land_owned','land_leased','building','unit'].includes(p.propertyRole)?p.propertyRole:'standard';
  const parent=parentId?find(parentId,'project'):null;
+ if(parent?.data.status==='archived')throw Error('لا يمكن إضافة فروع جديدة إلى مشروع مؤرشف.');
  if(propertyRole==='unit'&&!parent)throw Error('الوحدة الفرعية يجب أن ترتبط بمشروع رئيسي.');
  if(parent&&parent.data.propertyRole==='unit')throw Error('لا يمكن إنشاء تفرع داخل وحدة عقارية؛ اختر المشروع الرئيسي أو المبنى.');
  const unitCountRaw=Number(p.unitCount||0);if(!Number.isInteger(unitCountRaw)||unitCountRaw<0||unitCountRaw>100)throw Error('عدد الوحدات يجب أن يكون عددًا صحيحًا من صفر إلى 100.');const unitCount=unitCountRaw;

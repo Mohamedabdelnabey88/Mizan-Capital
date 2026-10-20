@@ -321,6 +321,27 @@ try{
   checks+=6;
   organizerJournalCount=w.journals.length;
 
+  // Land rent is recognized as operating expense on the due date and paid against the accrued payable exactly once.
+  const rentExpenseProject=await createTestProject('مشروع اختبار مصروف إيجار الأرض');
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:rentExpenseProject,title:'قسط إيجار أرض للاختبار',costType:'rent',totalAmount:800,scheduleType:'custom',installments:date+',800'}}},200);
+  w=await (await call()).json();
+  const landRentCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قسط إيجار أرض للاختبار');
+  const landRentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===landRentCommitment?.id&&r.data.status==='pending');
+  const landRentAccrual=w.journals.find(j=>j.source==='obligation-accrual:'+landRentDue?.id);
+  assert(landRentAccrual,'rent due today must accrue as an expense and payable');
+  assert(landRentAccrual.lines.some(l=>l.project===rentExpenseProject&&l.account==='expense'&&l.debit===80000));
+  const rentProfitBeforeSettlement=w.journals.filter(j=>j.lines.some(l=>l.project===rentExpenseProject&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===rentExpenseProject&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0);
+  await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:landRentDue.id,date,paymentAccount:'bank'}}},200);
+  w=await (await call()).json();
+  const rentSettlement=w.journals.find(j=>j.source==='project-commitment-payment:'+landRentDue.id);
+  assert(rentSettlement,'settling rent must post a payable settlement journal');
+  assert(rentSettlement.lines.some(l=>l.project===rentExpenseProject&&l.account==='payable'&&l.debit===80000));
+  const rentProfitAfterSettlement=w.journals.filter(j=>j.lines.some(l=>l.project===rentExpenseProject&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===rentExpenseProject&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0);
+  assert.equal(rentProfitAfterSettlement,rentProfitBeforeSettlement,'settling accrued rent must not expense the same amount twice');
+  assert.equal(w.journals.filter(j=>j.source==='project-commitment-payment:'+landRentDue.id).length,1);
+  checks+=6;
+  organizerJournalCount=w.journals.length;
+
   const rentStartDate='2026-01-15';
   await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project,title:'عقد مستثمر تجريبي',tenantName:'مستثمر تجريبي',totalAmount:6000,monthlyAmount:2000,startDate:rentStartDate,endDate:nextMonth(nextMonth(rentStartDate)),scheduleType:'monthly',paymentDate:rentStartDate}}},200);
   w=await (await call()).json();

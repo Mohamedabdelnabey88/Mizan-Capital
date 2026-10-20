@@ -268,8 +268,9 @@ else if(action==='deferRentInstallment'){
 else if(action==='project'){
  const projectId=uid(),name=str(p.name),parentIdRaw=String(p.parentId||'').trim(),parentId=parentIdRaw==='none'?'':parentIdRaw,propertyRole=['standard','land_owned','land_leased','building','unit'].includes(p.propertyRole)?p.propertyRole:'standard';
  const parent=parentId?find(parentId,'project'):null;
+ if(propertyRole==='unit'&&!parent)throw Error('الوحدة الفرعية يجب أن ترتبط بمشروع رئيسي.');
  if(parent&&parent.data.propertyRole==='unit')throw Error('لا يمكن إنشاء تفرع داخل وحدة عقارية؛ اختر المشروع الرئيسي أو المبنى.');
- const unitCountRaw=Number(p.unitCount||0),unitCount=Number.isInteger(unitCountRaw)&&unitCountRaw>=0&&unitCountRaw<=100?unitCountRaw:0;
+ const unitCountRaw=Number(p.unitCount||0);if(!Number.isInteger(unitCountRaw)||unitCountRaw<0||unitCountRaw>100)throw Error('عدد الوحدات يجب أن يكون عددًا صحيحًا من صفر إلى 100.');const unitCount=unitCountRaw;
  if(unitCount>0&&(parent||!['land_owned','land_leased','building'].includes(propertyRole)))throw Error('إنشاء وحدات متعددة متاح للمشروع العقاري الرئيسي فقط.');
  const monthlyRevenueMicro=planMoneyMicro(p.expectedMonthlyRevenue||0,'الإيراد الشهري المتوقع'),dailyRevenueMicro=planMoneyMicro(p.expectedDailyRevenue||0,'الإيراد اليومي المتوقع'),monthlyExpenseMicro=planMoneyMicro(p.expectedMonthlyExpense||0,'المصروف الشهري المتوقع'),monthlyNetMicro=planMoneyMicro(p.expectedNetMonthly||0,'صافي الدخل الشهري المتوقع');
  const base={name,activity:p.activity?str(p.activity,200):'متابعة مشروع',mode:['operating','investment'].includes(p.mode)?p.mode:'operating',managementMode:['self','leased','preparing','vacant'].includes(p.managementMode)?p.managementMode:propertyRole==='unit'?'vacant':'self',ownership:num(p.ownership??100,0.01,100),reserve:cents(p.reserve||0),payout:num(p.payout??30,0,100),expectedNetMonthly:monthlyNetMicro/1000,partner:p.partner?str(p.partner):'',closedThrough:'',parentId:parent?.id||'',propertyRole,unitNumber:null};

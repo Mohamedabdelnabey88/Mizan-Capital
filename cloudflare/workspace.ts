@@ -248,11 +248,13 @@ else if(action==='projectSchedulePayment'){
  const paidOn=date(p.date||today());
  if(paidOn>today())throw Error('تاريخ التحصيل أو السداد الفعلي لا يمكن أن يكون في المستقبل.');
  update(r,{...d,status:'paid',paidOn});
- // Actual project-tenant rent collection is operating revenue and must post to the selected receipt account.
- if(d.projectTenantLeaseId&&d.direction==='in'){
+ // Both current and legacy tenant-lease schedules must post actual receipts to the ledger.
+ if((d.projectTenantLeaseId||d.tenantLeaseId)&&d.direction==='in'){
   const receiptAccount=ensurePayment(p.paymentAccount||'bank');
   if(receiptAccount==='receivable')throw Error('اختر حساب التحصيل الفعلي؛ لا يمكن تسجيل التحصيل على حساب آجل.');
-  journal('income','تحصيل إيجار مشروع فعلي: '+String(d.title||'إيجار مستأجر'),paidOn,pair(d.project,receiptAccount,'revenue',Number(d.amount||0)),'project-tenant-rent-payment:'+r.id);
+  const source=d.projectTenantLeaseId?'project-tenant-rent-payment:'+r.id:'tenant-rent-payment:'+r.id;
+  const memo=d.projectTenantLeaseId?'تحصيل إيجار مشروع فعلي: ':'تحصيل إيجار وحدة فعلي: ';
+  journal('income',memo+String(d.title||'إيجار مستأجر'),paidOn,pair(d.project,receiptAccount,'revenue',Number(d.amount||0)),source);
  }
  if(d.projectCommitmentId&&d.direction==='out'){
   const commitment=w.records.find(x=>x.kind==='projectCommitment'&&x.id===d.projectCommitmentId);
@@ -267,7 +269,7 @@ else if(action==='projectSchedulePayment'){
  const installments=(Array.isArray(parent.data.installments)?parent.data.installments:[]).map((x:any,i:number)=>x.obligationId===r.id||(parentKind==='tenantLease'&&i+1===Number(d.leaseInstallment))?{...x,status:'paid',paidOn,obligationId:r.id}:x);
  const allPaid=installments.length>0&&installments.every((x:any)=>x.status==='paid');
  update(parent,{...parent.data,installments,status:parentKind==='projectCommitment'?(allPaid?'completed':'active'):parent.data.status,updatedAt:time});
- description=(d.direction==='in'?'تسجيل تحصيل مستأجر':'تسجيل سداد التزام مشروع')+' دون قيد مصدر سيولة: '+d.title;
+ description=(d.direction==='in'?'تسجيل تحصيل مستأجر مع إثبات القيد المحاسبي':'تسجيل سداد التزام مشروع مع إثبات القيد المحاسبي')+': '+d.title;
 }
 // Keep the original rent due auditable while moving its value to a later scheduled collection.
 else if(action==='deferRentInstallment'){

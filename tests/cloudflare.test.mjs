@@ -327,6 +327,12 @@ try{
   assert(organizerLease);assert.equal(organizerLease.data.tenantName,'مستثمر تجريبي');assert.equal(organizerLease.data.endDate,nextMonth(nextMonth(rentStartDate)));
   const organizerRentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId===organizerLease.id&&r.data.status==='pending');
   assert(organizerRentDue);assert.equal(organizerRentDue.data.direction,'in');assert.equal(w.journals.length,organizerJournalCount);checks+=5;
+  const annualRentProject=await createTestProject('مشروع اختبار الإيجار السنوي');
+  await expectStatus({method:'POST',body:{action:'projectTenantLease',requestId:crypto.randomUUID(),payload:{project:annualRentProject,title:'عقد إيجار سنوي للاختبار',tenantName:'مستأجر سنوي',totalAmount:24000,startDate:'2026-01-01',endDate:'2027-12-31',scheduleType:'yearly',paymentDate:'2026-10-01'}}},200);
+  w=await (await call()).json();
+  const annualRent=w.records.find(r=>r.kind==='projectTenantLease'&&r.data.title==='عقد إيجار سنوي للاختبار');
+  assert(annualRent);assert.deepEqual(annualRent.data.installments.map(x=>x.date),['2026-10-01','2027-10-01']);
+  assert.equal(annualRent.data.installments.reduce((sum,x)=>sum+x.amount,0),2400000);checks+=3;
   // Rent deferral must replace the original scheduled due, merge into the next unpaid installment, and never create cash/revenue journals.
   const rentDeferralDate=nextMonth(organizerRentDue.data.date);
   const nextOrganizerRentDue=w.records.filter(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId===organizerLease.id&&r.data.status==='pending'&&r.id!==organizerRentDue.id&&r.data.date>=rentDeferralDate).sort((a,b)=>a.data.date.localeCompare(b.data.date))[0];

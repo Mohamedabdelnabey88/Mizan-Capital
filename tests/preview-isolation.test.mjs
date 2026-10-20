@@ -15,4 +15,7 @@ for(const [path,entry] of routes){
  assert(guard>=0&&upstream>=0&&guard<upstream,path+' must block preview before any upstream request');
  assert(source.slice(guard,upstream).includes('status:503'),path+' must fail closed with HTTP 503');
 }
-console.log('Preview isolation tests passed: preview API/auth routes cannot proxy to the production Worker.');
+const proxy=await readFile(new URL('../proxy.ts',import.meta.url),'utf8');
+assert(proxy.includes("process.env.VERCEL_ENV==='preview'&&path==='/'"),'preview root must be accessible for the UI shell/demo');
+assert(proxy.includes("if(!request.cookies.get('mizan_session'))"),'non-preview unauthenticated routes must remain protected');
+console.log('Preview isolation tests passed: preview shell can render, but preview API/auth routes cannot proxy to the production Worker.');

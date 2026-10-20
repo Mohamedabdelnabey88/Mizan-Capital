@@ -445,6 +445,19 @@ try{
   assert(w.journals.some(j=>j.id===settledJournal.id),'historical settlement journal must remain intact');
   checks+=6;
 
+  // Existing project rental records must also support contract cancellation without touching prior accounting.
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:contractTestProject,title:'إيجار قائم لاختبار صفحة العقود',costType:'rent',totalAmount:2000,scheduleType:'custom',installments:contractTomorrow+',1000\\n'+contractAfterTomorrow+',1000'}}},200);
+  w=await (await call()).json();
+  const rentCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='إيجار قائم لاختبار صفحة العقود');
+  assert(rentCommitment,'existing rent commitments must be available as contract records');
+  const rentCommitmentDues=w.records.filter(r=>r.kind==='obligation'&&r.data.projectCommitmentId===rentCommitment.id).sort((a,b)=>a.data.date.localeCompare(b.data.date));
+  assert.equal(rentCommitmentDues.length,2);
+  await expectStatus({method:'POST',body:{action:'cancelContract',requestId:crypto.randomUUID(),payload:{contractId:rentCommitment.id,reason:'اختبار إلغاء التزام إيجار قائم'}}},200);
+  w=await (await call()).json();
+  assert.equal(w.records.find(r=>r.id===rentCommitment.id).data.status,'cancelled');
+  assert.deepEqual(w.records.filter(r=>r.kind==='obligation'&&r.data.projectCommitmentId===rentCommitment.id).sort((a,b)=>a.data.date.localeCompare(b.data.date)).map(r=>r.data.status),['cancelled','cancelled']);
+  checks+=4;
+
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');
   assert.match(logout.headers.get('set-cookie')||'',/Max-Age=0/);checks++;

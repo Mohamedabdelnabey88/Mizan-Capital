@@ -113,7 +113,7 @@ const taxParts=(amount:number,mode:any,rateBps:number)=>{if(mode==='none'||rateB
 const paymentAccounts=['cash','bank','mada','visa','mastercard','receivable'] as const;
 const paymentLabels:Record<string,string>={cash:'كاش',bank:'الحساب البنكي',mada:'مدى',visa:'Visa',mastercard:'Mastercard',receivable:'آجل'};
 const ensurePayment=(v:any)=>{if(!paymentAccounts.includes(v))throw Error('طريقة الإيداع غير صحيحة.');return v;};
-const project=(rid:string)=>{const r=find(rid,'project');if(r.data.mode==='investment')throw Error('الاستثمار الخارجي يسجل في دفاتر المشروع الممول.');return r;};
+const archivedProjectAllowedActions=new Set(['settle','settleLoans','projectSchedulePayment','cancelProjectCost','deleteLoan','cancelFunding','cancelFundingRepayment','fundingRepayment','settleCards','dailyReportCorrection','cancelContract','investmentReturn','returnCapital','reversal']);const project=(rid:string)=>{const r=find(rid,'project');if(r.data.status==='archived'&&!archivedProjectAllowedActions.has(action))throw Error('هذا المشروع مؤرشف للحفاظ على تاريخه المالي؛ لا يمكن تسجيل عمليات جديدة عليه.');if(r.data.mode==='investment')throw Error('الاستثمار الخارجي يسجل في دفاتر المشروع الممول.');return r;};
 const journal=(kind:string,memo:string,d:string,lines:Line[],source:string|null=null,reversal:string|null=null)=>{validateLines(lines);date(d);if(d>today())throw Error('سجل العمليات المستقبلية في الالتزامات، وليس في القيود الفعلية.');for(const l of lines){if(!l.project)continue;const pr=project(l.project);ledgerLocks.set(pr.id,pr.version);if(pr.data.closedThrough&&d<=pr.data.closedThrough)throw Error('الفترة مقفلة في هذا المشروع.');}ops.push(db.prepare('INSERT INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,?,?)').bind(uid(),owner,d,str(memo,500),kind,JSON.stringify(lines),source,reversal,time));};
 const pair=(pr:string,debit:string,credit:string,a:number):Line[]=>[{project:pr,account:debit,debit:a,credit:0},{project:pr,account:credit,debit:0,credit:a}];
 const directionLines=(pr:string,direction:string,category:string,a:number):Line[]=>direction==='out'?pair(pr,category,'payable',a):pair(pr,'receivable',category,a);
@@ -137,7 +137,7 @@ else if(action==='deleteFiscalYear'){
 }
 else if(action==='deleteRecord'){
  const r=find(p.id);
- const financialKinds=new Set(['projectFunding','fundingRepayment','dailyReport','dailyReportCorrection','entry','obligation','lease','landPurchase','settlement','loan','loanSchedule','journal','ownerSettlement','ownerDistribution','investmentCycle','investmentReturn','payroll','payrollAdjustment','closing','fiscalYear']);
+ const financialKinds=new Set(['projectCost','projectFunding','fundingRepayment','dailyReport','dailyReportCorrection','entry','obligation','lease','landPurchase','settlement','loan','loanSchedule','journal','ownerSettlement','ownerDistribution','investmentCycle','investmentReturn','payroll','payrollAdjustment','closing','fiscalYear']);
  if(financialKinds.has(r.kind)) throw Error('السجل المالي لا يُحذف نهائيًا حتى لا يختفي أثره من الأستاذ والتقارير. استخدم عكس القيد أو التصحيح من الشاشة المناسبة.');
  const refs=w.records.filter(x=>x.id!==r.id&&JSON.stringify(x.data).includes(r.id));
  const journalRefs=w.journals.filter(j=>j.source===r.id||j.reversal===r.id||JSON.stringify(j.lines).includes(r.id));
@@ -146,16 +146,50 @@ else if(action==='deleteRecord'){
  description='حذف سجل غير مالي: '+r.kind;
 }
 else if(action==='projectCost'){
- const pr=find(str(p.project),'project'),amount=cents(p.amount),dt=date(p.date||today());
+ const pr=project(str(p.project)),amount=cents(p.amount),dt=date(p.date||today());
  if(dt>today())throw Error('تاريخ المصروف الفعلي لا يمكن أن يكون في المستقبل.');
  if(amount<=0)throw Error('أدخل مبلغًا أكبر من صفر.');
  const category=['purchase','construction','maintenance','fees','utilities','other'].includes(p.category)?p.category:'other';
  const title=str(p.title||'تكلفة مشروع',200),notes=String(p.notes||'').trim().slice(0,1000);
- put('projectCost',{project:pr.id,title,amount,date:dt,category,notes,status:'active',createdAt:time});
- description='تسجيل تكلفة مباشرة للمشروع دون اشتراط تحديد مصدر السيولة: '+pr.data.name+' — '+title;
+ const paymentAccount=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';
+ const available=Number(balance(w,pr.id,dt)[paymentAccount]||0);
+ if(amount>available)throw Error('الرصيد المتاح في '+(paymentAccount==='cash'?'الصندوق':'الحساب البنكي')+' لا يكفي لتسجيل التكلفة. سجّل التمويل/الرصيد الافتتاحي الصحيح أو اختر حساب الدفع الفعلي.');
+ const treatment=['expense','asset'].includes(p.treatment)?p.treatment:'expense';
+ const debitAccount=treatment==='asset'?'investment':'expense';
+ const costId=put('projectCost',{project:pr.id,title,amount,date:dt,category,notes,status:'active',paymentAccount,treatment,createdAt:time});
+ journal('projectCost',(treatment==='asset'?'إثبات تكلفة رأسمالية للمشروع: ':'إثبات مصروف فعلي للمشروع: ')+title,dt,pair(pr.id,debitAccount,paymentAccount,amount),'project-cost:'+costId);
+ description=(treatment==='asset'?'تسجيل تكلفة رأسمالية':'تسجيل مصروف فعلي')+' للمشروع: '+pr.data.name+' — '+title;
+}
+else if(action==='postLegacyProjectCost'){
+ const cost=find(str(p.id),'projectCost'),d=cost.data;
+ if(d.status==='deleted'||d.status==='cancelled')throw Error('سجل التكلفة ملغى ولا يمكن ترحيله.');
+ if(w.journals.some(j=>j.source==='project-cost:'+cost.id))throw Error('هذه التكلفة مرحّلة محاسبيًا بالفعل أو لها قيد تاريخي؛ لا تكرر الترحيل.');
+ const pr=project(String(d.project||'')),dt=date(String(d.date||today())),amount=Number(d.amount||0);
+ if(!Number.isSafeInteger(amount)||amount<=0)throw Error('قيمة التكلفة القديمة غير صحيحة؛ راجع السجل قبل الترحيل.');
+ const paymentAccount=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash';
+ const available=Number(balance(w,pr.id,dt)[paymentAccount]||0);
+ if(amount>available)throw Error('الرصيد المسجل في حساب الدفع لا يكفي لترحيل التكلفة القديمة بأمان. راجع الرصيد الافتتاحي والحساب المستخدم قبل الترحيل.');
+ const treatment=['expense','asset'].includes(p.treatment)?p.treatment:'expense';
+ const debitAccount=treatment==='asset'?'investment':'expense';
+ journal('projectCost',(treatment==='asset'?'ترحيل تكلفة رأسمالية قديمة: ':'ترحيل مصروف قديم: ')+String(d.title||'تكلفة مشروع'),dt,pair(pr.id,debitAccount,paymentAccount,amount),'project-cost:'+cost.id);
+ update(cost,{...d,paymentAccount,treatment,postedAt:time,postingMethod:'legacy-review'});
+ description='ترحيل تكلفة قديمة بعد تحديد حساب الدفع وطبيعة المعالجة المحاسبية';
+}
+else if(action==='cancelProjectCost'){
+ const cost=find(str(p.id),'projectCost'),d=cost.data;
+ if(['deleted','cancelled'].includes(d.status))throw Error('سجل التكلفة ملغى بالفعل.');
+ const original=w.journals.find(j=>j.source==='project-cost:'+cost.id);
+ const dt=date(p.date||today());
+ if(original){
+   if(w.journals.some(j=>j.reversal===original.id))throw Error('يوجد قيد عكسي لهذه التكلفة بالفعل؛ راجع سجل التدقيق قبل أي تعديل إضافي.');
+   if(dt<original.date)throw Error('تاريخ إلغاء التكلفة لا يمكن أن يسبق تاريخ القيد الأصلي.');
+   journal('reversal','عكس تكلفة مشروع: '+String(d.title||cost.id)+' — '+str(p.reason||'إلغاء تكلفة',200),dt,original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
+ }
+ update(cost,{...d,status:'cancelled',cancelledAt:dt,cancellationReason:str(p.reason||'إلغاء تكلفة من سجل المشروع',200)});
+ description=original?'إلغاء تكلفة مع عكس قيدها المحاسبي والحفاظ على سجل التدقيق':'إلغاء سجل تكلفة غير مرحّل مع الاحتفاظ بالتاريخ';
 }
 else if(action==='projectCommitment'){
- const pr=find(str(p.project),'project'),title=str(p.title||'التزام مشروع',200),party=String(p.party||'').trim().slice(0,200),total=cents(p.totalAmount),costType=['construction','rent','expense'].includes(p.costType)?p.costType:'construction';
+ const pr=project(str(p.project)),title=str(p.title||'التزام مشروع',200),party=String(p.party||'').trim().slice(0,200),total=cents(p.totalAmount),costType=['construction','rent','expense'].includes(p.costType)?p.costType:'construction';
  if(total<=0)throw Error('أدخل إجمالي الالتزام أكبر من صفر.');
  const scheduleType=['once','monthly','quarterly','semiannual','yearly','custom'].includes(p.scheduleType)?p.scheduleType:(p.installments?'custom':'monthly'),firstDate=date(p.firstDate||today());
  const installments:{date:string;amount:number;status:string;obligationId:string}[]=[];
@@ -177,7 +211,7 @@ else if(action==='projectCommitment'){
  description='إضافة التزام مشروع وجدولة '+installments.length+' قسطًا دون اشتراط مصدر السيولة: '+title;
 }
 else if(action==='projectTenantLease'){
- const pr=find(str(p.project),'project'),tenantName=str(p.tenantName,200),title=str(p.title||'عقد تأجير المشروع',200),start=date(p.startDate),end=date(p.endDate),mode=['once','monthly','quarterly','semiannual','yearly','custom'].includes(p.scheduleType)?p.scheduleType:'monthly';let total=cents(p.totalAmount);
+ const pr=project(str(p.project)),tenantName=str(p.tenantName,200),title=str(p.title||'عقد تأجير المشروع',200),start=date(p.startDate),end=date(p.endDate),mode=['once','monthly','quarterly','semiannual','yearly','custom'].includes(p.scheduleType)?p.scheduleType:'monthly';let total=cents(p.totalAmount);
  if(mode!=='monthly'&&total<=0)throw Error('أدخل إجمالي قيمة العقد أكبر من صفر.');
  if(end<start)throw Error('نهاية العقد يجب ألا تسبق بدايته.');
  if(w.records.some(r=>r.kind==='projectTenantLease'&&r.data.project===pr.id&&r.data.status==='active'&&String(r.data.startDate)<=end&&String(r.data.endDate)>=start))throw Error('يوجد عقد تأجير آخر متداخل على المشروع خلال هذه المدة.');
@@ -218,11 +252,13 @@ else if(action==='projectSchedulePayment'){
  const paidOn=date(p.date||today());
  if(paidOn>today())throw Error('تاريخ التحصيل أو السداد الفعلي لا يمكن أن يكون في المستقبل.');
  update(r,{...d,status:'paid',paidOn});
- // Actual project-tenant rent collection is operating revenue and must post to the selected receipt account.
- if(d.projectTenantLeaseId&&d.direction==='in'){
+ // Both current and legacy tenant-lease schedules must post actual receipts to the ledger.
+ if((d.projectTenantLeaseId||d.tenantLeaseId)&&d.direction==='in'){
   const receiptAccount=ensurePayment(p.paymentAccount||'bank');
   if(receiptAccount==='receivable')throw Error('اختر حساب التحصيل الفعلي؛ لا يمكن تسجيل التحصيل على حساب آجل.');
-  journal('income','تحصيل إيجار مشروع فعلي: '+String(d.title||'إيجار مستأجر'),paidOn,pair(d.project,receiptAccount,'revenue',Number(d.amount||0)),'project-tenant-rent-payment:'+r.id);
+  const source=d.projectTenantLeaseId?'project-tenant-rent-payment:'+r.id:'tenant-rent-payment:'+r.id;
+  const memo=d.projectTenantLeaseId?'تحصيل إيجار مشروع فعلي: ':'تحصيل إيجار وحدة فعلي: ';
+  journal('income',memo+String(d.title||'إيجار مستأجر'),paidOn,pair(d.project,receiptAccount,'revenue',Number(d.amount||0)),source);
  }
  if(d.projectCommitmentId&&d.direction==='out'){
   const commitment=w.records.find(x=>x.kind==='projectCommitment'&&x.id===d.projectCommitmentId);
@@ -237,7 +273,7 @@ else if(action==='projectSchedulePayment'){
  const installments=(Array.isArray(parent.data.installments)?parent.data.installments:[]).map((x:any,i:number)=>x.obligationId===r.id||(parentKind==='tenantLease'&&i+1===Number(d.leaseInstallment))?{...x,status:'paid',paidOn,obligationId:r.id}:x);
  const allPaid=installments.length>0&&installments.every((x:any)=>x.status==='paid');
  update(parent,{...parent.data,installments,status:parentKind==='projectCommitment'?(allPaid?'completed':'active'):parent.data.status,updatedAt:time});
- description=(d.direction==='in'?'تسجيل تحصيل مستأجر':'تسجيل سداد التزام مشروع')+' دون قيد مصدر سيولة: '+d.title;
+ description=(d.direction==='in'?'تسجيل تحصيل مستأجر مع إثبات القيد المحاسبي':'تسجيل سداد التزام مشروع مع إثبات القيد المحاسبي')+': '+d.title;
 }
 // Keep the original rent due auditable while moving its value to a later scheduled collection.
 else if(action==='deferRentInstallment'){
@@ -268,6 +304,7 @@ else if(action==='deferRentInstallment'){
 else if(action==='project'){
  const projectId=uid(),name=str(p.name),parentIdRaw=String(p.parentId||'').trim(),parentId=parentIdRaw==='none'?'':parentIdRaw,propertyRole=['standard','land_owned','land_leased','building','unit'].includes(p.propertyRole)?p.propertyRole:'standard';
  const parent=parentId?find(parentId,'project'):null;
+ if(parent?.data.status==='archived')throw Error('لا يمكن إضافة فروع جديدة إلى مشروع مؤرشف.');
  if(propertyRole==='unit'&&!parent)throw Error('الوحدة الفرعية يجب أن ترتبط بمشروع رئيسي.');
  if(parent&&parent.data.propertyRole==='unit')throw Error('لا يمكن إنشاء تفرع داخل وحدة عقارية؛ اختر المشروع الرئيسي أو المبنى.');
  const unitCountRaw=Number(p.unitCount||0);if(!Number.isInteger(unitCountRaw)||unitCountRaw<0||unitCountRaw>100)throw Error('عدد الوحدات يجب أن يكون عددًا صحيحًا من صفر إلى 100.');const unitCount=unitCountRaw;
@@ -285,6 +322,7 @@ else if(action==='project'){
 }
 else if(action==='deleteProject'){
  const r=find(p.id,'project');
+ if(r.data.status==='archived')throw Error('هذا المشروع مؤرشف بالفعل.');
  const projectId=r.id;
  if(w.records.some(x=>x.kind==='project'&&String(x.data.parentId||'')===projectId))throw Error('لا يمكن حذف مشروع رئيسي لديه فروع. احذف أو انقل الوحدات التابعة أولًا حتى لا تضيع بياناتها المالية.');
  const confirmName=str(p.confirmName||'',120);
@@ -293,15 +331,19 @@ else if(action==='deleteProject'){
  const linkedEmployeeIds=new Set(w.records.filter(x=>x.kind==='employee'&&x.data.project===projectId).map(x=>x.id));
  const employeeRecords=w.records.filter(x=>linkedEmployeeIds.has(x.data?.employee));
  const allRecordIds=new Set([projectId,...linkedRecords.map(x=>x.id),...employeeRecords.map(x=>x.id)]);
- const projectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===projectId)&&!j.reversal);
- for(const original of projectJournals){
-   if(w.journals.some(j=>j.reversal===original.id))continue;
-   journal('reversal','عكس قيد حذف المشروع: '+str(r.data.name||'',120)+' — '+str(p.reason||'حذف مشروع',200),date(p.date||today()),original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
+ const projectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===projectId));
+ const financialKinds=new Set(['projectCost','projectCommitment','projectAsset','landPurchase','projectFunding','fundingRepayment','loan','loanAllocation','loanUse','obligation','lease','tenantLease','projectTenantLease','dailyReport','dailyReportCorrection','entry','settlement','payroll','payrollAdjustment','ownerSettlement','ownerDistribution','investmentCycle','investmentReturn']);
+ const hasOperationalHistory=linkedRecords.some(x=>financialKinds.has(x.kind))||employeeRecords.length>0;
+ if(projectJournals.length||hasOperationalHistory){
+   update(r,{...r.data,status:'archived',archivedAt:time,archiveReason:str(p.reason||'أرشفة للحفاظ على التاريخ المالي',200)});
+   description='أرشفة المشروع مع الاحتفاظ بالقيود والسجلات التاريخية دون عكس الأرباح أو حذف البيانات: '+r.data.name;
+ }else{
+   ledgerLocks.delete(projectId);
+   for(const x of w.records.filter(x=>allRecordIds.has(x.id)))ops.push(db.prepare('DELETE FROM records WHERE id=? AND owner=?').bind(x.id,owner));
+   description='حذف مشروع فارغ لا يحتوي على تاريخ مالي: '+r.data.name;
  }
- ledgerLocks.delete(projectId);for(const x of w.records.filter(x=>allRecordIds.has(x.id)))ops.push(db.prepare('DELETE FROM records WHERE id=? AND owner=?').bind(x.id,owner));
- description='حذف مشروع بالكامل مع عكس قيوده والحفاظ على سجل التدقيق: '+r.data.name;
 }
-else if(action==='projectSettings'){const r=find(p.id,'project');if(p.version!==r.version)throw Error('تغيرت البيانات. حدث الصفحة.');const oldPlan=projectPlansSnapshot(w,r.id);const legacyNetChanged=String(p.expectedNetMonthly??'')!==''&&halala(p.expectedNetMonthly,'صافي الدخل الشهري المتوقع')!==Number(r.data.expectedNetMonthly||0);const explicitTarget=String(p.expectedNetProfit??'')!==''||String(p.targetPeriod??'')!==''||String(p.expectedReceiptDate??'')!=='';const planChanged=explicitTarget||legacyNetChanged||['expectedMonthlyRevenue','expectedDailyRevenue','expectedMonthlyExpense'].some(k=>String(p[k]??'')!=='');update(r,{...r.data,name:str(p.name),managementMode:['self','leased','preparing','vacant'].includes(p.managementMode)?p.managementMode:(r.data.managementMode||'self'),reserve:cents(p.reserve),payout:num(p.payout,0,100),expectedNetMonthly:p.expectedNetMonthly?halala(p.expectedNetMonthly,'صافي الدخل الشهري المتوقع'):0,partner:p.partner?str(p.partner):''});if(r.data.mode==='operating'&&planChanged){const previousPlan=oldPlan.at(-1)?.data||{};const targetPeriod=explicitTarget?(p.targetPeriod==='annual'?'annual':'monthly'):(legacyNetChanged?'monthly':previousPlan.targetPeriod==='annual'?'annual':'monthly');const targetRaw=String(p.expectedNetProfit??'')!==''?p.expectedNetProfit:legacyNetChanged?p.expectedNetMonthly:Number(previousPlan.netTargetMicro||0)/100000;const targetMicro=planMoneyMicro(targetRaw,'صافي الربح المستهدف');const receiptDate=String(p.expectedReceiptDate??'')!==''?date(p.expectedReceiptDate):String(previousPlan.expectedReceiptDate||'');const rawInstallments=Array.isArray(p.expectedReceiptInstallments)?p.expectedReceiptInstallments:(Array.isArray(previousPlan.expectedReceiptInstallments)?previousPlan.expectedReceiptInstallments:[]);const expectedReceiptInstallments=rawInstallments.map((x:any)=>{const start=date(x.date);const repeatUntil=x.repeatUntil?date(x.repeatUntil):'';const rawInterval=x.repeatEveryMonths===undefined?(repeatUntil?1:0):Number(x.repeatEveryMonths);if(!Number.isInteger(rawInterval)||rawInterval<0||rawInterval>120)throw Error('تكرار الدفعة يجب أن يكون مرة واحدة أو كل 1 إلى 120 شهرًا.');if(rawInterval>0&&!repeatUntil)throw Error('حدد تاريخ نهاية التكرار للدفعة المتكررة.');if(repeatUntil&&repeatUntil<start)throw Error('نهاية تكرار الدفعة يجب ألا تسبق تاريخ بدايتها.');return {date:start,amountMicro:planMoneyMicro(x.amount,'مبلغ دفعة التحصيل المتوقع'),...(repeatUntil?{repeatUntil}:{}),...(rawInterval>0?{repeatEveryMonths:rawInterval}:{})};});if(expectedReceiptInstallments.some((x:any)=>x.amountMicro<=0))throw Error('مبلغ كل دفعة متوقعة يجب أن يكون أكبر من صفر.');put('projectPlan',{project:r.id,effectiveFrom:date(p.planEffectiveFrom||today()),revenueMonthlyMicro:planMoneyMicro(p.expectedMonthlyRevenue||0,'الإيراد الشهري المتوقع'),revenueDailyMicro:planMoneyMicro(p.expectedDailyRevenue||0,'الإيراد اليومي المتوقع'),expenseMonthlyMicro:planMoneyMicro(p.expectedMonthlyExpense||0,'المصروف الشهري المتوقع'),expenseDailyMicro:0,netMonthlyMicro:targetPeriod==='monthly'?targetMicro:Math.round(targetMicro/12),netAnnualMicro:targetPeriod==='annual'?targetMicro:0,netTargetMicro:targetMicro,targetPeriod,expectedReceiptDate:receiptDate,expectedReceiptInstallments,source:'plan_revision',label:'خطة صافي الربح المعدلة'});}description='تعديل إعدادات مشروع: '+r.data.name;}
+else if(action==='projectSettings'){const r=find(p.id,'project');if(r.data.status==='archived')throw Error('لا يمكن تعديل إعدادات مشروع مؤرشف.');if(p.version!==r.version)throw Error('تغيرت البيانات. حدث الصفحة.');const oldPlan=projectPlansSnapshot(w,r.id);const legacyNetChanged=String(p.expectedNetMonthly??'')!==''&&halala(p.expectedNetMonthly,'صافي الدخل الشهري المتوقع')!==Number(r.data.expectedNetMonthly||0);const explicitTarget=String(p.expectedNetProfit??'')!==''||String(p.targetPeriod??'')!==''||String(p.expectedReceiptDate??'')!=='';const planChanged=explicitTarget||legacyNetChanged||['expectedMonthlyRevenue','expectedDailyRevenue','expectedMonthlyExpense'].some(k=>String(p[k]??'')!=='');update(r,{...r.data,name:str(p.name),managementMode:['self','leased','preparing','vacant'].includes(p.managementMode)?p.managementMode:(r.data.managementMode||'self'),reserve:cents(p.reserve),payout:num(p.payout,0,100),expectedNetMonthly:p.expectedNetMonthly?halala(p.expectedNetMonthly,'صافي الدخل الشهري المتوقع'):0,partner:p.partner?str(p.partner):''});if(r.data.mode==='operating'&&planChanged){const previousPlan=oldPlan.at(-1)?.data||{};const targetPeriod=explicitTarget?(p.targetPeriod==='annual'?'annual':'monthly'):(legacyNetChanged?'monthly':previousPlan.targetPeriod==='annual'?'annual':'monthly');const targetRaw=String(p.expectedNetProfit??'')!==''?p.expectedNetProfit:legacyNetChanged?p.expectedNetMonthly:Number(previousPlan.netTargetMicro||0)/100000;const targetMicro=planMoneyMicro(targetRaw,'صافي الربح المستهدف');const receiptDate=String(p.expectedReceiptDate??'')!==''?date(p.expectedReceiptDate):String(previousPlan.expectedReceiptDate||'');const rawInstallments=Array.isArray(p.expectedReceiptInstallments)?p.expectedReceiptInstallments:(Array.isArray(previousPlan.expectedReceiptInstallments)?previousPlan.expectedReceiptInstallments:[]);const expectedReceiptInstallments=rawInstallments.map((x:any)=>{const start=date(x.date);const repeatUntil=x.repeatUntil?date(x.repeatUntil):'';const rawInterval=x.repeatEveryMonths===undefined?(repeatUntil?1:0):Number(x.repeatEveryMonths);if(!Number.isInteger(rawInterval)||rawInterval<0||rawInterval>120)throw Error('تكرار الدفعة يجب أن يكون مرة واحدة أو كل 1 إلى 120 شهرًا.');if(rawInterval>0&&!repeatUntil)throw Error('حدد تاريخ نهاية التكرار للدفعة المتكررة.');if(repeatUntil&&repeatUntil<start)throw Error('نهاية تكرار الدفعة يجب ألا تسبق تاريخ بدايتها.');return {date:start,amountMicro:planMoneyMicro(x.amount,'مبلغ دفعة التحصيل المتوقع'),...(repeatUntil?{repeatUntil}:{}),...(rawInterval>0?{repeatEveryMonths:rawInterval}:{})};});if(expectedReceiptInstallments.some((x:any)=>x.amountMicro<=0))throw Error('مبلغ كل دفعة متوقعة يجب أن يكون أكبر من صفر.');put('projectPlan',{project:r.id,effectiveFrom:date(p.planEffectiveFrom||today()),revenueMonthlyMicro:planMoneyMicro(p.expectedMonthlyRevenue||0,'الإيراد الشهري المتوقع'),revenueDailyMicro:planMoneyMicro(p.expectedDailyRevenue||0,'الإيراد اليومي المتوقع'),expenseMonthlyMicro:planMoneyMicro(p.expectedMonthlyExpense||0,'المصروف الشهري المتوقع'),expenseDailyMicro:0,netMonthlyMicro:targetPeriod==='monthly'?targetMicro:Math.round(targetMicro/12),netAnnualMicro:targetPeriod==='annual'?targetMicro:0,netTargetMicro:targetMicro,targetPeriod,expectedReceiptDate:receiptDate,expectedReceiptInstallments,source:'plan_revision',label:'خطة صافي الربح المعدلة'});}description='تعديل إعدادات مشروع: '+r.data.name;}
 else if(action==='setFiscalYear'||action==='fiscalYear'){const start=date(p.start);const end=date(p.end);if(start>=end)throw Error('بداية السنة المالية يجب أن تسبق نهايتها.');if((start.slice(0,4)==='')||(end.slice(0,4)===''))throw Error('تواريخ السنة المالية غير صحيحة.');const same=p.id?w.records.find(x=>x.kind==='fiscalYear'&&x.id===p.id):w.records.find(x=>x.kind==='fiscalYear'&&String(x.data.start)===start&&String(x.data.end)===end);const overlap=w.records.find(x=>x.kind==='fiscalYear'&&x.id!==same?.id&&String(x.data.start)<=end&&String(x.data.end)>=start);if(overlap)throw Error('الفترة تتداخل مع سنة مالية أخرى مسجلة ('+String(overlap.data.start)+' إلى '+String(overlap.data.end)+'). راجع حدود الفترتين.');const data={start,end,label:str(p.label||('السنة المالية '+start+' إلى '+end),120)};if(same)update(same,data);else put('fiscalYear',data);description=(same?'تعديل':'تحديد')+' السنة المالية من '+start+' إلى '+end;}
 else if(action==='closePeriod'){const r=project(p.id);const d=date(p.date);if(d>today()||d<(r.data.closedThrough||''))throw Error('يمكن فقط إقفال فترة منتهية بعد آخر إقفال.');if(r.data.closedThrough&&d===r.data.closedThrough)throw Error('المشروع مقفل بالفعل حتى هذا التاريخ. اختر نهاية فترة مفتوحة لاحقة.');update(r,{...r.data,closedThrough:d});description='إقفال فترة '+r.data.name+' حتى '+d;}
 else if(action==='projectAsset'){

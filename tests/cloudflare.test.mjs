@@ -200,7 +200,10 @@ try{
   w=await (await call()).json();
   assert.equal(w.records.find(r=>r.id===legacyTenantDue.id).data.status,'paid');
   assert.equal(w.records.find(r=>r.id===tenantLease.id).data.installments.filter(x=>x.status==='paid').length,1);
-  assert.equal(w.journals.length,legacyLeaseJournalCount);checks+=4;
+  const legacyTenantReceiptJournal=w.journals.find(j=>j.source==='tenant-rent-payment:'+legacyTenantDue.id);
+  assert(legacyTenantReceiptJournal,'legacy tenant rent receipt must post a journal');
+  assert(legacyTenantReceiptJournal.lines.some(l=>l.account==='revenue'&&l.credit===Number(legacyTenantDue.data.amount||0)),'legacy tenant receipt must increase operating revenue');
+  assert.equal(w.journals.length,legacyLeaseJournalCount+1);checks+=6;
   // Full loan edits correct the receipt and rebuild unpaid installments with reversing journals.
   await expectStatus({method:'POST',body:{action:'loan',requestId:crypto.randomUUID(),payload:{name:'قرض قابل للتعديل',amount:12000,monthlyPayment:1100,months:12,start:date,firstDate:nextMonth(date)}}},200);
   w=await (await call()).json();const editableLoan=w.records.find(r=>r.kind==='loan'&&r.data.name==='قرض قابل للتعديل');
@@ -457,6 +460,100 @@ try{
   assert.equal(w.records.find(r=>r.id===rentCommitment.id).data.status,'cancelled');
   assert.deepEqual(w.records.filter(r=>r.kind==='obligation'&&r.data.projectCommitmentId===rentCommitment.id).sort((a,b)=>a.data.date.localeCompare(b.data.date)).map(r=>r.data.status),['cancelled','cancelled']);
   checks+=4;
+
+  // Actual project costs must post exactly one balanced journal and affect profit only when classified as expense.
+  const projectCostTestProject=await createTestProject('مشروع اختبار ترحيل التكلفة');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:projectCostTestProject,sourceType:'personal',amount:1000,date,memo:'تمويل تكلفة المشروع'}}},200);
+  const costRequestId=crypto.randomUUID();
+  const costPayload={action:'projectCost',requestId:costRequestId,payload:{project:projectCostTestProject,title:'اختبار مصروف فعلي',amount:100,date,category:'maintenance',paymentAccount:'cash',treatment:'expense'}};
+  await expectStatus({method:'POST',body:costPayload},200);
+  w=await (await call()).json();
+  const projectCostRecord=w.records.find(r=>r.kind==='projectCost'&&r.data.project===projectCostTestProject&&r.data.title==='اختبار مصروف فعلي');
+  assert(projectCostRecord,'actual project cost record must persist');
+  const projectCostJournal=w.journals.find(j=>j.source==='project-cost:'+projectCostRecord.id);
+  assert(projectCostJournal,'actual project cost must create a linked accounting journal');
+  assert.equal(projectCostJournal.lines.reduce((n,l)=>n+l.debit,0),10000,'cost journal debit must match amount in halalas');
+  assert.equal(projectCostJournal.lines.reduce((n,l)=>n+l.credit,0),10000,'cost journal credit must balance exactly');
+  assert(projectCostJournal.lines.some(l=>l.account==='expense'&&l.debit===10000),'expense treatment must debit operating expense');
+  assert(projectCostJournal.lines.some(l=>l.account==='cash'&&l.credit===10000),'expense treatment must credit selected payment account');
+  assert.equal((await (await call()).json()).journals.filter(j=>j.source==='project-cost:'+projectCostRecord.id).length,1);
+  const replay=await call({method:'POST',body:costPayload});
+  assert.equal(replay.status,200,'replaying the same request must be idempotent');
+  w=await (await call()).json();
+  assert.equal(w.journals.filter(j=>j.source==='project-cost:'+projectCostRecord.id).length,1,'replayed cost request must not post a duplicate journal');
+  checks+=7;
+
+  // Capitalized project costs must be recorded as assets and must not reduce current profit.
+  await expectStatus({method:'POST',body:{action:'projectCost',requestId:crypto.randomUUID(),payload:{project:projectCostTestProject,title:'اختبار تكلفة رأسمالية',amount:200,date,category:'construction',paymentAccount:'cash',treatment:'asset'}}},200);
+  w=await (await call()).json();
+  const capitalizedCost=w.records.find(r=>r.kind==='projectCost'&&r.data.project===projectCostTestProject&&r.data.title==='اختبار تكلفة رأسمالية');
+  const capitalizedJournal=w.journals.find(j=>j.source==='project-cost:'+capitalizedCost.id);
+  assert(capitalizedJournal,'capitalized cost must create a linked journal');
+  assert(capitalizedJournal.lines.some(l=>l.account==='investment'&&l.debit===20000),'capitalized cost must debit project investment asset');
+  assert.equal(capitalizedJournal.lines.filter(l=>l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0,'capitalized cost must not directly affect profit');
+  checks+=3;
+
+  // Cancelling a posted project cost must reverse its ledger entry and retain the record.
+  await expectStatus({method:'POST',body:{action:'cancelProjectCost',requestId:crypto.randomUUID(),payload:{id:projectCostRecord.id,date,reason:'اختبار إلغاء مصروف'}}},200);
+  w=await (await call()).json();
+  const cancelledProjectCost=w.records.find(r=>r.id===projectCostRecord.id);
+  assert.equal(cancelledProjectCost.data.status,'cancelled');
+  assert(w.journals.some(j=>j.reversal===projectCostJournal.id),'cancelling a posted cost must add a reversal instead of deleting the journal');
+  checks+=2;
+
+  // Legacy costs are never auto-posted; explicit review posts them once with selected account/treatment.
+  const legacyCostId='legacy-cost-'+crypto.randomUUID();
+  await db.prepare('INSERT INTO records(id,owner,kind,data,version,created) VALUES(?,?,?,?,?,?)')
+    .bind(legacyCostId,'cloudflare-owner','projectCost',JSON.stringify({project:projectCostTestProject,title:'تكلفة قديمة غير مرحّلة',amount:5000,date,category:'maintenance',notes:'legacy test',status:'active',createdAt:new Date().toISOString()}),1,new Date().toISOString()).run();
+  w=await (await call()).json();
+  assert(!w.journals.some(j=>j.source==='project-cost:'+legacyCostId),'legacy costs must not silently alter historical cash/profit');
+  await expectStatus({method:'POST',body:{action:'postLegacyProjectCost',requestId:crypto.randomUUID(),payload:{id:legacyCostId,paymentAccount:'cash',treatment:'expense'}}},200);
+  w=await (await call()).json();
+  const legacyCostJournal=w.journals.find(j=>j.source==='project-cost:'+legacyCostId);
+  assert(legacyCostJournal,'reviewed legacy cost must be posted to the ledger');
+  assert(legacyCostJournal.lines.some(l=>l.account==='expense'&&l.debit===5000));
+  await expectStatus({method:'POST',body:{action:'postLegacyProjectCost',requestId:crypto.randomUUID(),payload:{id:legacyCostId,paymentAccount:'cash',treatment:'expense'}}},400);
+  await expectStatus({method:'POST',body:{action:'cancelProjectCost',requestId:crypto.randomUUID(),payload:{id:legacyCostId,date,reason:'اختبار إلغاء تكلفة قديمة'}}},200);
+  w=await (await call()).json();
+  assert.equal(w.records.find(r=>r.id===legacyCostId).data.status,'cancelled');
+  assert(w.journals.some(j=>j.reversal===legacyCostJournal.id));
+  checks+=5;
+
+  // Deleting a project with financial history must archive it, not reverse/delete its accounting history.
+  const archivedProjectId=await createTestProject('مشروع اختبار حماية التاريخ');
+  await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,sourceType:'personal',amount:500,date,memo:'تمويل تاريخ المشروع'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,title:'التزام يجب تسويته بعد الأرشفة',costType:'expense',totalAmount:50,scheduleType:'once',firstDate:date,installmentCount:1}}},200);
+  w=await (await call()).json();
+  const archivedProjectDue=w.records.find(r=>r.kind==='obligation'&&r.data.project===archivedProjectId&&r.data.title.includes('التزام يجب تسويته'));
+  assert(archivedProjectDue,'project obligation must remain available for settlement after archival');
+  const archivedProjectRecord=w.records.find(r=>r.id===archivedProjectId&&r.kind==='project');
+  const archivedFunding=w.records.find(r=>r.kind==='projectFunding'&&r.data.project===archivedProjectId);
+  const archivedFundingJournal=w.journals.find(j=>j.source==='projectFunding:'+archivedFunding.id);
+  assert(archivedFundingJournal,'test funding must have a posted journal before project archive');
+  await expectStatus({method:'POST',body:{action:'deleteProject',requestId:crypto.randomUUID(),payload:{id:archivedProjectId,version:archivedProjectRecord.version,confirmName:archivedProjectRecord.data.name,reason:'اختبار حماية التاريخ المحاسبي'}}},200);
+  w=await (await call()).json();
+  const archivedProjectAfter=w.records.find(r=>r.id===archivedProjectId&&r.kind==='project');
+  assert.equal(archivedProjectAfter.data.status,'archived','project with posted financial history must be soft-archived');
+  assert(w.journals.some(j=>j.id===archivedFundingJournal.id),'archiving must preserve the original funding journal');
+  assert(!w.journals.some(j=>j.reversal===archivedFundingJournal.id),'archiving must not reverse historical profit/cash effects');
+  assert(w.records.some(r=>r.id===archivedFunding.id),'archiving must preserve linked financial records');
+  await expectStatus({method:'POST',body:{action:'projectCost',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,title:'يجب رفض التكلفة الجديدة',amount:10,date,category:'other',paymentAccount:'cash',treatment:'expense'}}},400);
+  await expectStatus({method:'POST',body:{action:'projectSchedulePayment',requestId:crypto.randomUUID(),payload:{id:archivedProjectDue.id,date,paymentAccount:'cash'}}},200);
+  w=await (await call()).json();
+  assert.equal(w.records.find(r=>r.id===archivedProjectDue.id).data.status,'paid','existing project obligations must remain settleable after archival');
+  assert(w.journals.some(j=>j.source==='project-commitment-payment:'+archivedProjectDue.id),'settling archived-project obligation must still post accounting');
+  checks+=7;
+
+  // An empty project may still be permanently deleted together with its unfinancial baseline plan.
+  const emptyProjectId=await createTestProject('مشروع فارغ قابل للحذف');
+  w=await (await call()).json();
+  const emptyProjectRecord=w.records.find(r=>r.id===emptyProjectId&&r.kind==='project');
+  assert(emptyProjectRecord);
+  await expectStatus({method:'POST',body:{action:'deleteProject',requestId:crypto.randomUUID(),payload:{id:emptyProjectId,version:emptyProjectRecord.version,confirmName:emptyProjectRecord.data.name,reason:'حذف مشروع اختبار فارغ'}}},200);
+  w=await (await call()).json();
+  assert(!w.records.some(r=>r.id===emptyProjectId),'empty project should be permanently deleted');
+  assert(!w.records.some(r=>r.kind==='projectPlan'&&r.data.project===emptyProjectId),'empty project baseline plan should be removed with the empty project');
+  checks+=3;
 
   const logout=await call({path:'/auth/logout',method:'POST'});
   assert.equal(logout.status,302);assert.equal(logout.headers.get('location'),'/login');

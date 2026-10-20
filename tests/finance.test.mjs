@@ -263,20 +263,7 @@ w=await read();const cancelledFunding=w.records.find(r=>r.kind==='projectFunding
 await ok('cancelFunding',{id:cancelledFunding.id,date:T,reason:'اختبار إلغاء'});
 await fail('fundingRepayment',{fundingId:cancelledFunding.id,amount:1,date:T,memo:'لا يجوز استرداد تمويل ملغى'});
 checks+=8;
-// Full project deletion is explicit and destructive, so require exact project-name confirmation.
-w=await read();
-const projectToDelete=w.records.find(r=>r.kind==='project'&&r.id===a);
-assert(projectToDelete);
-await fail('deleteProject',{id:a,confirmName:'اسم خاطئ',reason:'اختبار'});
-await ok('deleteProject',{id:a,confirmName:projectToDelete.data.name,reason:'حذف بيانات اختبار'});
-w=await read();
-assert.equal(w.records.some(r=>r.id===a),false);
-assert.equal(w.records.some(r=>r.data&&Object.values(r.data).some(v=>v===a)),false);
-const remainingProjectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===a));
-assert(remainingProjectJournals.length>0);
-assert(remainingProjectJournals.filter(j=>!j.reversal).every(j=>w.journals.some(x=>x.reversal===j.id)));
-assert.equal(Object.values(f.balance(w)).reduce((sum,v)=>sum+v,0),0);
-checks+=4;
+
 
 // Annual owner settlement: entitlement must be based on fiscal-year profit, allocated exactly once, and remain a distribution (not an expense).
 await ok('project',{name:'مالك 1',activity:'اختبار',mode:'operating',ownership:100,reserve:0,payout:100});
@@ -289,6 +276,14 @@ await ok('entry',{project:ownerP1,kind:'expense',amount:2000,date:T,memo:'مصر
 await ok('dailyReport',{project:ownerP2,date:T,manager:'مدير المالك 2',gross:5000,channels:{cash:0,bank:5000,mada:0,visa:0,mastercard:0,receivable:0},memo:'إيراد المالك 2'});
 await ok('entry',{project:ownerP2,kind:'expense',amount:1000,date:T,memo:'مصروف المالك 2'});
 await ok('setOwnerPolicy',{percent:20,effectiveFrom:T});
+w=await read();
+// Isolate the owner-distribution fixture from unrelated projects created by earlier tests.
+const isolatedProjectModes=new Map(w.records.filter(r=>r.kind==='project'&&![ownerP1,ownerP2].includes(r.id)&&r.data.mode==='operating').map(r=>[r.id,r.data.mode]));
+for(const isolatedId of isolatedProjectModes.keys()){
+  const record=w.records.find(r=>r.id===isolatedId);
+  await db.prepare('UPDATE records SET data=?,version=version+1 WHERE id=? AND owner=?')
+    .bind(JSON.stringify({...record.data,mode:'investment'}),isolatedId,'test-owner').run();
+}
 w=await read();
 assert.equal(f.profit(w,ownerP1,T,T).net,800000);
 assert.equal(f.profit(w,ownerP2,T,T).net,400000);
@@ -306,6 +301,13 @@ assert.equal(f.accountingControlTotals(w,T,T,'all').balanceCheck,0);
 assert.equal(f.accountingControlTotals(w,T,T,'all').cashFlowDifference,0);
 await fail('annualOwnerDistribution',{year:Number(T.slice(0,4)),paymentAccount:'bank'});
 checks+=12;
+w=await read();
+for(const [isolatedId,originalMode] of isolatedProjectModes){
+  const record=w.records.find(r=>r.id===isolatedId);
+  await db.prepare('UPDATE records SET data=?,version=version+1 WHERE id=? AND owner=?')
+    .bind(JSON.stringify({...record.data,mode:originalMode}),isolatedId,'test-owner').run();
+}
+w=await read();
 
 // Independent Balance Sheet + Cash Flow reconciliation fixture: the same ledger must satisfy both controls.
 const reconciliationFixture={records:[],audit:[],journals:[
@@ -457,6 +459,25 @@ await fail('cancelDue',{id:landInstallments[1].id,reason:'اختبار منع إ
 w=await read();
 assert.equal(w.records.find(r=>r.id===landInstallments[1].id)?.data.status,'pending','a land installment cannot be cancelled without updating the contract liability');
 checks+=13;
+
+// Project deletion must archive financial history instead of deleting records or reversing historical activity.
+w=await read();
+const projectToDelete=w.records.find(r=>r.kind==='project'&&r.id===a);
+assert(projectToDelete);
+await fail('deleteProject',{id:a,confirmName:'اسم خاطئ',reason:'اختبار'});
+const journalsBeforeProjectArchive=w.journals.filter(j=>j.lines.some(l=>l.project===a));
+const journalCountBeforeProjectArchive=w.journals.length;
+await ok('deleteProject',{id:a,confirmName:projectToDelete.data.name,reason:'اختبار أرشفة مع حفظ التاريخ'});
+w=await read();
+const archivedProject=w.records.find(r=>r.kind==='project'&&r.id===a);
+assert(archivedProject);
+assert.equal(archivedProject.data.status,'archived');
+assert(w.records.some(r=>r.id!==a&&r.data&&Object.values(r.data).some(v=>v===a)),'linked project history must remain available');
+assert.equal(w.journals.length,journalCountBeforeProjectArchive,'archiving must not generate reversals that erase historical activity');
+const remainingProjectJournals=w.journals.filter(j=>j.lines.some(l=>l.project===a));
+assert.equal(remainingProjectJournals.length,journalsBeforeProjectArchive.length);
+assert.equal(Object.values(f.balance(w)).reduce((sum,v)=>sum+v,0),0);
+checks+=5;
 
 // Final integrated reconciliation: every remaining ledger scope must agree with the balance sheet and cash-flow controls after all mutations above.
 w=await read();

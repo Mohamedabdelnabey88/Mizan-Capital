@@ -14,7 +14,16 @@ await build({
   alias:{'@':process.cwd()},
   outfile:'.sites-runtime/accounting-invariants-finance.mjs'
 });
+await build({
+  entryPoints:['lib/project-performance.ts'],
+  bundle:true,
+  format:'esm',
+  platform:'node',
+  alias:{'@':process.cwd()},
+  outfile:'.sites-runtime/accounting-invariants-project-performance.mjs'
+});
 const f=await import('../.sites-runtime/accounting-invariants-finance.mjs');
+const performance=await import('../.sites-runtime/accounting-invariants-project-performance.mjs');
 
 const workspace={
   records:[
@@ -193,5 +202,52 @@ for(const [principal,rate,months] of [[100001,0,7],[1234567,3.75,18],[987654321,
   assert(schedule.every(row=>row.principal>=0&&row.interest>=0&&row.amount===row.principal+row.interest),'loan schedule rows must contain nonnegative and internally consistent values');
   assert.equal(schedule.at(-1).date, f.monthAdd('2026-01-31',months-1),'loan schedule must preserve clamped month-end dates');
 }
+
+// Project revenue forecast must extrapolate the average across reported days to the full selected period.
+const performanceWorkspace={
+  records:[
+    {id:'forecast-project',kind:'project',version:1,data:{name:'Forecast project',mode:'operating'}},
+    {id:'forecast-plan',kind:'projectPlan',version:1,data:{
+      project:'forecast-project',effectiveFrom:'2026-01-01',
+      revenueDailyMicro:0, revenueMonthlyMicro:0,
+      expenseDailyMicro:100000, expenseMonthlyMicro:0,
+      netDailyMicro:0, netMonthlyMicro:0
+    }}
+  ],
+  journals:[
+    {id:'daily-1',date:'2026-01-01',kind:'dailyReport',memo:'daily 1',lines:[
+      {project:'forecast-project',account:'cash',debit:1000,credit:0},
+      {project:'forecast-project',account:'revenue',debit:0,credit:1000}
+    ]},
+    {id:'daily-2',date:'2026-01-02',kind:'dailyReport',memo:'daily 2',lines:[
+      {project:'forecast-project',account:'cash',debit:1000,credit:0},
+      {project:'forecast-project',account:'revenue',debit:0,credit:1000}
+    ]}
+  ],
+  audit:[]
+};
+const projectForecast=performance.projectPerformance(performanceWorkspace,'forecast-project','2026-01-01','2026-01-10');
+assert.equal(projectForecast.reportedDays,2);
+assert.equal(projectForecast.actualRevenueMicro,2000000);
+assert.equal(projectForecast.forecastRevenueMicro,10000000,'forecast must multiply average reported-day revenue by the full 10-day period');
+assert.equal(projectForecast.expectedExpenseMicro,1000000);
+assert.equal(projectForecast.forecastNetMicro,9000000,'forecast net must subtract the selected-period planned expenses from forecast revenue');
+
+// Project cost cash flow follows accounting treatment: operating expense vs capitalized project asset.
+const projectCostFlowWorkspace={records:[],audit:[],journals:[
+  {id:'project-cost-expense',date:'2026-05-01',memo:'مصروف مشروع',kind:'projectCost',source:'project-cost:expense',lines:[
+    {project:'p1',account:'expense',debit:10000,credit:0},
+    {project:'p1',account:'cash',debit:0,credit:10000}
+  ]},
+  {id:'project-cost-asset',date:'2026-05-02',memo:'أصل مشروع',kind:'projectCost',source:'project-cost:asset',lines:[
+    {project:'p1',account:'investment',debit:20000,credit:0},
+    {project:'p1',account:'bank',debit:0,credit:20000}
+  ]}
+]};
+const projectCostCashFlow=f.actualCashFlow(projectCostFlowWorkspace,'p1','2026-05-01','2026-05-31');
+assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-01').operatingOut,10000,'expense-treated project cost must be operating cash outflow');
+assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-01').otherOut,0,'expense-treated project cost must not be classified as other outflow');
+assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-02').investingOut,20000,'capitalized project cost must be investing cash outflow');
+assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-02').otherOut,0,'capitalized project cost must not be classified as other outflow');
 
 console.log('Accounting invariant tests passed: balanced journals, loan principal vs interest, profit isolation, forecast isolation, balance sheet, cash-flow reconciliation, inter-project funding, and invalid journal rejection.');

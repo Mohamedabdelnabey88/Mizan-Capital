@@ -228,6 +228,7 @@ export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=
     return category(original,next);
    }
   }
+  if(kind==='projectCost')return j.lines.some(l=>(l.account==='investment'||l.account==='fixed')&&l.debit>0)?'investing':'operating';
   if(['income','collect','dailyReport','cardSettlement','expense','paybill','cogs','inventory','salary'].includes(kind))return 'operating';
   if(['asset','invest','dividend','returnCapital','investmentStart','investmentReturn'].includes(kind))return 'investing';
   if(['capital','loan','prepay','distribution','annualOwnerDistribution'].includes(kind))return 'financing';

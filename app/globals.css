@@ -1276,3 +1276,52 @@ img, video, canvas, iframe { max-width: 100%; }
 @media(max-width:1100px){.contract-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.contract-kpi-grid>.panel{min-height:190px}}
 @media(max-width:520px){.contract-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:18px}.contract-kpi-grid>.panel{padding:15px 13px 12px!important;min-height:177px;border-radius:14px}.contract-kpi-grid .contract-kpi-icon{width:36px;height:36px;border-radius:11px;margin-bottom:10px}.contract-kpi-grid .stat-label{font-size:12px}.contract-kpi-grid .stat-value{font-size:27px}.contract-kpi-grid .contract-kpi-money{font-size:19px}.contract-kpi-grid .stat-foot{font-size:10px}.contract-kpi-grid .contract-kpi-bottom{font-size:10px;padding-top:10px}}
 @media(prefers-reduced-motion:reduce){.contract-kpi-grid>.panel{transition:none}}
+
+/* Premium projects directory: generous spacing, clear information hierarchy, restrained motion */
+.project-page-filters{gap:12px;padding:14px 16px;border:1px solid var(--border,#e3e9e5);border-radius:17px;background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(246,250,247,.92));box-shadow:0 4px 16px rgba(25,55,39,.035);margin-bottom:22px}
+.project-page-filters .project-search{flex:1 1 260px;min-width:220px}
+.project-page-filters .project-filter-select{min-width:155px}
+.project-page-filters .project-filter-count{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:7px 12px;border-radius:999px;background:#edf5ef;color:#2e6644;font-size:12px;font-weight:750;white-space:nowrap}
+.project-page-filters .project-filter-reset{border-radius:10px}
+.project-page-filters input,.project-page-filters select{min-height:42px}
+.project-grid:has(>.project-organizer-card){grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;align-items:start}
+.project-grid>.project-organizer-card{position:relative;min-width:0;padding:24px!important;border:1px solid #e0e9e2!important;border-radius:22px!important;background:linear-gradient(155deg,#fff 0%,#fff 63%,#f7fbf8 100%)!important;box-shadow:0 7px 22px rgba(23,57,38,.055)!important;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.project-grid>.project-organizer-card:before{content:"";position:absolute;inset:0 0 auto;height:4px;border-radius:22px 22px 0 0;background:linear-gradient(90deg,#2b7650,#8dc7a0)}
+.project-grid>.project-organizer-card:hover{transform:translateY(-3px);border-color:#c8ddce!important;box-shadow:0 15px 34px rgba(23,57,38,.095)!important}
+.project-grid .project-organizer-head{gap:12px;margin:2px 0 22px;padding-bottom:18px;border-bottom:1px solid #edf1ed}
+.project-grid .project-organizer-symbol{width:52px;height:52px;border-radius:16px;background:linear-gradient(145deg,#e5f4e9,#f2f9f4);color:#247348;box-shadow:inset 0 0 0 1px rgba(36,115,72,.07)}
+.project-grid .project-organizer-name h2{font-size:clamp(19px,1.6vw,24px);letter-spacing:-.025em;line-height:1.45;color:#163c29}
+.project-grid .project-organizer-name p{font-size:12px;color:#77867c;margin-top:5px}
+.project-grid .project-organizer-head>.tag{max-width:145px;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:750}
+.project-grid .project-organizer-head .icon-button{width:36px;height:36px;border:1px solid #e5ece6;border-radius:11px;background:#fff;color:#5b7061;transition:background .18s ease,color .18s ease,transform .18s ease}
+.project-grid .project-organizer-head .icon-button:hover{background:#edf6ef;color:#226a40;transform:translateY(-1px)}
+.project-grid .project-organizer-head .project-delete-button:hover{background:#fff0f0;color:#c43f4b}
+.project-grid .project-organizer-stats{gap:11px;margin-bottom:18px}
+.project-grid .project-organizer-stat{padding:16px 14px 15px;border:1px solid #e6eee7;border-radius:16px;background:linear-gradient(150deg,#fff,#f9fcfa);gap:8px;min-height:119px}
+.project-grid .project-organizer-stat:nth-child(1){border-top:3px solid #3c8a60}
+.project-grid .project-organizer-stat:nth-child(2){border-top:3px solid #d59a36}
+.project-grid .project-organizer-stat:nth-child(3){border-top:3px solid #617ce0}
+.project-grid .project-organizer-stat>span{font-size:11px;font-weight:650;color:#6c7b70}
+.project-grid .project-organizer-stat>strong{font-size:clamp(16px,1.45vw,22px);color:#193e2b;line-height:1.45;font-variant-numeric:tabular-nums}
+.project-grid .project-organizer-stat>small{font-size:10px;line-height:1.65;color:#849087}
+.project-grid .project-organizer-contract{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 22px;padding:4px 0 14px;margin-bottom:14px;border-bottom:1px solid #e9efea}
+.project-grid .project-organizer-contract>div{padding:11px 0;gap:10px;border-bottom:1px dashed #e8eee9}
+.project-grid .project-organizer-contract>div:nth-last-child(-n+2){border-bottom:0}
+.project-grid .project-organizer-contract span{font-size:11px;line-height:1.7;color:#7a887e}
+.project-grid .project-organizer-contract strong{font-size:11px;line-height:1.75;color:#2e4736;font-weight:750}
+.project-grid .project-organizer-actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:18px 0 13px}
+.project-grid .project-organizer-actions .btn{min-height:46px;padding:11px 12px;border-radius:12px;font-size:12px;font-weight:700;box-shadow:none;transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+.project-grid .project-organizer-actions .btn:hover{transform:translateY(-1px);box-shadow:0 5px 13px rgba(24,61,40,.08)}
+.project-grid .project-organizer-actions .btn.primary{background:linear-gradient(135deg,#2f8052,#246b42)}
+.project-grid .project-child-list{margin-top:16px;border:1px solid #e5ede6;border-radius:16px;background:#fbfdfb;overflow:hidden}
+.project-grid .project-child-list-head{padding:15px 16px;background:linear-gradient(100deg,#f1f8f3,#fbfdfb);border-bottom:1px solid #e8efe9}
+.project-grid .project-child-item{padding:13px 14px;transition:background .16s ease}
+.project-grid .project-child-item:hover{background:#f0f8f2}
+.project-grid .project-child-item-icon{border-radius:11px;background:#e7f3ea;color:#287249}
+.project-grid .project-organizer-ledger,.project-grid .project-legacy-tools{border-radius:15px;border-color:#e4ece5;background:#fff}
+.project-grid .project-organizer-ledger>summary,.project-grid .project-legacy-tools>summary{min-height:52px;padding:14px 16px;color:#2d5c3e}
+.project-empty{padding:28px;border:1px dashed #cddbd0;border-radius:17px;background:#f8fbf8;line-height:1.9}
+@media(max-width:1180px){.project-grid:has(>.project-organizer-card){grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.project-grid>.project-organizer-card{padding:19px!important}.project-grid .project-organizer-stats{gap:8px}.project-grid .project-organizer-stat{padding:13px 10px}.project-grid .project-organizer-contract{gap:0 14px}}
+@media(max-width:760px){.project-grid:has(>.project-organizer-card){grid-template-columns:minmax(0,1fr);gap:16px}.project-grid>.project-organizer-card{padding:19px!important}.project-page-filters{padding:12px;gap:10px}.project-page-filters .project-search{flex-basis:100%;min-width:0}.project-page-filters .project-filter-select{flex:1 1 140px;min-width:0}.project-page-filters .project-filter-count{flex:1}.project-grid .project-organizer-name h2{font-size:20px}.project-grid .project-organizer-contract{gap:0 14px}}
+@media(max-width:430px){.project-grid>.project-organizer-card{padding:15px!important;border-radius:17px!important}.project-grid .project-organizer-head{gap:8px;flex-wrap:wrap}.project-grid .project-organizer-symbol{width:43px;height:43px}.project-grid .project-organizer-name{flex-basis:calc(100% - 110px)}.project-grid .project-organizer-head>.tag{order:4;margin-right:51px}.project-grid .project-organizer-stats{grid-template-columns:1fr;gap:8px}.project-grid .project-organizer-stat{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 12px;padding:12px 13px}.project-grid .project-organizer-stat>span{grid-column:1;grid-row:1}.project-grid .project-organizer-stat>strong{grid-column:2;grid-row:1/3;text-align:left;font-size:18px}.project-grid .project-organizer-stat>small{grid-column:1;grid-row:2}.project-grid .project-organizer-contract{grid-template-columns:1fr;gap:0}.project-grid .project-organizer-contract>div:nth-last-child(-n+2){border-bottom:1px dashed #e8eee9}.project-grid .project-organizer-contract>div:last-child{border-bottom:0}.project-grid .project-organizer-actions{grid-template-columns:1fr}.project-page-filters .project-filter-reset{flex:1}}
+@media(prefers-reduced-motion:reduce){.project-grid>.project-organizer-card,.project-grid .project-organizer-head .icon-button,.project-grid .project-organizer-actions .btn{transition:none}}

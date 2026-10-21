@@ -1,6 +1,6 @@
 import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
-import {mkdirSync} from 'node:fs';
+import {mkdirSync,readFileSync} from 'node:fs';
 
 const require=createRequire(import.meta.url);
 const wr=createRequire(require.resolve('wrangler/package.json'));
@@ -24,6 +24,14 @@ await build({
 });
 const f=await import('../.sites-runtime/accounting-invariants-finance.mjs');
 const performance=await import('../.sites-runtime/accounting-invariants-project-performance.mjs');
+
+// Owner-advance repayment must stay reachable from the dashboard and cannot be posted before the original advance date.
+const ownerAdvanceWorkerSource=readFileSync('cloudflare/workspace.ts','utf8');
+const ownerAdvanceUiSource=readFileSync('app/page.tsx','utf8');
+assert.match(ownerAdvanceWorkerSource,/else if\(action==='repayOwnerAdvance'\)/,'owner advance repayment action must exist in the worker');
+assert.match(ownerAdvanceWorkerSource,/if\(dt<date\(d\.date\)\)throw Error\('تاريخ رد السلفة لا يمكن أن يسبق تاريخ تسجيلها\.'\)/,'repayment date cannot precede the original advance');
+assert.match(ownerAdvanceUiSource,/onClick=\{\(\)=>go\('commitments'\)\}>إدارة السلف وردّها/,'dashboard owner-advance management must open the commitments list');
+assert.match(ownerAdvanceUiSource,/min:form\.advanceDate\|\|undefined/,'repayment date picker must respect the original advance date');
 
 // Credit-normal ledger accounts are stored as debit-minus-credit, but must display with their natural sign.
 assert.equal(f.normalBalance('capital',-125000),125000,'a normal owner-capital credit balance must display as positive capital');

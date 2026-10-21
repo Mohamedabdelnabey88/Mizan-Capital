@@ -14,11 +14,18 @@ export default {
   const url=new URL(request.url);
   if(!url.pathname.startsWith('/api/')&&!url.pathname.startsWith('/auth/'))return env.ASSETS.fetch(request);
   try{
-   if(url.pathname==='/auth/login'){if(request.method==='GET')return secured(Response.redirect(new URL('/login',url).toString(),302));return secured(await login(request,env));}
+   if(url.pathname==='/auth/login'){
+    if(request.method==='GET')return secured(Response.redirect(new URL('/login',url).toString(),302));
+    const origin=request.headers.get('Origin');
+    // Vercel's server-side proxy intentionally sends no Origin; browser cross-site POSTs are rejected.
+    if((origin&&origin!==url.origin)||request.headers.get('Sec-Fetch-Site')==='cross-site')return secured(Response.json({error:'طلب غير مسموح'},{status:403}));
+    return secured(await login(request,env));
+   }
    if(url.pathname==='/auth/logout')return secured(await logout(request,env));
    if(url.pathname==='/auth/health'){
-    const sessions=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('auth_sessions','auth_attempts') ORDER BY name").all();
-    return secured(Response.json({ok:true,tables:sessions.results?.map((r:any)=>r.name)||[]}));
+    const found=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('auth_sessions','auth_attempts')").first<{n:number}>();
+    const ready=Number(found?.n)===2;
+    return secured(Response.json({ok:ready},{status:ready?200:503}));
    }
    const identity=await verifyAccess(request,env);
    if(url.pathname==='/api/session'){

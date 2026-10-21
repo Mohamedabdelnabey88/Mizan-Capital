@@ -1,6 +1,6 @@
 # ميزان — إدارة المشاريع ورأس المال
 
-Private Arabic financial workspace with a standalone Cloudflare Workers deployment and the original Sites build. For the configured Cloudflare account, follow [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md). Amounts are stored as integer halalas. Requests are scoped to the authenticated owner: standalone Cloudflare verifies Access signatures and an explicit allowlist (owner plus up to two members sharing one workspace), while the original Sites build uses its authenticated gateway. Accounting journals are balanced, immutable, idempotent and corrected using reversal entries. D1 batches make posting and associated state changes atomic; optimistic project locks prevent simultaneous financial mutations from evaluating stale balances.
+Private Arabic financial workspace with a Next.js UI on Vercel and a Cloudflare Worker/D1 backend. For setup, follow [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md). Amounts are stored as integer halalas. The standalone Worker authenticates the single configured owner through password verification and server-side D1 sessions; the original Sites build retains its separate authenticated gateway. Accounting journals are balanced, append-only, idempotent and corrected using reversal entries. D1 batches make posting and associated state changes atomic; optimistic project locks prevent simultaneous financial mutations from evaluating stale balances.
 
 ## Implemented
 
@@ -44,12 +44,16 @@ The API trusts `oai-authenticated-user-id` only behind the Sites authenticated g
 - Internal funding repayments reduce the borrower's payable and lender's receivable without recording profit. The repayment cannot exceed the amount recorded for that project pair.
 - Payroll renewal starts after the employee's last scheduled month, retains the original day-of-month convention and does not modify paid or previously scheduled amounts.
 
-## Cloudflare deployment in 0.3.0
+## Cloudflare deployment and authentication
 
-Standalone Worker entrypoint: `cloudflare/worker.ts`. Build with `pnpm build:cloudflare` and publish with `pnpm deploy:cloudflare` after configuring Access. The frontend is client-rendered so static page rendering does not consume Worker CPU. The existing Sites commands remain available. Cloudflare API access fails closed until `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` and `OWNER_EMAIL` are set. Client-supplied identity headers are overwritten after JWT verification; cross-origin mutations are rejected.
+The standalone Worker entrypoint is `cloudflare/worker.ts`; the production Next.js UI on Vercel proxies `/api/workspace`, `/api/session`, and `/api/auth/*` to the Worker. Build with `pnpm build:cloudflare`. Deployment runs the D1 migrations and publishes the Worker, so do not deploy a branch or preview against the production database.
 
-Bulk obligation insert/update operations reduce query count for long schedules and retain D1 transaction rollback and optimistic concurrency checks. A separate test suite exercises the actual standalone Worker, forged/expired tokens, owner restrictions, 360-installment loans and concurrent payroll renewals.
+Authentication uses a password verifier in `cloudflare/access.ts` and server-side sessions in D1. The session cookie is `HttpOnly; Secure; SameSite=Lax`, and only a SHA-256 hash of the random session token is stored in `auth_sessions`. Logout revokes the server-side session. The current configuration has one owner/workspace; employee records are not login accounts. Do not change the `USERS` entry without an explicit owner-approved credential-rotation procedure.
 
-## Team login
+Login attempts are limited to 5 per client-IP/email and 30 per email in a 15-minute window. Browser-facing login and workspace writes enforce same-origin checks. The Vercel proxy sets the Worker Origin for the upstream workspace request; the Worker removes client-supplied `oai-authenticated-*` headers and derives identity from the verified session.
 
-The Cloudflare frontend includes a responsive Arabic login page at `/login` and verifies `/api/session` before loading the workspace. Access handles email verification. Set `MEMBER_EMAILS` to up to two comma-separated addresses and allow the same addresses in Access. All three users have equal financial access; every new audit record includes the verified actor email. Existing workspace data is preserved. See the setup guide for routing, revocation, and required runtime settings.
+## Database integrity
+
+Migration `0003_integrity_guards.sql` adds database-level checks for append-only journals and audit records, valid JSON records, journal line shape, integer non-negative halala amounts, and balanced debit/credit totals. The database cannot verify account semantics such as whether financing was incorrectly categorized as revenue; those rules remain in application validation and accounting tests. Referential links embedded inside record JSON are still validated by application code.
+
+`GET /api/workspace` can materialize due accruals idempotently. The Worker reuses the loaded snapshot when no journal rows are written and reloads after writes. Run `pnpm typecheck`, `pnpm test`, `pnpm test:cloudflare`, and `pnpm test:export` before opening a PR. Tests use isolated local D1 data and must not target production.

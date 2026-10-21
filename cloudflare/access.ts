@@ -5,6 +5,7 @@ const SESSION_COOKIE='mizan_session';
 const SESSION_SECONDS=60*60*24*7;
 const LOGIN_WINDOW_SECONDS=15*60;
 const MAX_ATTEMPTS=5;
+const MAX_EMAIL_ATTEMPTS=30;
 const USERS=[{
   email:'famaradona89@gmail.com',
   workspace:'cloudflare-owner',
@@ -34,19 +35,25 @@ function sessionCookie(token:string,maxAge=SESSION_SECONDS){
   return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 }
 async function attemptKey(request:Request,email:string){return sha256((request.headers.get('cf-connecting-ip')||'unknown')+'|'+email);}
-async function checkRateLimit(request:Request,env:AccessEnvironment,email:string){
-  const key=await attemptKey(request,email),now=Math.floor(Date.now()/1000);
-  const row=await env.DB.prepare('SELECT count, first_attempt FROM auth_attempts WHERE id=?').bind(key).first<any>();
-  if(row&&now-row.first_attempt<LOGIN_WINDOW_SECONDS&&row.count>=MAX_ATTEMPTS)throw new AccessError(429,'محاولات كثيرة. حاول مرة أخرى بعد 15 دقيقة.');
-  if(row&&now-row.first_attempt>=LOGIN_WINDOW_SECONDS)await env.DB.prepare('DELETE FROM auth_attempts WHERE id=?').bind(key).run();
-  return key;
-}
-async function recordFailure(env:AccessEnvironment,key:string){
+async function emailKey(email:string){return sha256('email|'+email);}
+async function consumeBucket(env:AccessEnvironment,key:string){
   const now=Math.floor(Date.now()/1000);
-  await env.DB.prepare(`INSERT INTO auth_attempts(id,count,first_attempt) VALUES(?,1,?)
-    ON CONFLICT(id) DO UPDATE SET count=CASE WHEN ?-first_attempt>=? THEN 1 ELSE count+1 END,
-    first_attempt=CASE WHEN ?-first_attempt>=? THEN ? ELSE first_attempt END`)
-    .bind(key,now,now,LOGIN_WINDOW_SECONDS,now,LOGIN_WINDOW_SECONDS,now).run();
+  return env.DB.prepare(`INSERT INTO auth_attempts(id,count,first_attempt) VALUES(?,1,?)
+    ON CONFLICT(id) DO UPDATE SET
+      count=CASE WHEN ?-first_attempt>=? THEN 1 ELSE count+1 END,
+      first_attempt=CASE WHEN ?-first_attempt>=? THEN ? ELSE first_attempt END
+    RETURNING count,first_attempt`)
+    .bind(key,now,now,LOGIN_WINDOW_SECONDS,now,LOGIN_WINDOW_SECONDS,now)
+    .first<{count:number;first_attempt:number}>();
+}
+async function checkRateLimit(request:Request,env:AccessEnvironment,email:string){
+  const key=await attemptKey(request,email);
+  const client=await consumeBucket(env,key);
+  if(!client||client.count>MAX_ATTEMPTS)throw new AccessError(429,'محاولات كثيرة. حاول مرة أخرى بعد 15 دقيقة.');
+  const emailId=await emailKey(email);
+  const acrossEmail=await consumeBucket(env,emailId);
+  if(!acrossEmail||acrossEmail.count>MAX_EMAIL_ATTEMPTS)throw new AccessError(429,'محاولات كثيرة. حاول مرة أخرى بعد 15 دقيقة.');
+  return {key,emailId};
 }
 export async function login(request:Request,env:AccessEnvironment){
   if(request.method!=='POST')throw new AccessError(405,'طريقة الطلب غير مسموحة.');
@@ -57,10 +64,13 @@ export async function login(request:Request,env:AccessEnvironment){
   const email=String(body.email||'').trim().toLowerCase();
   const password=String(body.password||'');
   if(password.length<8||password.length>200||!/^\S+@\S+\.\S+$/.test(email))throw new AccessError(401,'البريد الإلكتروني أو كلمة المرور غير صحيحة.');
-  const key=await checkRateLimit(request,env,email);
+  const keys=await checkRateLimit(request,env,email);
   const user=USERS.find(u=>u.email===email);
-  if(!user||!await verifyPassword(password,user)){await recordFailure(env,key);throw new AccessError(401,'البريد الإلكتروني أو كلمة المرور غير صحيحة.');}
-  await env.DB.prepare('DELETE FROM auth_attempts WHERE id=?').bind(key).run();
+  if(!user||!await verifyPassword(password,user))throw new AccessError(401,'البريد الإلكتروني أو كلمة المرور غير صحيحة.');
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM auth_attempts WHERE id=?').bind(keys.key),
+    env.DB.prepare('DELETE FROM auth_attempts WHERE id=?').bind(keys.emailId)
+  ]);
   const random=new Uint8Array(32);crypto.getRandomValues(random);const token=b64url(random),id=await sha256(token);
   const now=Math.floor(Date.now()/1000),expires=now+SESSION_SECONDS;
   await env.DB.prepare('DELETE FROM auth_sessions WHERE expires<=?').bind(now).run();

@@ -560,5 +560,50 @@ try{
   assert.match(logout.headers.get('set-cookie')||'',/Max-Age=0/);checks++;
   await expectStatus({path:'/api/session',cookie:ownerCookie},401);
 
-  console.log(JSON.stringify({passed:true,checks,verified:['server-side sessions','spoofed identity rejected','shared workspace actor audit','cross-origin writes blocked','five-attempt login rate limit','360-payment loan and replacement','logout server-side revocation']}));
+  // Public health response exposes readiness only; login origin checks must run before password verification.
+  const health=await call({path:'/auth/health',cookie:null});
+  assert.equal(health.status,200);assert.deepEqual(await health.json(),{ok:true});checks+=2;
+  const loginBody={email:'famaradona89@gmail.com',password:'definitely-wrong-password'};
+  const foreignLogin=await call({path:'/auth/login',cookie:null,method:'POST',body:loginBody,extra:{Origin:'https://evil.example','cf-connecting-ip':'203.0.113.7'}});
+  assert.equal(foreignLogin.status,403);checks++;
+  const crossSiteLogin=await call({path:'/auth/login',cookie:null,method:'POST',body:loginBody,extra:{'Sec-Fetch-Site':'cross-site','cf-connecting-ip':'203.0.113.7'}});
+  assert.equal(crossSiteLogin.status,403);checks++;
+  const proxyLogin=await mf.dispatchFetch('https://mizan.example/auth/login',{method:'POST',headers:{'Content-Type':'application/json','cf-connecting-ip':'203.0.113.7'},body:JSON.stringify(loginBody)});
+  assert.equal(proxyLogin.status,401);checks++;
+  let emailLimited=0;
+  for(let i=0;i<40&&!emailLimited;i++){
+    const r=await call({path:'/auth/login',cookie:null,method:'POST',body:loginBody,extra:{'cf-connecting-ip':'198.51.100.'+(i+1)}});
+    if(r.status===429)emailLimited=i+1;else assert.equal(r.status,401);
+  }
+  assert(emailLimited>0&&emailLimited<=30,'per-email limit must apply across rotating IPs');checks++;
+
+  // Database guards must be exercised against real rows; UPDATE/DELETE on empty tables is not a valid test.
+  const validLines=JSON.stringify([
+    {project:'',account:'cash',debit:100,credit:0},
+    {project:'',account:'capital',debit:0,credit:100}
+  ]);
+  await db.prepare('INSERT INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)')
+    .bind('guard-existing','cloudflare-owner','2026-01-01','guard test','bill',validLines,'guard:existing','2026-01-01').run();
+  const rejects=async(sql,...args)=>{await assert.rejects(()=>db.prepare(sql).bind(...args).run());checks++;};
+  const line=(d,c)=>({project:'',account:'cash',debit:d,credit:c});
+  const insertJournal='INSERT INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,NULL,?)';
+  await rejects(insertJournal,'guard-unbalanced','cloudflare-owner','2026-01-01','x','bill',JSON.stringify([line(100,0),line(0,99)]),'guard:unbalanced','2026-01-01');
+  await rejects(insertJournal,'guard-one-line','cloudflare-owner','2026-01-01','x','bill',JSON.stringify([line(100,0)]),'guard:one-line','2026-01-01');
+  await rejects(insertJournal,'guard-bad-json','cloudflare-owner','2026-01-01','x','bill','not json','guard:bad-json','2026-01-01');
+  await rejects(insertJournal,'guard-negative','cloudflare-owner','2026-01-01','x','bill',JSON.stringify([line(-100,0),line(0,-100)]),'guard:negative','2026-01-01');
+  await rejects(insertJournal,'guard-decimal','cloudflare-owner','2026-01-01','x','bill',JSON.stringify([line(100.5,0),line(0,100.5)]),'guard:decimal','2026-01-01');
+  await rejects(insertJournal,'guard-string','cloudflare-owner','2026-01-01','x','bill',JSON.stringify([{...line(100,0),debit:'100'},line(0,100)]),'guard:string','2026-01-01');
+  await rejects("UPDATE journals SET memo='tampered' WHERE id='guard-existing'");
+  await rejects("DELETE FROM journals WHERE id='guard-existing'");
+  await rejects('INSERT INTO records(id,owner,kind,data,created) VALUES(?,?,?,?,?)','guard-bad-record','cloudflare-owner','project','{broken','2026-01-01');
+  await rejects("UPDATE records SET data='{broken' WHERE id=(SELECT id FROM records LIMIT 1)");
+  await db.prepare('INSERT INTO audit(id,owner,action,detail,created) VALUES(?,?,?,?,?)')
+    .bind('guard-audit','cloudflare-owner','test','guard test','2026-01-01').run();
+  await rejects("UPDATE audit SET detail='tampered' WHERE id='guard-audit'");
+  await rejects("DELETE FROM audit WHERE id='guard-audit'");
+  const triggerNames=(await db.prepare("SELECT name FROM sqlite_master WHERE type='trigger'").all()).results.map(r=>r.name);
+  for(const name of ['journals_no_update','journals_no_delete','journals_lines_shape','journals_lines_values','journals_balanced','records_valid_insert','records_valid_update','audit_no_update','audit_no_delete'])assert(triggerNames.includes(name),`missing database guard: ${name}`);
+  checks++;
+
+  console.log(JSON.stringify({passed:true,checks,verified:['server-side sessions','spoofed identity rejected','shared workspace actor audit','cross-origin writes blocked','login origin check','per-email rate limit across IPs','health leaks no schema details','database integrity guards on populated tables','decimal and string amounts rejected','360-payment loan and replacement','logout server-side revocation']}));
 }finally{await mf.dispose();}

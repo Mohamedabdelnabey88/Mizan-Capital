@@ -8,6 +8,9 @@ export async function GET(){
 }
 export async function POST(request:Request){
  if(process.env.VERCEL_ENV==='preview')return Response.json({error:'نسخة المعاينة غير متصلة بقاعدة اختبار مستقلة. لم يتم الاتصال ببيانات الدخول.'},{status:503,headers:{'Cache-Control':'no-store'}});
+ let sameOrigin=false;
+ try{const origin=request.headers.get('origin');sameOrigin=!!origin&&new URL(origin).origin===new URL(request.url).origin;}catch{sameOrigin=false;}
+ if(!sameOrigin||request.headers.get('sec-fetch-site')==='cross-site')return Response.json({error:'طلب غير مسموح'},{status:403,headers:{'Cache-Control':'no-store'}});
  const upstream=await fetch(BACKEND+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:await request.text(),redirect:'manual',cache:'no-store'});
  const headers=new Headers({'content-type':upstream.headers.get('content-type')||'application/json','cache-control':'no-store'});
  const cookie=upstream.headers.get('set-cookie'); if(cookie) headers.set('set-cookie',cookie);

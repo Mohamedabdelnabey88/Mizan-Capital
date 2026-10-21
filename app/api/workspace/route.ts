@@ -4,6 +4,12 @@ const UPSTREAM_TIMEOUT_MS=12000;
 async function proxy(request:Request){
   // Fail closed: Vercel preview must never read or mutate the production D1 workspace.
   if(process.env.VERCEL_ENV==='preview')return Response.json({error:'نسخة المعاينة غير متصلة بقاعدة اختبار مستقلة. لم يتم الاتصال بالبيانات المالية.'},{status:503,headers:{'Cache-Control':'no-store'}});
+  if(request.method!=='GET'&&request.method!=='HEAD'){
+    // This endpoint is a browser-facing proxy: writes must carry the exact same Origin.
+    let sameOrigin=false;
+    try{const origin=request.headers.get('origin');sameOrigin=!!origin&&new URL(origin).origin===new URL(request.url).origin;}catch{sameOrigin=false;}
+    if(!sameOrigin||request.headers.get('sec-fetch-site')==='cross-site')return Response.json({error:'طلب غير مسموح'},{status:403,headers:{'Cache-Control':'no-store'}});
+  }
   try{
     const target=new URL('/api/workspace',BACKEND);
     const headers=new Headers();

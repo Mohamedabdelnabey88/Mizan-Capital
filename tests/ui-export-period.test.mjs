@@ -41,4 +41,14 @@ assert(source.includes('deficitPaid=ownerAdvances.filter(x=>String(x.data.defici
 assert(!source.includes("const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled'&&String(x.data.date)>=from&&String(x.data.date)<=to)"), 'Owner advance repayment actions must not disappear due to unrelated report date filters');
 assert(source.indexOf('<Panel title="دفع العجز — سلف مستحقة للمالك"') < source.indexOf('<Panel title="ملخص الالتزامات والتحصيلات"'), 'Owner deficit and repayment panel must appear before the long commitments summary');
 
-console.log(JSON.stringify({passed:true,checked:['daily reports UI','PDF daily report section','Excel daily report sheet','Excel balance sheet totals and internal-funding elimination','owner advance visibility and repayment action scope']}));
+const worker = await fs.readFile(new URL('../cloudflare/workspace.ts', import.meta.url), 'utf8');
+assert(source.includes("open('ownerAdvanceGeneral',{date:today(),amount:'',paymentAccount:'cash',memo:'سلفة عامة من المالك على إجمالي المشاريع'})"), 'Dashboard must provide a separate general owner advance action');
+assert(source.includes("ownerAdvanceGeneral:'تسجيل سلفة عامة على إجمالي المشاريع'"), 'General owner advance must have a dedicated form title');
+assert(source.includes("r.data.project?pname(r.data.project):'إجمالي المشاريع (سلفة عامة)'"), 'General owner advances must be labeled as consolidated rather than assigned to a project');
+assert(source.includes("open('repayOwnerAdvance',{id:r.id,project:r.data.project,title:'سلفة المالك'"), 'Outstanding owner advance must open the repayment form');
+assert(worker.includes("else if(action==='ownerAdvanceGeneral')"), 'Worker must support posting general owner advances');
+assert(worker.includes("{project:'',deficitMonth:'',amount,date:dt,paymentAccount:pay,memo,repaid:0,status:'open',scope:'all'}"), 'General owner advance record must remain unassigned to an individual project');
+assert(worker.includes("pair('',pay,'owner_advance',amount)"), 'General owner advance must post against the consolidated ledger only');
+assert(worker.includes("d.project?'رد سلفة مالك عن عجز '+String(d.deficitMonth||''):'رد سلفة مالك عامة على إجمالي المشاريع'"), 'Repayment journal must distinguish general advances from project deficit advances');
+
+console.log(JSON.stringify({passed:true,checked:['general owner advance and repayment','daily reports UI','PDF daily report section','Excel daily report sheet','Excel balance sheet totals and internal-funding elimination','owner advance visibility and repayment action scope']}));

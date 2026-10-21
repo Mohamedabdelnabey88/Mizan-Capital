@@ -33,7 +33,9 @@ const ownerAdvanceFilter = "const ownerAdvances=w.records.filter(x=>x.kind==='de
 assert(source.includes(ownerAdvanceFilter), 'Outstanding owner advances must remain visible even when their payment date falls outside the report period');
 assert(source.includes('const dashboardOwnerAdvances=w.records.filter(r=>r.kind===\'deficitPayment\'&&(scope===\'all\'||r.data.project===scope)&&r.data.status!==\'cancelled\')'), 'The public dashboard must show owner advances independently of the report date filter');
 assert(source.includes('>سلف المالك المستحقة</span>'), 'Dashboard must expose a dedicated owner-advance balance card');
-assert(source.includes('>سند صرف / رد سلفة</button>'), 'Dashboard must provide a direct path to create an owner-advance repayment voucher');
+assert(source.includes('>عرض كل السلف</button>'), 'Dashboard must provide access to the full owner-advance ledger');
+assert(source.includes('>إصدار سند صرف / رد السلفة</button>'), 'Dashboard must expose direct repayment voucher actions for outstanding owner advances');
+assert(source.includes("open('repayOwnerAdvance',{id:r.id,project:r.data.project,title:'سلفة المالك'"), 'Dashboard repayment voucher action must open the repayment form for the selected advance');
 assert(source.includes('deficitReconciliation=operationalDeficitReconciliation(deficitAssigned,pnl.net)'), 'Operational deficit total must reconcile report loss that is not assigned to a project');
 assert(source.includes('deficitPaid=ownerAdvances.filter(x=>String(x.data.deficitMonth||\'\')>=from.slice(0,7)&&String(x.data.deficitMonth||\'\')<=to.slice(0,7))'), 'Owner advance coverage total must not become zero solely because no deficit rows matched');
 assert(!source.includes("const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled'&&String(x.data.date)>=from&&String(x.data.date)<=to)"), 'Owner advance repayment actions must not disappear due to unrelated report date filters');

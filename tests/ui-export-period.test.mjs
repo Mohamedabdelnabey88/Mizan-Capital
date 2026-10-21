@@ -19,4 +19,10 @@ for (const required of ["const balanceAssetAccounts=", "const balanceLiabilityAc
 assert(source.includes('moneyCell(x.transferIn),moneyCell(x.transferOut),moneyCell(x.otherIn),moneyCell(x.otherOut),moneyCell(x.net,5)'), 'Excel cash flow must include transfer and other movement categories');
 assert(source.includes('تحويلات داخل') && source.includes('تحويلات خارج') && source.includes('أخرى داخل') && source.includes('أخرى خارج'), 'UI, PDF and Excel cash flow reports must expose all cash categories');
 assert(source.includes("fmt(x.transferIn)+'</td><td>'+fmt(x.transferOut)+'</td><td>'+fmt(x.otherIn)+'</td><td>'+fmt(x.otherOut)"), 'PDF cash flow must include transfer and other movements');
-console.log(JSON.stringify({passed:true,checked:['daily reports UI','PDF daily report section','Excel daily report sheet','Excel balance sheet totals and internal-funding elimination']}));
+
+const ownerAdvanceFilter = "const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled').sort((a,b)=>String(b.data.date).localeCompare(String(a.data.date)));";
+assert(source.includes(ownerAdvanceFilter), 'Outstanding owner advances must remain visible even when their payment date falls outside the report period');
+assert(!source.includes("const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled'&&String(x.data.date)>=from&&String(x.data.date)<=to)"), 'Owner advance repayment actions must not disappear due to unrelated report date filters');
+assert(source.indexOf('<Panel title="دفع العجز — سلف مستحقة للمالك"') < source.indexOf('<Panel title="ملخص الالتزامات والتحصيلات"'), 'Owner deficit and repayment panel must appear before the long commitments summary');
+
+console.log(JSON.stringify({passed:true,checked:['daily reports UI','PDF daily report section','Excel daily report sheet','Excel balance sheet totals and internal-funding elimination','owner advance visibility and repayment action scope']}));

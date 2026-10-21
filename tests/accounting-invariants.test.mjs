@@ -25,6 +25,12 @@ await build({
 const f=await import('../.sites-runtime/accounting-invariants-finance.mjs');
 const performance=await import('../.sites-runtime/accounting-invariants-project-performance.mjs');
 
+// Credit-normal ledger accounts are stored as debit-minus-credit, but must display with their natural sign.
+assert.equal(f.normalBalance('capital',-125000),125000,'a normal owner-capital credit balance must display as positive capital');
+assert.equal(f.normalBalance('capital',125000),-125000,'a true debit balance in owner capital must remain visibly negative');
+assert.equal(f.normalBalance('loan',-90000),90000,'a normal loan liability credit balance must display as positive liability');
+assert.equal(f.normalBalance('distribution',125000),125000,'owner distributions retain their debit-normal sign');
+
 const workspace={
   records:[
     {id:'plan-only',kind:'projectPlan',version:1,data:{

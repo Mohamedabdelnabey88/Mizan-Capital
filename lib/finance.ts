@@ -50,6 +50,8 @@ export function allocationTotal(a:Record<string,unknown>){
  return Object.values(a).reduce<number>((s,v)=>s+Number(v||0),0);
 }
 export function balance(w:Workspace,project='all',end=today()){const a:Record<string,number>={};for(const j of w.journals){if(j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;a[l.account]=(a[l.account]||0)+l.debit-l.credit;}}return a;}
+// Ledger values use debit-minus-credit internally. Convert credit-normal accounts to their natural display sign before presenting balances; a normal credit balance in capital must not look like a loss.
+export function normalBalance(account:string,value:number){const type=accounts[account]?.type;return ['liability','equity','income','contra'].includes(type||'')?-value:value;}
 export type ExternalLiabilityBreakdown={project:string;payable:number;rent:number;loan:number;tax:number;total:number};
 export function externalLiabilityBreakdown(w:Workspace,projectIds:string[],end=today()):ExternalLiabilityBreakdown[]{return projectIds.map(project=>{const b=balance(w,project,end);const payable=Math.max(0,-Number(b.payable||0)),rent=Math.max(0,-Number(b.rent_payable||0)),loan=Math.max(0,-Number(b.loan||0)),tax=Math.max(0,-Number(b.tax_payable||0));return {project,payable,rent,loan,tax,total:payable+rent+loan+tax};});}
 export type BalanceSheet={end:string;assets:number;liabilities:number;equity:number;retainedEarnings:number;currentProfit:number;totalLiabilitiesAndEquity:number;difference:number;balanced:boolean;accounts:Record<string,number>};

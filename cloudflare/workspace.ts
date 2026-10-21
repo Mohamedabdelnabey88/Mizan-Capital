@@ -627,6 +627,11 @@ else if(action==='cancelFunding'){
  update(funding,{...fd,status:'cancelled',cancelledAt:cancelDate,cancelReason:str(p.reason||'تصحيح تمويل',200)});
  description='إلغاء تمويل مع عكس أثره المحاسبي: '+funding.id;
 }
+else if(action==='ownerAdvanceGeneral'){
+ const amount=cents(p.amount),dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغًا أكبر من صفر.');if(dt>today())throw Error('لا يمكن تسجيل سلفة فعلية بتاريخ مستقبلي.');
+ const pay=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash',memo=str(p.memo||'سلفة عامة من المالك على إجمالي المشاريع',300);const duplicate=w.records.some(x=>x.kind==='deficitPayment'&&!x.data.project&&x.data.date===dt&&Number(x.data.amount)===amount&&String(x.data.memo||'')===memo&&x.data.status!=='cancelled');if(duplicate)throw Error('توجد سلفة عامة مطابقة بالفعل؛ راجع السجل لتجنب التكرار.');
+ const rid=put('deficitPayment',{project:'',deficitMonth:'',amount,date:dt,paymentAccount:pay,memo,repaid:0,status:'open',scope:'all'});journal('deficitPayment','سلفة عامة من المالك — إجمالي المشاريع',dt,pair('',pay,'owner_advance',amount),'deficitPayment:'+rid);description='تسجيل سلفة عامة من المالك على إجمالي المشاريع بقيمة '+(amount/100).toFixed(2)+' ريال؛ دون تحميلها على مشروع منفرد';
+}
 else if(action==='deficitPayment'){
  const pr=project(p.project),amount=cents(p.amount),dt=date(p.date||today()),month=String(p.deficitMonth||'');
  if(!amount)throw Error('أدخل مبلغًا أكبر من صفر.');if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw Error('حدد شهر العجز بصيغة صحيحة.');
@@ -638,7 +643,7 @@ else if(action==='deficitPayment'){
 else if(action==='repayOwnerAdvance'){
  const r=find(p.id,'deficitPayment'),d=r.data,amount=cents(p.amount),dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغًا أكبر من صفر.');if(d.status==='cancelled')throw Error('لا يمكن تسوية سجل ملغى.');
  const repaid=Number(d.repaid||0),remaining=Number(d.amount||0)-repaid;if(amount>remaining)throw Error('مبلغ الرد يتجاوز السلفة المتبقية.');const pay=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:(d.paymentAccount||'cash');if((balance(w,d.project,dt)[pay]||0)<amount)throw Error('الرصيد المتاح في حساب الدفع لا يكفي لرد السلفة.');
- const rid=put('ownerAdvanceRepayment',{advanceId:r.id,project:d.project,amount,date:dt,paymentAccount:pay,status:'posted'});journal('repayOwnerAdvance','رد سلفة مالك عن عجز '+String(d.deficitMonth||'')+' — '+String(d.memo||''),dt,pair(d.project,'owner_advance',pay,amount),'ownerAdvanceRepayment:'+rid);const next=repaid+amount;update(r,{...d,repaid:next,status:next>=Number(d.amount||0)?'repaid':'open',lastRepaidOn:dt});description='رد سلفة مالك بقيمة '+(amount/100).toFixed(2)+' ريال؛ المتبقي '+((Number(d.amount||0)-next)/100).toFixed(2)+' ريال';
+ const rid=put('ownerAdvanceRepayment',{advanceId:r.id,project:d.project||'',scope:d.project?'project':'all',amount,date:dt,paymentAccount:pay,status:'posted'});const repaymentLabel=d.project?'رد سلفة مالك عن عجز '+String(d.deficitMonth||''):'رد سلفة مالك عامة على إجمالي المشاريع';journal('repayOwnerAdvance',repaymentLabel+' — '+String(d.memo||''),dt,pair(d.project||'', 'owner_advance',pay,amount),'ownerAdvanceRepayment:'+rid);const next=repaid+amount;update(r,{...d,repaid:next,status:next>=Number(d.amount||0)?'repaid':'open',lastRepaidOn:dt});description='رد سلفة مالك بقيمة '+(amount/100).toFixed(2)+' ريال؛ المتبقي '+((Number(d.amount||0)-next)/100).toFixed(2)+' ريال';
 }
 else if(action==='fundingRepayment'){
  const funding=w.records.find(x=>x.kind==='projectFunding'&&x.id===p.fundingId);

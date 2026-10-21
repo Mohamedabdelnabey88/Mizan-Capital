@@ -257,3 +257,15 @@ assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-02').investi
 assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-02').otherOut,0,'capitalized project cost must not be classified as other outflow');
 
 console.log('Accounting invariant tests passed: balanced journals, loan principal vs interest, profit isolation, forecast isolation, balance sheet, cash-flow reconciliation, inter-project funding, and invalid journal rejection.');
+
+// Owner-funded deficit coverage is a repayable liability, not income, capital, or profit.
+const ownerAdvanceWorkspace={records:[],audit:[],journals:[
+ {id:'loss',date:'2026-06-05',memo:'مصروف تشغيل',kind:'expense',source:'loss',lines:[{project:'p1',account:'expense',debit:300000,credit:0},{project:'p1',account:'cash',debit:0,credit:300000}]},
+ {id:'advance',date:'2026-06-06',memo:'تغطية عجز',kind:'deficitPayment',source:'deficitPayment:a1',lines:[{project:'p1',account:'cash',debit:300000,credit:0},{project:'p1',account:'owner_advance',debit:0,credit:300000}]},
+ {id:'repay',date:'2026-06-10',memo:'رد جزء من السلفة',kind:'repayOwnerAdvance',source:'ownerAdvanceRepayment:r1',lines:[{project:'p1',account:'owner_advance',debit:100000,credit:0},{project:'p1',account:'cash',debit:0,credit:100000}]}
+]};
+assert.equal(f.profit(ownerAdvanceWorkspace,'p1','2026-06-01','2026-06-30').net,-300000,'owner deficit advance and repayment must not affect operating profit');
+assert.equal(f.balance(ownerAdvanceWorkspace,'p1','2026-06-05').cash,-300000,'balance as of date excludes later cash movements');
+assert.equal(f.balance(ownerAdvanceWorkspace,'p1','2026-06-06').owner_advance,-300000,'owner advance is a credit-normal liability');
+assert.equal(f.balance(ownerAdvanceWorkspace,'p1','2026-06-10').owner_advance,-200000,'repayment reduces the liability balance');
+assert.equal(f.normalBalance('owner_advance',f.balance(ownerAdvanceWorkspace,'p1','2026-06-10').owner_advance),200000,'liability display converts credit balance to a positive amount');

@@ -192,12 +192,28 @@ export function projectFundingSummaries(w:Workspace,project='all',end=today()):F
   const d=r.data as ProjectFunding;
   const repaid=w.records.filter(x=>{
    const xd=x.data as any;
-   return String(x.kind).trim()==='fundingRepayment'&&String(xd.status||'')!=='cancelled'&&String(xd.fundingId||'')===String(r.id)&&(!xd.date||String(xd.date)<=cutoff);
+   if(String(x.kind).trim()!=='fundingRepayment'||String(xd.status||'')==='cancelled'||String(xd.fundingId||'')!==String(r.id)|| (xd.date&&String(xd.date)>cutoff))return false;
+   const posted=w.journals.find(j=>j.source==='fundingRepayment:'+x.id);
+   return !!posted&&!w.journals.some(j=>j.reversal===posted.id);
   }).reduce((sum,x)=>sum+Number((x.data as any).amount||0),0);
   const original=Number(d.amount||0);
   const paid=Math.min(original,Math.max(0,repaid));
   return {...d,id:r.id,repaid:paid,outstanding:Math.max(0,original-paid),recoveryPct:original?paid*100/original:0};
  });
+}
+export function projectFundingPeriodSummary(w:Workspace,project='all',start='0000-01-01',end=today()){
+ const rows=projectFundingSummaries(w,project,end);
+ const activeFundingIds=new Set(rows.map(r=>r.id));
+ const fundedInPeriod=rows.filter(r=>String(r.date||'')>=start&&String(r.date||'')<=end).reduce((sum,r)=>sum+Math.max(0,Number(r.amount||0)),0);
+ const repaidInPeriod=w.records.filter(r=>{
+  if(String(r.kind).trim()!=='fundingRepayment'||String(r.data.status||'')==='cancelled'||!activeFundingIds.has(String(r.data.fundingId||'')))return false;
+  const d=String(r.data.date||'');
+  if(d<start||d>end)return false;
+  const posted=w.journals.find(j=>j.source==='fundingRepayment:'+r.id);
+  return !!posted&&!w.journals.some(j=>j.reversal===posted.id);
+ }).reduce((sum,r)=>sum+Math.max(0,Number(r.data.amount||0)),0);
+ const outstandingAtEnd=rows.reduce((sum,r)=>sum+Math.max(0,Number(r.outstanding||0)),0);
+ return {fundedInPeriod,repaidInPeriod,outstandingAtEnd};
 }
 export function internalFunding(w:Workspace,lender:string,borrower:string,end=today()){
  let funded=0,repaid=0;

@@ -24,6 +24,8 @@ assert(source.includes("const deficitRange={start:from,end:to};const deficitRows
 assert(source.includes("pretty(deficitRange.start)+' — '+pretty(deficitRange.end)"), 'Deficit dashboard must label the exact report period used for its calculation');
 assert(source.includes('const selectedProjects=operationalProjectIds(w,scope);'), 'Deficit dashboard must use the legacy-compatible operating project selector');
 assert(source.includes('>تغطية العجز بسلفة من المالك</button></div><DataTable heads={'), 'Owner deficit coverage action must remain visible even when no deficit rows are calculated');
+assert(source.includes('const unmatchedLoss=pnl.net<0&&deficitTotal===0?Math.abs(pnl.net):0;'), 'A P&L loss unmatched to project deficit must be exposed as a separate diagnostic amount');
+assert(source.includes('خسارة التقرير غير المطابقة لعجز المشاريع'), 'The UI must not silently show all zeroes when P&L is negative but no project deficit matches');
 assert(source.includes("project:(scope!=='all'&&projects.some(x=>x.id===scope&&x.data.mode!=='investment')?scope:operating[0]?.id||''),deficitMonth:today().slice(0,7)"), 'Owner advance form must open with a valid operating project when one is available');
 assert(source.includes('pnl.net<0&&deficitTotal===0&&<Note tone="amber">تنبيه مطابقة:'), 'Deficit dashboard must disclose a loss in the selected P&L period when no operational deficit row was matched');
 

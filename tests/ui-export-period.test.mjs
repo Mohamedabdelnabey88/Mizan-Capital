@@ -29,8 +29,8 @@ assert(source.includes('خسارة التقرير غير المطابقة لعج
 assert(source.includes("project:(scope!=='all'&&projects.some(x=>x.id===scope&&x.data.mode!=='investment')?scope:operating[0]?.id||''),deficitMonth:today().slice(0,7)"), 'Owner advance form must open with a valid operating project when one is available');
 assert(source.includes('pnl.net<0&&unmatchedLoss>0&&<Note tone="amber">تنبيه مطابقة:'), 'Deficit dashboard must disclose a P&L loss that remains unmatched to project deficit rows');
 
-const ownerAdvanceFilter = "const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled').sort((a,b)=>String(b.data.date).localeCompare(String(a.data.date)));";
-assert(source.includes(ownerAdvanceFilter), 'Outstanding owner advances must remain visible even when their payment date falls outside the report period');
+const ownerAdvanceFilter = "const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(!x.data.project||scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled').sort((a,b)=>String(b.data.date).localeCompare(String(a.data.date)));";
+assert(source.includes(ownerAdvanceFilter), 'Outstanding owner advances must remain visible even when their payment date falls outside the report period, and general advances must remain available for repayment in any project scope');
 assert(source.includes('const dashboardOwnerAdvances=w.records.filter(r=>r.kind===\'deficitPayment\'&&(scope===\'all\'||r.data.project===scope)&&r.data.status!==\'cancelled\')'), 'The public dashboard must show owner advances independently of the report date filter');
 assert(source.includes('>سلف المالك المستحقة</span>'), 'Dashboard must expose a dedicated owner-advance balance card');
 assert(source.includes('>إدارة السلف وردّها</button>'), 'Dashboard must always expose a clear owner-advance management and repayment action');

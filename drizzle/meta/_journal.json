@@ -15,20 +15,6 @@
       "when": 1790914227982,
       "tag": "0001_ledger-guards",
       "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1792540000000,
-      "tag": "0002_auth_sessions",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1792540001000,
-      "tag": "0003_integrity_guards",
-      "breakpoints": true
     }
   ]
 }

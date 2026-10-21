@@ -1,6 +1,6 @@
 # ميزان — إدارة المشاريع ورأس المال
 
-Private Arabic financial workspace with a standalone Cloudflare Workers deployment and the original Sites build. For the configured Cloudflare account, follow [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md). Amounts are stored as integer halalas. Requests are scoped to the authenticated owner: standalone Cloudflare verifies Access signatures and an explicit allowlist (owner plus up to two members sharing one workspace), while the original Sites build uses its authenticated gateway. Accounting journals are balanced, immutable, idempotent and corrected using reversal entries. D1 batches make posting and associated state changes atomic; optimistic project locks prevent simultaneous financial mutations from evaluating stale balances.
+Private Arabic financial workspace with a Next.js UI on Vercel and a Cloudflare Worker/D1 backend. For setup, follow [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md). Amounts are stored as integer halalas. The standalone Worker authenticates the single configured owner through password verification and server-side D1 sessions; the original Sites build retains its separate authenticated gateway. Accounting journals are balanced, append-only, idempotent and corrected using reversal entries. D1 batches make posting and associated state changes atomic; optimistic project locks prevent simultaneous financial mutations from evaluating stale balances.
 
 ## Implemented
 

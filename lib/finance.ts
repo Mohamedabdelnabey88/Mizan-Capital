@@ -31,6 +31,7 @@ export function commitmentSummary(w:Workspace,project='all',start=today().slice(
  const scheduledIn=scheduled.filter(r=>r.data.direction==='in'),scheduledOut=scheduled.filter(r=>r.data.direction==='out');
  return {start,end,scheduledIn,scheduledOut,settledIn:settled.filter(r=>r.data.direction==='in'),settledOut:settled.filter(r=>r.data.direction==='out'),expectedInflows:sum(scheduled,'in'),expectedOutflows:sum(scheduled,'out'),expectedNet:sum(scheduled,'in')-sum(scheduled,'out'),settledInflows:sum(settled,'in'),settledOutflows:sum(settled,'out'),scheduledCount:scheduled.length,settledCount:settled.length};
 }
+export function operationalProjectIds(w:Workspace,project='all'){return w.records.filter(r=>r.kind==='project'&&(project==='all'||r.id===project)&&(r.data?.mode||'operating')==='operating').map(r=>r.id);}
 export type FiscalYear={id?:string;start:string;end:string;label?:string};
 export function fiscalYearForDate(w:Workspace,at=today()):FiscalYear{
  const rows=w.records.filter(r=>r.kind==='fiscalYear'&&String(r.data.start)<=at&&String(r.data.end)>=at).sort((a,b)=>String(a.data.start).localeCompare(String(b.data.start)));

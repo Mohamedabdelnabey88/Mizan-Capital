@@ -22,6 +22,8 @@ assert(source.includes("fmt(x.transferIn)+'</td><td>'+fmt(x.transferOut)+'</td><
 
 assert(source.includes("const deficitRange={start:from,end:to};const deficitRows:any[]=[];for(let cursor=deficitRange.start.slice(0,7)+'-01';cursor<=deficitRange.end.slice(0,7)+'-01';cursor=monthAdd(cursor,1))"), 'Deficit dashboard must use the selected report period, not the separate commitments-summary period');
 assert(source.includes("pretty(deficitRange.start)+' — '+pretty(deficitRange.end)"), 'Deficit dashboard must label the exact report period used for its calculation');
+assert(source.includes('const selectedProjects=operationalProjectIds(w,scope);'), 'Deficit dashboard must use the legacy-compatible operating project selector');
+assert(source.includes('pnl.net<0&&deficitTotal===0&&<Note tone="amber">تنبيه مطابقة:'), 'Deficit dashboard must disclose a loss in the selected P&L period when no operational deficit row was matched');
 
 const ownerAdvanceFilter = "const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled').sort((a,b)=>String(b.data.date).localeCompare(String(a.data.date)));";
 assert(source.includes(ownerAdvanceFilter), 'Outstanding owner advances must remain visible even when their payment date falls outside the report period');

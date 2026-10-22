@@ -39,7 +39,7 @@ assert(source.includes('السلف العامة تظهر هنا للإدارة �
 assert(source.includes('>إصدار سند صرف / رد السلفة</button>'), 'Dashboard must expose direct repayment voucher actions for outstanding owner advances');
 assert(source.includes("open('repayOwnerAdvance',{id:r.id,project:r.data.project,advanceDate:r.data.date,title:"), 'Dashboard repayment voucher action must open the selected advance and retain its original date');
 assert(source.includes('deficitReconciliation=operationalDeficitReconciliation(deficitAssigned,pnl.net)'), 'Operational deficit total must reconcile report loss that is not assigned to a project');
-assert(source.includes('deficitPaid=ownerAdvances.filter(x=>String(x.data.deficitMonth||\'\')>=from.slice(0,7)&&String(x.data.deficitMonth||\'\')<=to.slice(0,7))'), 'Owner advance coverage total must not become zero solely because no deficit rows matched');
+assert(source.includes("deficitPaid=ownerAdvances.filter(x=>!!x.data.project&&String(x.data.deficitMonth||'')>=from.slice(0,7)&&String(x.data.deficitMonth||'')<=to.slice(0,7)&&String(x.data.date||'')<=to)"), 'Owner deficit coverage should count dated project-linked payments through cutoff independently of deficitRows');
 assert(!source.includes("const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled'&&String(x.data.date)>=from&&String(x.data.date)<=to)"), 'Owner advance repayment actions must not disappear due to unrelated report date filters');
 assert(source.indexOf('<Panel title="دفع العجز — سلف مستحقة للمالك"') < source.indexOf('<Panel title="مركز الالتزامات والتحصيلات"'), 'Owner deficit and repayment panel must appear before the long commitments summary');
 

@@ -32,7 +32,7 @@ assert(ui.includes("project-page-intro-actions"),'page must provide direct prima
 assert(css.includes("@media(max-width:650px){.project-page-intro"),'project page must work on narrow phones');
 
 assert(ui.includes("const isRoot=!p.data.parentId||!projects.some(q=>q.id===String(p.data.parentId))"),'all-projects view must show main projects, not double-render their child units');
-assert(ui.includes("const childMatch=scope==='all'"),'search must surface parent group when a descendant matches');
+assert(ui.includes('matchesProjectTree(projects,p,projectSearch)'),'search must surface parent group when a descendant matches');
 assert(ui.includes("setScope(c.id);setProjectSearch('')"),'unit navigation must clear stale search so selected unit is accessible');
 assert(ui.includes("setScope(String(p.data.parentId));setProjectSearch('')"),'unit breadcrumbs must navigate to parent without stale filters');
 assert(ui.includes("const unitNet=profit(w,c.id,from,to).net"),'branch net must respect global reporting interval');

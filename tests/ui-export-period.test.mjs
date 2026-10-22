@@ -31,13 +31,13 @@ assert(source.includes('pnl.net<0&&unmatchedLoss>0&&<Note tone="amber">تنبي�
 
 const ownerAdvanceFilter = "const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(!x.data.project||scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled').sort((a,b)=>String(b.data.date).localeCompare(String(a.data.date)));";
 assert(source.includes(ownerAdvanceFilter), 'Outstanding owner advances must remain visible even when their payment date falls outside the report period, and general advances must remain available for repayment in any project scope');
-assert(source.includes('const dashboardOwnerAdvances=w.records.filter(r=>r.kind===\'deficitPayment\'&&(scope===\'all\'||r.data.project===scope)&&r.data.status!==\'cancelled\')'), 'The public dashboard must show owner advances independently of the report date filter');
+assert(source.includes('const dashboardOwnerAdvances=w.records.filter(r=>r.kind===\'deficitPayment\'&&(!r.data.project||scope===\'all\'||r.data.project===scope)&&r.data.status!==\'cancelled\')'), 'Dashboard must show general advances and current-project advances independently of the report period');
 assert(source.includes('>سلف المالك المستحقة</span>'), 'Dashboard must expose a dedicated owner-advance balance card');
-assert(source.includes('>إدارة السلف وردّها</button>'), 'Dashboard must always expose a clear owner-advance management and repayment action');
+assert(source.includes('>رد سلفة للمالك</button>'), 'Dashboard must expose a direct owner-advance repayment picker');
 assert(source.includes("x.kind==='deficitPayment'&&(!x.data.project||scope==='all'||x.data.project===scope)"), 'General owner advances must remain available in the management ledger regardless of selected project scope');
 assert(source.includes('السلف العامة تظهر هنا للإدارة حتى عند اختيار مشروع'), 'UI must explain that showing general advances in the management ledger does not allocate them to a project');
 assert(source.includes('>إصدار سند صرف / رد السلفة</button>'), 'Dashboard must expose direct repayment voucher actions for outstanding owner advances');
-assert(source.includes("open('repayOwnerAdvance',{id:r.id,project:r.data.project,title:'سلفة المالك'"), 'Dashboard repayment voucher action must open the repayment form for the selected advance');
+assert(source.includes("open('repayOwnerAdvance',{id:r.id,project:r.data.project,advanceDate:r.data.date,title:"), 'Dashboard repayment voucher action must open the selected advance and retain its original date');
 assert(source.includes('deficitReconciliation=operationalDeficitReconciliation(deficitAssigned,pnl.net)'), 'Operational deficit total must reconcile report loss that is not assigned to a project');
 assert(source.includes('deficitPaid=ownerAdvances.filter(x=>String(x.data.deficitMonth||\'\')>=from.slice(0,7)&&String(x.data.deficitMonth||\'\')<=to.slice(0,7))'), 'Owner advance coverage total must not become zero solely because no deficit rows matched');
 assert(!source.includes("const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled'&&String(x.data.date)>=from&&String(x.data.date)<=to)"), 'Owner advance repayment actions must not disappear due to unrelated report date filters');
@@ -47,7 +47,7 @@ const worker = await fs.readFile(new URL('../cloudflare/workspace.ts', import.me
 assert(source.includes("open('ownerAdvanceGeneral',{date:today(),amount:'',paymentAccount:'cash',memo:'سلفة عامة من المالك على إجمالي المشاريع'})"), 'Dashboard must provide a separate general owner advance action');
 assert(source.includes("ownerAdvanceGeneral:'تسجيل سلفة عامة على إجمالي المشاريع'"), 'General owner advance must have a dedicated form title');
 assert(source.includes("r.data.project?pname(r.data.project):'إجمالي المشاريع (سلفة عامة)'"), 'General owner advances must be labeled as consolidated rather than assigned to a project');
-assert(source.includes("open('repayOwnerAdvance',{id:r.id,project:r.data.project,title:'سلفة المالك'"), 'Outstanding owner advance must open the repayment form');
+assert(source.includes("open('repayOwnerAdvance',{id:r.id,project:r.data.project,advanceDate:r.data.date,title:"), 'Outstanding owner advance must open the repayment form with its source date');
 assert(worker.includes("else if(action==='ownerAdvanceGeneral')"), 'Worker must support posting general owner advances');
 assert(worker.includes("{project:'',deficitMonth:'',amount,date:dt,paymentAccount:pay,memo,repaid:0,status:'open',scope:'all'}"), 'General owner advance record must remain unassigned to an individual project');
 assert(worker.includes("pair('',pay,'owner_advance',amount)"), 'General owner advance must post against the consolidated ledger only');

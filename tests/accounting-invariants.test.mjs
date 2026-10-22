@@ -30,7 +30,7 @@ const ownerAdvanceWorkerSource=readFileSync('cloudflare/workspace.ts','utf8');
 const ownerAdvanceUiSource=readFileSync('app/page.tsx','utf8');
 assert.match(ownerAdvanceWorkerSource,/else if\(action==='repayOwnerAdvance'\)/,'owner advance repayment action must exist in the worker');
 assert.match(ownerAdvanceWorkerSource,/if\(dt<date\(d\.date\)\)throw Error\('تاريخ رد السلفة لا يمكن أن يسبق تاريخ تسجيلها\.'\)/,'repayment date cannot precede the original advance');
-assert.match(ownerAdvanceUiSource,/onClick=\{\(\)=>go\('commitments'\)\}>إدارة السلف وردّها/,'dashboard owner-advance management must open the commitments list');
+assert.match(ownerAdvanceUiSource,/onClick=\{\(\)=>open\('ownerAdvancePicker'/,'dashboard owner-advance action must open the repayment picker without navigation');
 assert.match(ownerAdvanceUiSource,/min:form\.advanceDate\|\|undefined/,'repayment date picker must respect the original advance date');
 
 // Credit-normal ledger accounts are stored as debit-minus-credit, but must display with their natural sign.

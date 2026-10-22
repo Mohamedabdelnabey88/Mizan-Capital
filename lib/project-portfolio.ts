@@ -5,7 +5,7 @@ export type PortfolioLease={data:{status?:unknown;startDate?:unknown;endDate?:un
 export function projectDescendantIds(projects:PortfolioProject[],parentId:string){
  const children=new Map<string,string[]>();
  for(const project of projects){const parent=String(project.data.parentId||'');if(!parent)continue;const list=children.get(parent)||[];list.push(project.id);children.set(parent,list);}
- const seen=new Set<string>([parentId]),result:string[],queue=[parentId];
+ const seen=new Set<string>([parentId]),result:string[]=[],queue=[parentId];
  for(let index=0;index<queue.length;index++)for(const id of children.get(queue[index])||[]){if(seen.has(id))continue;seen.add(id);result.push(id);queue.push(id);}
  return result;
 }

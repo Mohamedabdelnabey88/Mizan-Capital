@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
-import {test} from 'node:test';
-import {dashboardProfitReconciliation,profit} from '../lib/finance.ts';
+import fs from 'node:fs';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url),wr=createRequire(require.resolve('wrangler/package.json'));
+const {build}=wr('esbuild');
+fs.mkdirSync('.sites-runtime',{recursive:true});
+await build({entryPoints:['lib/finance.ts'],bundle:true,format:'esm',platform:'node',alias:{'@':process.cwd()},outfile:'.sites-runtime/dashboard-profit-reconcile-finance.mjs'});
+const {dashboardProfitReconciliation,profit}=await import('../.sites-runtime/dashboard-profit-reconcile-finance.mjs');
 
 const line=(project,account,debit=0,credit=0)=>({project,account,debit,credit});
 const j=(id,date,kind,...lines)=>({id,date,kind,memo:id,lines});

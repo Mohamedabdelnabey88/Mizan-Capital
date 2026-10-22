@@ -30,4 +30,16 @@ assert(ui.includes("const commitmentPending=w.records.filter"),'remaining commit
 assert(ui.includes("className=\"project-empty-state\""),'page must present intentional empty state and action');
 assert(ui.includes("project-page-intro-actions"),'page must provide direct primary entry points');
 assert(css.includes("@media(max-width:650px){.project-page-intro"),'project page must work on narrow phones');
+
+assert(ui.includes("const isRoot=!p.data.parentId||!projects.some(q=>q.id===String(p.data.parentId))"),'all-projects view must show main projects, not double-render their child units');
+assert(ui.includes("const childMatch=scope==='all'"),'search must surface parent group when a descendant matches');
+assert(ui.includes("setScope(c.id);setProjectSearch('')"),'unit navigation must clear stale search so selected unit is accessible');
+assert(ui.includes("setScope(String(p.data.parentId));setProjectSearch('')"),'unit breadcrumbs must navigate to parent without stale filters');
+assert(ui.includes("const unitNet=profit(w,c.id,from,to).net"),'branch net must respect global reporting interval');
+assert(ui.includes("const unitBalance=balance(w,c.id,to)"),'branch cash must respect global reporting cutoff');
+assert(ui.includes('project-portfolio-hero'),'main card must prioritize financial outcome');
+assert(ui.includes('project-metadata-details'),'secondary operational information must be collapsible');
+assert(ui.includes('project-branch-card'),'units must be independent navigable cards');
+assert(css.includes('.project-branch-metrics'),'branch metrics must have dedicated layout');
+assert(css.includes('@media(max-width:980px){.project-portfolio-hero'),'branch layout must adapt to tablet and mobile');
 console.log('Project and investment accounting and UI validation passed.');

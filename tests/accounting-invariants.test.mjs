@@ -264,6 +264,11 @@ assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-01').otherOu
 assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-02').investingOut,20000,'capitalized project cost must be investing cash outflow');
 assert.equal(projectCostCashFlow.rows.find(row=>row.date==='2026-05-02').otherOut,0,'capitalized project cost must not be classified as other outflow');
 
+const loanWorker=readFileSync('cloudflare/workspace.ts','utf8');const loanUi=readFileSync('app/page.tsx','utf8');
+assert(loanWorker.includes("const settlementDate=date(p.date||today());if(settlementDate>today())"),'Loan batch repayment must reject future-dated actual settlement');
+assert(loanWorker.includes("const d=r.data,dt=settlementDate,loanRecord="),'Loan batch must post each selected installment at actual settlement date');
+assert(loanUi.includes('تاريخ السداد الفعلي لجميع الأقساط'),'Batch modal must expose actual settlement date');
+assert(loanUi.includes('أقساط متأخرة ({overdueInstallments.length})'),'Loan cards must distinguish overdue installments');
 console.log('Accounting invariant tests passed: balanced journals, loan principal vs interest, profit isolation, forecast isolation, balance sheet, cash-flow reconciliation, inter-project funding, and invalid journal rejection.');
 
 // Owner-funded deficit coverage is a repayable liability, not income, capital, or profit.

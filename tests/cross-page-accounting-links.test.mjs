@@ -23,7 +23,7 @@ assert(ui.includes('balance(w,scope,to)'),'dashboard and capital balances must r
 assert(ui.includes('profit(w,scope,from,to)'),'profit must respect selected reporting period');
 assert(ui.includes('const dashboardOwnerAdvances=w.records.filter'),'owner advances must derive from workspace records');
 assert(ui.includes("open('ownerAdvancePicker'"),'repayment action must not redirect to commitments');
-assert(ui.includes('externalLiabilityBreakdown(w,externalProjectIds)'),'external-liability cards must derive from ledger balances');
+assert(ui.includes('externalLiabilityBreakdown(w,externalProjectIds,to)'),'external-liability cards must derive from ledger balances');
 assert(ui.includes("const salaryObligations=w.records.filter"),'salary dashboard must derive from pending obligations');
 assert(ui.includes("loanOutstanding=(l:any)=>w.records.filter"),'loan outstanding must derive from principal still pending');
 for(const name of ['balance','profit','actualCashFlow','accountingControlTotals','commitmentSummary','loanSchedule','forecast','distributionEntitlement','normalBalance']){

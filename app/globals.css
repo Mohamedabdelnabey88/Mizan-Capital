@@ -1424,3 +1424,16 @@ img, video, canvas, iframe { max-width: 100%; }
 .commitment-alert-grid small{font-size:11px;color:#8a978e}
 @media(max-width:1100px){.commitment-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.commitment-page-intro{flex-direction:column;align-items:flex-start;padding:17px}.commitment-kpi-grid,.commitment-alert-grid{grid-template-columns:1fr}.commitment-period-pill{white-space:normal}}
+
+/* Lead commitments with the actual book-based monthly operational shortfall */
+.commitment-deficit-headline{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:stretch;padding:20px;border-radius:19px;margin:0 0 19px;border:1px solid #e7d6c6;background:linear-gradient(120deg,#fff8f1,#fff,#f7fbf7);box-shadow:0 7px 24px rgba(68,49,35,.05)}
+.commitment-deficit-leading{display:flex;flex-direction:column;gap:9px;min-width:0;justify-content:center}
+.commitment-deficit-leading>span{display:inline-flex;align-items:center;gap:7px;color:#a05a24;font-size:13px;font-weight:800}
+.commitment-deficit-leading>strong{font-size:clamp(27px,3.4vw,42px);line-height:1.2;color:#8b3f20;font-weight:900;overflow-wrap:anywhere}
+.commitment-deficit-leading>small{font-size:11px;line-height:1.85;color:#846e60}
+.commitment-deficit-breakdown{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.commitment-deficit-breakdown>div{display:flex;flex-direction:column;gap:7px;border:1px solid #e9e3d9;border-radius:12px;background:rgba(255,255,255,.8);padding:12px;min-width:0}
+.commitment-deficit-breakdown span{font-size:11px;color:#766e63}
+.commitment-deficit-breakdown b{font-size:16px;color:#3d493e;font-weight:850;overflow-wrap:anywhere}
+@media(max-width:900px){.commitment-deficit-headline{grid-template-columns:1fr}}
+@media(max-width:500px){.commitment-deficit-headline{padding:13px}.commitment-deficit-breakdown{grid-template-columns:1fr}}

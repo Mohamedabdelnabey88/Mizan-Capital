@@ -53,4 +53,11 @@ assert(worker.includes("{project:'',deficitMonth:'',amount,date:dt,paymentAccoun
 assert(worker.includes("pair('',pay,'owner_advance',amount)"), 'General owner advance must post against the consolidated ledger only');
 assert(worker.includes("d.project?'رد سلفة مالك عن عجز '+String(d.deficitMonth||''):'رد سلفة مالك عامة على إجمالي المشاريع'"), 'Repayment journal must distinguish general advances from project deficit advances');
 
+// Every dashboard period label, including the 13-week cash forecast, must parse ISO dates.
+const correctDatePattern=String.raw`raw.match(/^(\d{4})-(\d{2})-(\d{2})/)`;
+const incorrectDatePattern=String.raw`raw.match(/^(\\d{4})-(\\d{2})-(\\d{2})/)`;
+assert(source.includes(correctDatePattern),'Date formatter must capture numeric ISO year/month/day');
+assert(!source.includes(incorrectDatePattern),'Do not match a literal backslash-d instead of numeric dates');
+const match='2026-10-22'.match(/^(\d{4})-(\d{2})-(\d{2})/);
+assert.deepEqual(match?.slice(1),['2026','10','22']);
 console.log(JSON.stringify({passed:true,checked:['general owner advance and repayment','daily reports UI','PDF daily report section','Excel daily report sheet','Excel balance sheet totals and internal-funding elimination','owner advance visibility and repayment action scope']}));

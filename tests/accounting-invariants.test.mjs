@@ -277,3 +277,11 @@ assert.equal(f.balance(ownerAdvanceWorkspace,'p1','2026-06-05').cash,-300000,'ba
 assert.equal(f.balance(ownerAdvanceWorkspace,'p1','2026-06-06').owner_advance,-300000,'owner advance is a credit-normal liability');
 assert.equal(f.balance(ownerAdvanceWorkspace,'p1','2026-06-10').owner_advance,-200000,'repayment reduces the liability balance');
 assert.equal(f.normalBalance('owner_advance',f.balance(ownerAdvanceWorkspace,'p1','2026-06-10').owner_advance),200000,'liability display converts credit balance to a positive amount');
+const ownerAdvanceFlow=f.actualCashFlow(ownerAdvanceWorkspace,'p1','2026-06-01','2026-06-30');
+assert.equal(ownerAdvanceFlow.rows.find(x=>x.date==='2026-06-06').financingIn,300000,'owner advance must be classified as financing inflow, not miscellaneous inflow');
+assert.equal(ownerAdvanceFlow.rows.find(x=>x.date==='2026-06-10').financingOut,100000,'owner repayment must be classified as financing outflow, not operating expense');
+assert.equal(ownerAdvanceFlow.rows.find(x=>x.date==='2026-06-06').otherIn,0);
+assert.equal(ownerAdvanceFlow.rows.find(x=>x.date==='2026-06-10').otherOut,0);
+assert.equal(ownerAdvanceFlow.closing,(f.balance(ownerAdvanceWorkspace,'p1','2026-06-30').cash||0)+(f.balance(ownerAdvanceWorkspace,'p1','2026-06-30').bank||0),'cash-flow closing must equal posted cash and bank');
+assert.equal(f.accountingControlTotals(ownerAdvanceWorkspace,'2026-06-01','2026-06-30','p1').cashFlowDifference,0,'owner repayment must preserve cash reconciliation');
+

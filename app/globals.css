@@ -1405,3 +1405,22 @@ img, video, canvas, iframe { max-width: 100%; }
 .monthly-report-table table{min-width:1200px}
 @media(max-width:1080px){.monthly-report-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:640px){.monthly-report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.monthly-report-toolbar{align-items:stretch}.monthly-report-toolbar label{flex-wrap:wrap}}
+
+/* Commitments control center: visually distinguish booked settlements from open obligations */
+.commitment-page-intro{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:19px 22px;margin-bottom:16px;border-radius:17px;background:linear-gradient(125deg,#f0f8f2,#fff);border:1px solid #d8e8dc}
+.commitment-page-intro>div:first-child{max-width:630px}
+.commitment-page-intro span{display:block;font-size:11px;font-weight:750;color:#417454;margin-bottom:5px}
+.commitment-page-intro h2{font-size:clamp(18px,2vw,23px);color:#19412b;margin:0 0 6px;font-weight:850}
+.commitment-page-intro p{font-size:12px;line-height:1.9;color:#6d8272;margin:0}
+.commitment-period-pill{display:inline-flex;align-items:center;gap:8px;border:1px solid #c4d9c9;background:#fff;border-radius:999px;padding:10px 14px;font-size:12px;color:#306d43;font-weight:750;white-space:nowrap}
+.commitment-kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin:16px 0}
+.commitment-kpi-grid>.stat-card{min-width:0;border:1px solid #dde9e0;border-radius:16px;box-shadow:0 5px 16px rgba(37,61,43,.045);background:#fff}
+.commitment-kpi-grid>.stat-card:nth-child(3),.commitment-kpi-grid>.stat-card:nth-child(4){background:linear-gradient(140deg,#f0f8f3,#fff)}
+.commitment-kpi-grid>.stat-card:nth-child(7){background:linear-gradient(145deg,#fff8f5,#fff);border-color:#f1dad3}
+.commitment-alert-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:15px}
+.commitment-alert-grid>div{display:flex;flex-direction:column;gap:8px;padding:15px 17px;background:#f8faf8;border:1px solid #e1eae3;border-radius:13px;min-width:0}
+.commitment-alert-grid span{font-size:12px;color:#667a6c}
+.commitment-alert-grid strong{font-size:clamp(16px,1.5vw,21px);font-weight:850;color:#244632;overflow-wrap:anywhere}
+.commitment-alert-grid small{font-size:11px;color:#8a978e}
+@media(max-width:1100px){.commitment-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.commitment-page-intro{flex-direction:column;align-items:flex-start;padding:17px}.commitment-kpi-grid,.commitment-alert-grid{grid-template-columns:1fr}.commitment-period-pill{white-space:normal}}

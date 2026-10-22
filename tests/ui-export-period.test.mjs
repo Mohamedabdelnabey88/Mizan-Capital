@@ -41,7 +41,7 @@ assert(source.includes("open('repayOwnerAdvance',{id:r.id,project:r.data.project
 assert(source.includes('deficitReconciliation=operationalDeficitReconciliation(deficitAssigned,pnl.net)'), 'Operational deficit total must reconcile report loss that is not assigned to a project');
 assert(source.includes('deficitPaid=ownerAdvances.filter(x=>String(x.data.deficitMonth||\'\')>=from.slice(0,7)&&String(x.data.deficitMonth||\'\')<=to.slice(0,7))'), 'Owner advance coverage total must not become zero solely because no deficit rows matched');
 assert(!source.includes("const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled'&&String(x.data.date)>=from&&String(x.data.date)<=to)"), 'Owner advance repayment actions must not disappear due to unrelated report date filters');
-assert(source.indexOf('<Panel title="دفع العجز — سلف مستحقة للمالك"') < source.indexOf('<Panel title="ملخص الالتزامات والتحصيلات"'), 'Owner deficit and repayment panel must appear before the long commitments summary');
+assert(source.indexOf('<Panel title="دفع العجز — سلف مستحقة للمالك"') < source.indexOf('<Panel title="مركز الالتزامات والتحصيلات"'), 'Owner deficit and repayment panel must appear before the long commitments summary');
 
 const worker = await fs.readFile(new URL('../cloudflare/workspace.ts', import.meta.url), 'utf8');
 assert(source.includes("open('ownerAdvanceGeneral',{date:today(),amount:'',paymentAccount:'cash',memo:'سلفة عامة من المالك على إجمالي المشاريع'})"), 'Dashboard must provide a separate general owner advance action');

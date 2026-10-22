@@ -7,7 +7,7 @@ assert(!ui.includes("String(f.date)>=from&&String(f.date)<=to"),
  'Capital detail must not exclude opening outstanding funding');
 assert(ui.includes("cardReceivables(w,scope,to)"),
  'Exported card receivables must honor report end date');
-assert(ui.includes("moneyCell((dashboardBalance.cash||0)+(dashboardBalance.bank||0),5)"),
+assert(ui.includes("moneyCell(cashAndBank(w,scope,to),5)"),
  'Exported cash/bank must honor report end date');
 assert(ui.includes('التمويلات المسجلة حتى '),
  'Capital table must explain lifetime balance and period movements');

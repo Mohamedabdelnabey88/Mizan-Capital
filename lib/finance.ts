@@ -14,9 +14,12 @@ export type PaymentAccount=typeof PAYMENT_ACCOUNTS[number];
 export const paymentAccountNames:Record<PaymentAccount,string>={cash:'كاش',bank:'حساب بنكي',mada:'مدى',visa:'Visa',mastercard:'Mastercard',receivable:'آجل'};
 export function sumAmounts(values:number[]){return values.reduce((s,v)=>s+v,0);}
 export function assertHalalaAmount(v:unknown){const n=Number(v);if(!Number.isSafeInteger(n)||n<1)throw Error('المبلغ يجب أن يكون بالهللة وبقيمة صحيحة أكبر من صفر.');return n;}
-export function liquidity(w:Workspace,project='all',end=today()){
+export function cashAndBank(w:Workspace,project='all',end=today()){
  const b=balance(w,project,end);
- return (b.cash||0)+(b.bank||0)+(b.mada||0)+(b.visa||0)+(b.mastercard||0);
+ return (b.cash||0)+(b.bank||0);
+}
+export function liquidity(w:Workspace,project='all',end=today()){
+ return cashAndBank(w,project,end)+cardReceivables(w,project,end);
 }
 export function cardReceivables(w:Workspace,project='all',end=today()){
  const b=balance(w,project,end);

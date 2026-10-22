@@ -1390,3 +1390,18 @@ img, video, canvas, iframe { max-width: 100%; }
 .project-branch-bottom>span:last-child{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;font-weight:800;color:#2d7350}
 @media(max-width:980px){.project-portfolio-hero{grid-template-columns:1fr}.project-child-grid{grid-template-columns:1fr}}
 @media(max-width:580px){.project-child-list{padding:10px}.project-child-list-head{flex-direction:column}.project-portfolio-primary{padding:16px}.project-portfolio-secondary>div{padding:11px}.project-branch-bottom{flex-wrap:wrap}}
+
+/* Accounting report: monthly operating deficit vs dated owner-financing ledger */
+.monthly-report-toolbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 16px;margin-bottom:15px;border:1px solid #dce8df;border-radius:14px;background:#f6faf7}
+.monthly-report-toolbar label{font-size:13px;font-weight:750;color:#315d40;display:flex;align-items:center;gap:10px}
+.monthly-report-toolbar input{min-height:38px;padding:7px 10px;border:1px solid #b9d1c0;border-radius:9px;background:#fff;color:#1b3927;direction:ltr}
+.monthly-report-toolbar>span{font-size:11px;color:#6e8173}
+.monthly-report-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.monthly-report-kpis>div{display:flex;flex-direction:column;gap:8px;min-width:0;background:linear-gradient(160deg,#f8fbf8,#fff);border:1px solid #dee9e1;border-radius:13px;padding:15px 12px}
+.monthly-report-kpis>div span{font-size:11px;color:#687e6d;line-height:1.65}
+.monthly-report-kpis>div strong{font-size:clamp(15px,1.5vw,21px);color:#214d34;font-weight:850;overflow-wrap:anywhere}
+.monthly-report-kpis>div:last-child{background:#eaf5ee;border-color:#bddac6}
+.monthly-report-table{max-width:100%;overflow-x:auto;margin-bottom:14px}
+.monthly-report-table table{min-width:1200px}
+@media(max-width:1080px){.monthly-report-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:640px){.monthly-report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.monthly-report-toolbar{align-items:stretch}.monthly-report-toolbar label{flex-wrap:wrap}}

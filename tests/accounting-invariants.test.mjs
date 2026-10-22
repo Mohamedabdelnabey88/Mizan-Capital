@@ -269,6 +269,12 @@ assert(loanWorker.includes("const settlementDate=date(p.date||today());if(settle
 assert(loanWorker.includes("const d=r.data,dt=settlementDate,loanRecord="),'Loan batch must post each selected installment at actual settlement date');
 assert(loanUi.includes('تاريخ السداد الفعلي لجميع الأقساط'),'Batch modal must expose actual settlement date');
 assert(loanUi.includes('أقساط متأخرة ({overdueInstallments.length})'),'Loan cards must distinguish overdue installments');
+const loanTimelineUi=readFileSync('app/page.tsx','utf8');
+assert(loanTimelineUi.includes("loanHistoryView==='due'"),'Loan timeline must support grouping by original due month');
+assert(loanTimelineUi.includes("loanHistoryView==='paid'"),'Loan timeline must support grouping by actual payment month');
+assert(loanTimelineUi.includes("paidOn=paid?String(o.data.paidOn||''):''"),'Loan payment date column must read recorded settlement date');
+assert(loanTimelineUi.includes("loanHistoryView==='paid'&&paid?paidOn:due"),'Already settled installments must use actual settlement month in payment view');
+assert(loanTimelineUi.includes('تغيير طريقة العرض لا ينشئ أو يغيّر أي قيد محاسبي'),'Loan history must stay a presentation-only view');
 console.log('Accounting invariant tests passed: balanced journals, loan principal vs interest, profit isolation, forecast isolation, balance sheet, cash-flow reconciliation, inter-project funding, and invalid journal rejection.');
 
 // Owner-funded deficit coverage is a repayable liability, not income, capital, or profit.

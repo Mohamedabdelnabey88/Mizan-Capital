@@ -12,7 +12,7 @@ const amount=(r:Workspace['records'][number])=>Math.max(0,Number(r.data.amount||
  * Opening/closing balances come from dated original and linked repayment documents,
  * rather than the mutable lifetime "repaid" field on an advance.
  */
-export function monthlyOwnerAdvanceReport(w:Workspace,start:string,end:string,projectIds:string[]):MonthlyAdvanceRow[]{
+export function monthlyOwnerAdvanceReport(w:Workspace,start:string,end:string,projectIds:string[],includeGeneral=false):MonthlyAdvanceRow[]{
  if(start>end)return [];
  const projectSet=new Set(projectIds);
  const advances=w.records.filter(r=>r.kind==='deficitPayment'&&valid(r));
@@ -21,7 +21,7 @@ export function monthlyOwnerAdvanceReport(w:Workspace,start:string,end:string,pr
   .map(r=>({record:r,advance:advanceMap.get(String(r.data.advanceId||''))}))
   .filter(x=>!!x.advance);
  const general=advances.some(r=>!r.data.project)||repayments.some(x=>!x.advance?.data.project);
- const ids=[...projectIds,...(general&&projectIds.length>0?['']:[])];
+ const ids=[...projectIds,...(general&&includeGeneral?['']:[])];
  const result:MonthlyAdvanceRow[]=[];
  for(let cursor=start.slice(0,7)+'-01';cursor<=end;cursor=monthAdd(cursor,1)){
   const month=cursor.slice(0,7),monthEnd=dayAdd(monthAdd(cursor,1),-1);

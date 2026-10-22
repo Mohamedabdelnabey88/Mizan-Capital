@@ -78,6 +78,11 @@ try{
   assert.equal(session.status,200);assert.deepEqual(await session.json(),{email:'member1@example.com'});checks++;
   await expectStatus({path:'/api/session',cookie:null},401);
 
+  const loginFrontend=fs.readFileSync('cloudflare/main.tsx','utf8');
+  assert(loginFrontend.includes('type="email"')&&loginFrontend.includes('type="password"'),'Production login screen must expose email and password fields');
+  assert(loginFrontend.includes("fetch('/auth/login',{method:'POST'"),'Login must submit credentials to actual password-based Worker API');
+  assert(!loginFrontend.includes("href={status==='ready'?'/':'/auth/login'}"),'Login must not redirect into the legacy GET /auth/login loop');
+  assert(loginFrontend.includes('signOutHref="/auth/logout"'),'Logout must use same session authentication scheme');
   const badLogin=await call({path:'/auth/login',cookie:null,method:'POST',body:{email:'famaradona89@gmail.com',password:'definitely-wrong-password'}});
   assert.equal(badLogin.status,401);checks++;
   // Five failed attempts from the same client/email must lock further attempts in the active window.

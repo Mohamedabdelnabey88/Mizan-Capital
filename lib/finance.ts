@@ -66,6 +66,37 @@ export type BalanceSheet={end:string;assets:number;liabilities:number;equity:num
 export function balanceSheet(w:Workspace,project='all',end=today()):BalanceSheet{const b=balance(w,project,end);let assets=0,liabilities=0,equity=0,retainedEarnings=0,currentProfit=0;for(const [account,value] of Object.entries(b)){const type=accounts[account]?.type;if(type==='asset'||type==='contra')assets+=value;else if(type==='liability')liabilities-=value;else if(type==='equity'){equity-=value;if(account==='retained')retainedEarnings-=value;}else if(type==='income')currentProfit+=-value;else if(type==='expense')currentProfit-=value;else if(type==='distribution')equity-=value;}const totalLiabilitiesAndEquity=liabilities+equity+currentProfit;const difference=assets-totalLiabilitiesAndEquity;return {end,assets,liabilities,equity,retainedEarnings,currentProfit,totalLiabilitiesAndEquity,difference,balanced:difference===0,accounts:b};}
 export function balanceSheetControl(w:Workspace,project='all',end=today()){const bs=balanceSheet(w,project,end);const controls=accountingControlTotals(w,'0000-01-01',end,project);return {...bs,trialBalanceDifference:controls.balanceCheck,cashFlowDifference:controls.cashFlowDifference,fullyReconciled:bs.balanced&&controls.balanceCheck===0&&controls.cashFlowDifference===0};}
 export function profit(w:Workspace,project='all',start=today().slice(0,4)+'-01-01',end=today()){let revenue=0,expense=0;for(const j of w.journals){if(j.date<start||j.date>end)continue;for(const l of j.lines){if(project!=='all'&&l.project!==project)continue;if(accounts[l.account]?.type==='income')revenue+=l.credit-l.debit;if(accounts[l.account]?.type==='expense')expense+=l.debit-l.credit;}}return {revenue,expense,net:revenue-expense};}
+
+/** Read-only reconciliation by posted journal lines; all figures are integer halalas.
+ * Gross received through payment channels is not the same as profit or bank settlement. */
+export function dashboardProfitReconciliation(w:Workspace,start:string,end:string,projectIds:string[]){
+ const ids=new Set(projectIds);
+ const rows=projectIds.map(id=>({project:id,revenue:0,expense:0,net:0,cashReceived:0,cardReceived:0,creditSales:0,bankCashNet:0,cardSettlement:0,creditCollections:0}));
+ const byProject=new Map(rows.map(r=>[r.project,r]));
+ for(const j of w.journals){
+  if(j.date<start||j.date>end)continue;
+  for(const l of j.lines){
+   const r=byProject.get(l.project);if(!r)continue;
+   const type=accounts[l.account]?.type;
+   if(type==='income')r.revenue+=l.credit-l.debit;
+   if(type==='expense')r.expense+=l.debit-l.credit;
+   if(l.account==='cash'||l.account==='bank')r.bankCashNet+=l.debit-l.credit;
+   if(j.kind==='cardSettlement'&&(l.account==='cash'||l.account==='bank'))r.cardSettlement+=l.debit-l.credit;
+   if(j.kind==='collect'&&(l.account==='cash'||l.account==='bank'))r.creditCollections+=l.debit-l.credit;
+   // Recognized receipt at sale, not the later card settlement.
+   if(['income','dailyReport'].includes(j.kind)){
+    if(l.account==='cash'||l.account==='bank')r.cashReceived+=l.debit-l.credit;
+    if(['mada','visa','mastercard'].includes(l.account))r.cardReceived+=l.debit-l.credit;
+    if(l.account==='receivable')r.creditSales+=l.debit-l.credit;
+   }
+  }
+ }
+ for(const r of rows)r.net=r.revenue-r.expense;
+ const total=rows.reduce((a,r)=>{for(const key of ['revenue','expense','net','cashReceived','cardReceived','creditSales','bankCashNet','cardSettlement','creditCollections'] as const)a[key]+=r[key];return a;},{revenue:0,expense:0,net:0,cashReceived:0,cardReceived:0,creditSales:0,bankCashNet:0,cardSettlement:0,creditCollections:0});
+ const all=profit(w,'all',start,end);
+ return {rows,total,allProjectsProfit:all.net,excludedProjectsProfit:all.net-total.net,selectedProjectIds:[...ids],start,end};
+}
+
 export type AccountingTrace={transactionId:string;date:string;kind:string;memo:string;lines:Line[];ledgerDelta:Record<string,number>;cashDelta:number;profitDelta:number;project:string;};
 export function traceTransaction(w:Workspace,transactionId:string):AccountingTrace|undefined{
  const j=w.journals.find(x=>x.id===transactionId||x.source===transactionId);

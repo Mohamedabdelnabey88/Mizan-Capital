@@ -5,6 +5,8 @@ const require=createRequire(import.meta.url),wr=createRequire(require.resolve('w
 const {build}=wr('esbuild'),{Miniflare}=wr('miniflare');
 fs.mkdirSync('.sites-runtime',{recursive:true});
 await build({stdin:{contents:"import {GET,POST} from './cloudflare/workspace';export default {fetch:(req)=>req.method==='POST'?POST(req):GET(req)}",resolveDir:process.cwd()},bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],outfile:'.sites-runtime/installment-worker.mjs'});
+await build({entryPoints:['lib/dashboard-settlements.ts'],bundle:true,format:'esm',platform:'node',outfile:'.sites-runtime/installment-dashboard.mjs'});
+const {dashboardSettlements}=await import('../.sites-runtime/installment-dashboard.mjs');
 const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/installment-worker.mjs',compatibilityDate:'2026-05-15',d1Databases:['DB']});
 try{
  const db=await mf.getD1Database('DB');
@@ -64,6 +66,32 @@ try{
  w=await snapshot();await repayTwice(w.records.find(r=>r.kind==='obligation'&&r.data.tenantLeaseId),'projectSchedulePayment');
  await post('loan',{project,holder:'business',name:'قرض اختبار إعادة السداد',amount:1000,monthlyPayment:1000,months:1,start:date,firstDate:date});
  w=await snapshot();const loan=w.records.find(r=>r.kind==='loan');await repayTwice(w.records.find(r=>r.kind==='obligation'&&r.data.loan===loan.id),'settleLoansSingle');
+ // Calendar's single-payment action must update the same dashboard used by overview.
+ await post('loan',{project,holder:'business',name:'قسط 2444 للمطابقة',amount:2000,monthlyPayment:2444,months:1,start:date,firstDate:date});
+ w=await snapshot();const bankLoan=w.records.find(r=>r.kind==='loan'&&r.data.name==='قسط 2444 للمطابقة');
+ const bankDue=w.records.find(r=>r.kind==='obligation'&&r.data.loan===bankLoan.id);
+ assert.equal(bankDue.data.amount,244400);
+ const before=dashboardSettlements(w,project,date,date,date);
+ await post('settle',{id:bankDue.id,date,paymentAccount:'bank',loanPaymentSource:'liquidity'});
+ w=await snapshot();const after=dashboardSettlements(w,project,date,date,date);
+ assert.equal(before.remaining-after.remaining,244400,'30-day remaining drops by the entire calendar payment');
+ assert.equal(after.paidAmount-before.paidAmount,244400,'paid portion increases by the same payment');
+ assert.equal(after.scheduled,before.scheduled,'scheduled = paid + remaining without dropping the installment history');
+ assert.equal(after.pending.length,before.pending.length-1);
+ assert.equal(after.cashflow.net-before.cashflow.net,-244400,'full installment reduces period cash');
+ assert.equal(after.loanCashPaid-before.loanCashPaid,244400);
+ assert.equal(after.interestExpense-before.interestExpense,bankDue.data.interest,'only finance cost affects profit');
+ assert.equal(w.records.find(r=>r.id===bankDue.id).data.paymentAccount,'bank','single calendar payment preserves receipt metadata');
+ await post('undoInstallmentPayment',{id:bankDue.id,date,reason:'اختبار استعادة البطاقات بعد التراجع'});
+ const undone=dashboardSettlements(await snapshot(),project,date,date,date);
+ for(const key of ['remaining','paidAmount','scheduled','loanCashPaid','interestExpense'])assert.equal(undone[key],before[key],key+' reconciles after undo');
+ assert.equal(undone.cashflow.net,before.cashflow.net);
+ // Re-paying from personal funds settles the due without reducing project cash.
+ await post('settle',{id:bankDue.id,date,loanPaymentSource:'personal'});
+ const personal=dashboardSettlements(await snapshot(),project,date,date,date);
+ assert.equal(personal.remaining,before.remaining-244400);
+ assert.equal(personal.loanCashPaid,before.loanCashPaid);
+ assert.equal(personal.cashflow.net,before.cashflow.net);
  await post('closePeriod',{id:project,date});
  assert.equal((await call('undoInstallmentPayment',{id:due.id,date,reason:'محاولة تراجع بعد الإقفال'})).status,400,'closed periods must remain protected');
  console.log('Installment lifecycle passed: modern/legacy rent, expenses, construction, generic obligations and batch loan repayments; duplicate/concurrent rejection, repeated undo/re-pay and period locks.');

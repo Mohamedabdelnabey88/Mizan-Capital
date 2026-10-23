@@ -18,7 +18,7 @@ for(const [id,label] of sections){
  assert(ui.includes("['"+id+"','"+label+"'"),'missing navigation entry '+label);
  assert(ui.includes("tab==='"+id+"'"),'missing rendered section '+label);
 }
-assert(ui.includes("await load();toast.success('تم الحفظ وتحديث الحسابات')"),'posted actions must refresh workspace');
+assert(ui.includes("if(!await load())throw Error(")&&ui.includes("toast.success('تم الحفظ وتحديث الحسابات')"),'posted actions must refresh workspace');
 assert(ui.includes('balance(w,scope,to)'),'dashboard and capital balances must respect selected end date');
 assert(ui.includes('profit(w,scope,from,to)'),'profit must respect selected reporting period');
 assert(ui.includes('const dashboardOwnerAdvances=w.records.filter'),'owner advances must derive from workspace records');

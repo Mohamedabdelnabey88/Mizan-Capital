@@ -12,7 +12,7 @@ export const pageGuides:Record<string,{title:string;description:string;links:str
  projects:{title:'المشاريع والفروع',description:'اختر مشروعًا لتتابع تكاليفه وعقوده وفروعه، وما دفعته وما تبقى عليه.',links:['contracts','capital','reports']},
  daily:{title:'الدخل اليومي',description:'سجّل دخل كل مشروع حسب وسيلة الدفع. مبيعات البطاقات تظل مستحقات حتى تسجيل تسويتها.',links:['ledger','reports']},
  commitments:{title:'السداد والتحصيل',description:'اعرف المطلوب سداده، والمنتظر تحصيله، وما نُفّذ بالفعل. راجع العملية قبل تأكيد السداد.',links:['calendar','ledger','contracts']},
- calendar:{title:'المواعيد والاستحقاقات',description:'اختر الشهر، ثم اعرض قائمة الاستحقاقات أو التقويم. التنفيذ الفعلي يظهر بتاريخ السداد أو التحصيل.',links:['commitments','contracts']},
+ calendar:{title:'المواعيد والاستحقاقات',description:'حدّد الفترة لعرض الاستحقاقات، أو اختر التقويم الشهري. التنفيذ الفعلي يظهر بتاريخ السداد أو التحصيل.',links:['commitments','contracts']},
  contracts:{title:'العقود والإيجارات',description:'تابع أطراف العقد ومدته وأقساطه. سداد الأقساط وتحصيلها من سجل الاستحقاقات.',links:['projects','commitments']},
  ledger:{title:'سجل الحركات المالية',description:'تتبّع أثر كل عملية على الحسابات. تصحيح الحركة يكون بقيد عكسي يحافظ على سجل المراجعة.',links:['daily','reports','capital']},
  capital:{title:'رأس المال وسلف المالك',description:'اعرف ما موّلته، وما عاد إليك، والمتبقي. التمويل والسلف لا يُحسبان إيرادًا أو ربحًا.',links:['projects','ledger','loans']},

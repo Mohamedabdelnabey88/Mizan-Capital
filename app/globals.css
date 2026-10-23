@@ -1511,3 +1511,5 @@ img, video, canvas, iframe { max-width: 100%; }
 .main-shell .period-quick-actions{align-items:center}
 @media(max-width:900px){.data-table-scroll{margin-inline:-4px}.main-shell .filterbar{align-items:stretch}.main-shell .period-filter{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.main-shell *,.finance-dialog *{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
+
+.calendar-paid-details{padding:18px;margin:16px 0 20px;border:1px solid #dce9e2;border-radius:15px;background:#fbfdfc}.calendar-paid-title{margin-bottom:12px}.calendar-paid-title h3,.commitment-detail-title h3{font-weight:800;font-size:16px;color:#1e5540;margin:0 0 5px}.calendar-paid-title p,.commitment-detail-title p{font-size:13px;line-height:1.8;color:#63766f;margin:0}.commitment-detail-anchor{scroll-margin-top:95px;padding:12px 16px;margin:12px 0;border-right:4px solid #3e9672;background:#f1f8f4;border-radius:12px}

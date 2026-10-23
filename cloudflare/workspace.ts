@@ -529,9 +529,8 @@ else if(action==='undoInstallmentPayment'){
  const expected=['obligation:'+r.id,'project-commitment-payment:'+r.id,'project-tenant-rent-payment:'+r.id,'tenant-rent-payment:'+r.id];
  const asset=w.records.find(x=>x.kind==='projectAsset'&&x.data.sourceObligation===r.id&&x.data.status!=='cancelled');
  if(asset)expected.push('project-asset:'+asset.id);
- const original=w.journals.filter(j=>expected.includes(String(j.source||''))&&!j.reversal);
- if(!original.length)throw Error('تعذر العثور على قيد السداد الأصلي؛ لا يمكن التراجع آليًا عن هذا القسط.');
- if(original.some(j=>w.journals.some(x=>x.reversal===j.id)))throw Error('تم التراجع عن قيد هذا السداد من قبل.');
+ const original=w.journals.filter(j=>expected.includes(String(j.source||''))&&!j.reversal&&!w.journals.some(x=>x.reversal===j.id));
+ if(!original.length)throw Error('لا يوجد قيد سداد نشط قابل للتراجع؛ قد يكون قد تم عكسه بالفعل.');
  if(original.some(j=>j.date>reversalDate))throw Error('تاريخ التراجع يسبق تاريخ تسجيل الدفع الأصلي.');
  if(original.some(j=>j.lines.some(l=>l.project&&l.project!==d.project)))throw Error('قيود السداد تشمل مشروعًا مختلفًا؛ تتطلب مراجعة يدوية.');
  for(const j of original)journal('reversal','إلغاء سداد قسط: '+String(d.title||'')+' — '+reason,reversalDate,j.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,j.id);

@@ -41,7 +41,9 @@ assert(source.includes("open('repayOwnerAdvance',{id:r.id,project:r.data.project
 assert(source.includes('deficitReconciliation=operationalDeficitReconciliation(deficitAssigned,pnl.net)'), 'Operational deficit total must reconcile report loss that is not assigned to a project');
 assert(source.includes("deficitPaid=ownerAdvances.filter(x=>!!x.data.project&&String(x.data.deficitMonth||'')>=from.slice(0,7)&&String(x.data.deficitMonth||'')<=to.slice(0,7)&&String(x.data.date||'')<=to)"), 'Owner deficit coverage should count dated project-linked payments through cutoff independently of deficitRows');
 assert(!source.includes("const ownerAdvances=w.records.filter(x=>x.kind==='deficitPayment'&&(scope==='all'||x.data.project===scope)&&x.data.status!=='cancelled'&&String(x.data.date)>=from&&String(x.data.date)<=to)"), 'Owner advance repayment actions must not disappear due to unrelated report date filters');
-assert(source.indexOf('<Panel title="دفع العجز — سلف مستحقة للمالك"') < source.indexOf('<Panel title="مركز الالتزامات والتحصيلات"'), 'Owner deficit and repayment panel must appear before the long commitments summary');
+const ownerSection=source.slice(source.indexOf('<TabsContent value="owner">'),source.indexOf('<TabsContent value="contracts">'));
+assert(ownerSection.includes('<Panel title="دفع العجز — سلف مستحقة للمالك"')&&ownerSection.includes('<Panel title="سجل سلف المالك وردّها"'), 'Owner deficit and repayment must remain together in their dedicated, labelled tab');
+assert(source.includes('<TabsTrigger value="owner">سلف المالك والعجز</TabsTrigger>'), 'Owner advances must have a discoverable navigation tab');
 
 const worker = await fs.readFile(new URL('../cloudflare/workspace.ts', import.meta.url), 'utf8');
 assert(source.includes("open('ownerAdvanceGeneral',{date:today(),amount:'',paymentAccount:'cash',memo:'سلفة عامة من المالك على إجمالي المشاريع'})"), 'Dashboard must provide a separate general owner advance action');

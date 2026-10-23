@@ -1,4 +1,5 @@
 'use client';
+import {DateInput} from '@/components/date-input';
 import {useState} from 'react';
 import {CalendarDays,ChevronLeft,ChevronRight} from 'lucide-react';
 import {monthPeriod,shiftReportPeriod,validReportDate,type ReportPeriod} from '@/lib/report-period';
@@ -13,8 +14,8 @@ function ReportPeriodEditor({start,end,currentDate,fiscalYear,onChange,descripti
  return <section className="report-period-control" aria-label="فترة الصفحة">
   <div className="report-period-heading"><span><CalendarDays size={18}/> الفترة المعروضة</span><output aria-live="polite" dir="ltr">{start} — {end}</output></div>
   {savedPeriods.length>0&&<label className="saved-period-picker">الفترات المحفوظة<select aria-label="اختيار فترة مالية محفوظة" value={savedPeriods.findIndex(period=>period.start===start&&period.end===end)} onChange={e=>{const period=savedPeriods[Number(e.target.value)];if(period)apply(period);}}><option value={-1}>فترة مخصصة</option>{savedPeriods.map((period,index)=><option value={index} key={period.start+period.end}>{period.label}</option>)}</select></label>}<div className="report-period-inputs"><button type="button" className="icon-button" aria-label="الفترة السابقة" onClick={()=>apply(shiftReportPeriod({start,end},-1))}><ChevronRight size={18}/></button>
-   <label>من<input aria-label="بداية فترة التقرير" type="date" value={draftStart} onChange={e=>setDraftStart(e.target.value)}/></label>
-   <label>إلى<input aria-label="نهاية فترة التقرير" type="date" value={draftEnd} onChange={e=>setDraftEnd(e.target.value)}/></label>
+   <label>من<DateInput aria-label="بداية فترة التقرير" type="date" value={draftStart} onChange={e=>setDraftStart(e.target.value)}/></label>
+   <label>إلى<DateInput aria-label="نهاية فترة التقرير" type="date" value={draftEnd} onChange={e=>setDraftEnd(e.target.value)}/></label>
    <button type="button" className="btn primary" onClick={()=>{if(!validReportDate(draftStart)||!validReportDate(draftEnd)||draftStart>draftEnd){setError('اختر تاريخين صحيحين؛ نهاية الفترة يجب ألا تسبق بدايتها.');return;}apply({start:draftStart,end:draftEnd});}}>تطبيق الفترة</button>
    <button type="button" className="icon-button" aria-label="الفترة التالية" onClick={()=>apply(shiftReportPeriod({start,end},1))}><ChevronLeft size={18}/></button>
   </div>

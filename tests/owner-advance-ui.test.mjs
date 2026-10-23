@@ -7,6 +7,6 @@ assert(!source.includes('onClick={()=>go(\'commitments\')}>إدارة السلف
 assert(source.includes("modal==='ownerAdvancePicker'"),'owner advance picker modal must be rendered');
 assert(source.includes("onClick={()=>open('repayOwnerAdvance',{id:r.id,project:r.data.project,advanceDate:r.data.date,title:"),'picker must open the repayment form for the selected advance');
 assert(source.includes("amount:(remaining/100).toFixed(2)"),'repayment form must default to the exact outstanding balance');
-assert(source.includes("await load();toast.success('تم الحفظ وتحديث الحسابات')"),'successful repayment must reload the workspace');
+assert(source.includes("if(!await load())throw Error(")&&source.includes("toast.success('تم الحفظ وتحديث الحسابات')"),'successful repayment must reload the workspace');
 assert(source.includes("modal!=='ownerAdvancePicker'&&<button type=\"submit\""),'picker must not submit a financial transaction itself');
 console.log('Owner advance UI regression tests passed.');

@@ -66,3 +66,6 @@ assert(html.includes('QA_OCT_EXECUTED_NOV'),'November execution must include an 
 html=renderPage('settings');assert(html.includes('أقسام الإعدادات'));
 html=renderPage('daily');assert(html.includes('أقسام الدخل اليومي'));
 console.log('Cross-page regressions passed: shared periods, calendar grid/list alignment, due vs actual payment dates, and task sections.');
+
+html=renderPage('commitments');for(const title of ['ملخص التزاماتي والتحصيلات','المفروض يتحصّل في الفترة','اتحصّل من مستحقات الفترة','المتبقي من مستحقات الفترة','العجز وسلف المالك','رد سلفة للمالك'])assert(html.includes(title),title+' must remain visible on the commitments landing page');
+html=renderPage('daily');assert(html.includes('افتح التزاماتي — الشهر الحالي'),'Daily reports must link directly to the monthly commitments home');

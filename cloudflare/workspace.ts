@@ -156,7 +156,17 @@ else if(action==='projectCost'){
  if(amount>available)throw Error('الرصيد المتاح في '+(paymentAccount==='cash'?'الصندوق':'الحساب البنكي')+' لا يكفي لتسجيل التكلفة. سجّل التمويل/الرصيد الافتتاحي الصحيح أو اختر حساب الدفع الفعلي.');
  const treatment=['expense','asset'].includes(p.treatment)?p.treatment:'expense';
  const debitAccount=treatment==='asset'?'investment':'expense';
- const costId=put('projectCost',{project:pr.id,title,amount,date:dt,category,notes,status:'active',paymentAccount,treatment,createdAt:time});
+ const linkedLoanId=String(p.loanId||'').trim();
+ if(linkedLoanId){
+  const sourceLoan=find(linkedLoanId,'loan');
+  if(sourceLoan.data.holder==='personal')throw Error('القرض الشخصي يحتاج معالجة تمويل مالك مستقلة قبل ربطه بتكلفة مشروع.');
+  const fundedHere=sourceLoan.data.project===pr.id?Number(sourceLoan.data.principal||0):
+   w.records.filter(x=>x.kind==='loanAllocation'&&x.data.loanId===linkedLoanId&&x.data.project===pr.id&&x.data.status!=='cancelled'&&String(x.data.date||'')<=dt).reduce((s,x)=>s+Number(x.data.amount||0),0);
+  if(fundedHere<=0)throw Error('لا يوجد تمويل قرض مخصص لهذا المشروع حتى تاريخ الدفع.');
+  const priorLinked=w.records.filter(x=>x.kind==='projectCost'&&x.data.project===pr.id&&x.data.loanId===linkedLoanId&&x.data.status!=='cancelled'&&x.data.status!=='deleted').reduce((s,x)=>s+Number(x.data.amount||0),0);
+  if(priorLinked+amount>fundedHere)throw Error('إجمالي التكاليف المرتبطة بالقرض يتجاوز التمويل المخصص للمشروع.');
+ }
+ const costId=put('projectCost',{project:pr.id,title,amount,date:dt,category,notes,status:'active',paymentAccount,treatment,loanId:linkedLoanId,createdAt:time});
  journal('projectCost',(treatment==='asset'?'إثبات تكلفة رأسمالية للمشروع: ':'إثبات مصروف فعلي للمشروع: ')+title,dt,pair(pr.id,debitAccount,paymentAccount,amount),'project-cost:'+costId);
  description=(treatment==='asset'?'تسجيل تكلفة رأسمالية':'تسجيل مصروف فعلي')+' للمشروع: '+pr.data.name+' — '+title;
 }

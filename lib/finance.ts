@@ -97,6 +97,28 @@ export function dashboardProfitReconciliation(w:Workspace,start:string,end:strin
  return {rows,total,allProjectsProfit:all.net,excludedProjectsProfit:all.net-total.net,selectedProjectIds:[...ids],start,end};
 }
 
+
+/** Loan schedule integrity for display and reconciliation. Monetary values are integer halalas.
+ * Loan proceeds are debt financing, never automatically owner equity or earned revenue.
+ * A project allocation is a source-of-funds tag/transfer, not proof of an asset purchase. */
+export function loanScheduleAudit(w:Workspace,loanId:string,asOf=today()){
+ const loan=w.records.find(r=>r.kind==='loan'&&r.id===loanId);
+ if(!loan)return undefined;
+ const schedule=w.records.filter(r=>r.kind==='obligation'&&r.data.loan===loanId&&['pending','paid'].includes(String(r.data.status)));
+ const pending=schedule.filter(r=>r.data.status==='pending'),paid=schedule.filter(r=>r.data.status==='paid');
+ const sum=(items:RecordItem[],field:string)=>items.reduce((s,r)=>s+Number(r.data[field]||0),0);
+ const totalPrincipal=sum(schedule,'principal'),remainingPrincipal=sum(pending,'principal'),paidPrincipal=sum(paid,'principal');
+ const totalInterest=sum(schedule,'interest'),remainingInterest=sum(pending,'interest'),paidInterest=sum(paid,'interest');
+ const amountTotal=sum(schedule,'amount');
+ const mismatched=schedule.filter(r=>!Number.isSafeInteger(Number(r.data.amount))||!Number.isSafeInteger(Number(r.data.principal))||!Number.isSafeInteger(Number(r.data.interest))||Number(r.data.amount)!==Number(r.data.principal)+Number(r.data.interest)||Number(r.data.principal)<0||Number(r.data.interest)<0);
+ const overdue=pending.filter(r=>String(r.data.date||'')<asOf);
+ const originalPrincipal=Number(loan.data.principal||0);
+ // When a bank-approved revised schedule replaces future installments, the original
+ // face amount remains a reference rather than a strict equality assertion.
+ const unallocated=loan.data.project?0:Math.max(0,originalPrincipal-w.records.filter(r=>['loanAllocation','loanUse'].includes(r.kind)&&r.data.loanId===loanId&&r.data.status!=='cancelled').reduce((s,r)=>s+Number(r.data.amount||0),0));
+ return {loanId,totalPrincipal,remainingPrincipal,paidPrincipal,totalInterest,remainingInterest,paidInterest,amountTotal,overdueCount:overdue.length,overdueAmount:sum(overdue,'amount'),originalPrincipal,unallocated,mismatchedInstallmentIds:mismatched.map(r=>r.id),scheduledPrincipalDifference:totalPrincipal-originalPrincipal,allocationIsEquity:false};
+}
+
 export type AccountingTrace={transactionId:string;date:string;kind:string;memo:string;lines:Line[];ledgerDelta:Record<string,number>;cashDelta:number;profitDelta:number;project:string;};
 export function traceTransaction(w:Workspace,transactionId:string):AccountingTrace|undefined{
  const j=w.journals.find(x=>x.id===transactionId||x.source===transactionId);

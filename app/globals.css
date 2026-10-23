@@ -1497,3 +1497,17 @@ img, video, canvas, iframe { max-width: 100%; }
 .period-quick-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .period-quick-actions button{border:1px solid #d6e2dc;border-radius:9px;background:#f8fbf9;padding:8px 10px;color:#315b48;font-size:12px;font-weight:700;cursor:pointer}
 .period-quick-actions button:hover,.period-quick-actions button:focus-visible{background:#e9f5ee;border-color:#6bad91;outline:none}
+
+/* Shared workspace accessibility and responsive tables across every page */
+.data-table-scroll{max-width:100%;overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;border-radius:12px;scrollbar-width:thin;scrollbar-color:#a8bbb3 transparent}
+.data-table-scroll table{min-width:max-content;width:100%;border-collapse:separate;border-spacing:0}
+.data-table-scroll thead th{white-space:nowrap;background:var(--card,#fff)}
+.data-table-scroll tbody td{vertical-align:middle}
+.data-table-scroll:focus-visible{outline:3px solid #62a78d;outline-offset:3px}
+.data-table-scroll tbody tr:focus-within{background:#eff8f4}
+.main-shell button:focus-visible,.main-shell a:focus-visible,.main-shell input:focus-visible,.main-shell select:focus-visible,.main-shell textarea:focus-visible{outline:2px solid #318e74;outline-offset:3px}
+.main-shell button:disabled{cursor:not-allowed;opacity:.56}
+.main-shell .filterbar{row-gap:12px}
+.main-shell .period-quick-actions{align-items:center}
+@media(max-width:900px){.data-table-scroll{margin-inline:-4px}.main-shell .filterbar{align-items:stretch}.main-shell .period-filter{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.main-shell *,.finance-dialog *{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}

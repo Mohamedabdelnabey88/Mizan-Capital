@@ -62,4 +62,12 @@ assert(ui.includes('<Money value={deficitTotal}/>'),'Headline must use reconcile
 assert(ui.indexOf('className="commitment-deficit-headline"')<ui.indexOf('<Panel title="دفع العجز — سلف مستحقة للمالك"'),'Deficit KPI must appear before detail cards');
 assert(ui.includes("String(x.data.date||'')<=to).reduce((s,x)=>s+Math.max(0,Number(x.data.amount||0)),0)"),'Later funding must not be counted as already received within historical report');
 assert(css.includes('.commitment-deficit-headline'),'Deficit headline must be styled');
+const workspaceCode=fs.readFileSync('cloudflare/workspace.ts','utf8');
+const undoStart=workspaceCode.indexOf("else if(action==='undoInstallmentPayment')");
+const undoEnd=workspaceCode.indexOf("else if(action==='settleLoans')",undoStart);
+assert(undoStart>=0&&undoEnd>undoStart,'Dedicated undo payment handler');
+const undo=workspaceCode.slice(undoStart,undoEnd);
+for(const safeguard of ["d.status!=='paid'","reason.trim().length<6","closedThrough","expected.includes","!w.journals.some(x=>x.reversal===j.id)","j.lines.map(l=>({...l,debit:l.credit,credit:l.debit}))","status:'pending'","status:'cancelled'","remainingAmount:pending+Number(d.amount||0)","installments"]){assert(undo.includes(safeguard),'Missing undo safeguard: '+safeguard);}
+assert(ui.includes("modal==='undoInstallmentPayment'"),'Undo modal exists');
+assert(ui.includes("التراجع عن السداد"),'Undo reachable from paid settlements');
 console.log('Commitment dashboard accurate paid/due/overdue reconciliations passed.');

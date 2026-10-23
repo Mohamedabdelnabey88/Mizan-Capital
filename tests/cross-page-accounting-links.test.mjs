@@ -8,7 +8,7 @@ const finance=fs.readFileSync('lib/finance.ts','utf8');
 const sections=[
  ['dashboard','نظرة عامة'],['capital','رأس المال والتمويل'],['projects','المشاريع والاستثمارات'],
  ['contracts','عقود المشاريع'],['daily','التقارير اليومية'],['ledger','الحركات'],
- ['cashflow','السيولة المتوقعة'],['calendar','تقويم الالتزامات'],['commitments','التزاماتي'],
+ ['cashflow','السيولة المتوقعة'],['calendar','تقويم الالتزامات'],['commitments','السداد والتحصيل'],
  ['loans','التمويل والقروض'],['personalLoans','قروض شخصية'],['team','الموظفون والرواتب'],
  ['risks','إدارة المخاطر'],['decisions','مركز القرار'],['reports','التقارير المحاسبية'],
  ['settings','الضبط وسجل المراجعة']

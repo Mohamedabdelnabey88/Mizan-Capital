@@ -67,7 +67,7 @@ const undoStart=workspaceCode.indexOf("else if(action==='undoInstallmentPayment'
 const undoEnd=workspaceCode.indexOf("else if(action==='settleLoans')",undoStart);
 assert(undoStart>=0&&undoEnd>undoStart,'Dedicated undo payment handler');
 const undo=workspaceCode.slice(undoStart,undoEnd);
-for(const safeguard of ["d.status!=='paid'","reason.trim().length<6","closedThrough","expected.includes","original.some(j=>w.journals.some(x=>x.reversal===j.id))","j.lines.map(l=>({...l,debit:l.credit,credit:l.debit}))","status:'pending'","status:'cancelled'","remainingAmount:pending+Number(d.amount||0)","installments"]){assert(undo.includes(safeguard),'Missing undo safeguard: '+safeguard);}
+for(const safeguard of ["d.status!=='paid'","reason.trim().length<6","closedThrough","expected.includes","!w.journals.some(x=>x.reversal===j.id)","j.lines.map(l=>({...l,debit:l.credit,credit:l.debit}))","status:'pending'","status:'cancelled'","remainingAmount:pending+Number(d.amount||0)","installments"]){assert(undo.includes(safeguard),'Missing undo safeguard: '+safeguard);}
 assert(ui.includes("modal==='undoInstallmentPayment'"),'Undo modal exists');
 assert(ui.includes("التراجع عن السداد"),'Undo reachable from paid settlements');
 console.log('Commitment dashboard accurate paid/due/overdue reconciliations passed.');

@@ -23,3 +23,10 @@ assert.equal(a.allocationIsEquity,false);
 w.records[2].data.amount=8100;
 assert.deepEqual(loanScheduleAudit(w,'loan1','2026-03-01').mismatchedInstallmentIds,['inst2']);
 console.log('Loan schedule audit tests passed');
+
+const ui=fs.readFileSync('app/page.tsx','utf8');
+const api=fs.readFileSync('cloudflare/workspace.ts','utf8');
+assert(ui.includes("select('loanId','مصدر التمويل المقترض (اختياري)'"),'project cost must expose loan source selector');
+assert(api.includes("const linkedLoanId=String(p.loanId||'').trim()"),'posting tracks loan source explicitly');
+assert(api.includes("priorLinked+amount>fundedHere"),'project funded cost cannot exceed assigned debt funding');
+assert(api.includes("loanId:linkedLoanId"),'record retains source loan for audit');

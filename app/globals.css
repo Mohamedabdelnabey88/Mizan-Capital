@@ -1493,3 +1493,7 @@ img, video, canvas, iframe { max-width: 100%; }
 .calendar-period-caption{font-size:13px;color:#6b7976;margin:8px 0 15px}
 @media(max-width:850px){.calendar-month-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.calendar-month-summary button{justify-self:stretch}}
 @media(max-width:540px){.calendar-month-summary,.commitment-reconciliation{grid-template-columns:1fr}}
+
+.period-quick-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.period-quick-actions button{border:1px solid #d6e2dc;border-radius:9px;background:#f8fbf9;padding:8px 10px;color:#315b48;font-size:12px;font-weight:700;cursor:pointer}
+.period-quick-actions button:hover,.period-quick-actions button:focus-visible{background:#e9f5ee;border-color:#6bad91;outline:none}

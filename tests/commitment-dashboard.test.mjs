@@ -53,6 +53,9 @@ assert(!ui.includes('projectedClosingLiquidity'),'No invented cash forecast from
 assert(ui.includes('مدفوعات متأخرة')&&ui.includes('summary.overdueOutAmount'));
 assert(ui.includes('لماذا تختلف التحصيلات الفعلية عن استحقاقات الفترة؟'),'Reconciliation table must appear');
 assert(ui.includes('calendar-month-summary'),'Calendar must summarize unpaid and paid dues');
+assert(ui.includes('calendar-paid-details'),'Calendar must show itemized paid installments directly');
+assert(ui.includes('settlementDrilldownRef.current=true'),'Calendar-to-obligations navigation must select the paid detail section');
+assert(ui.includes('commitment-settlement-details'),'Destination paid detail must be addressable');
 assert(ui.includes('calSettledThisMonth=ob.filter'),'Actual paid calendar total must rely on actual settlement month');
 assert(ui.includes("o.data.status==='paid'?pretty(String(o.data.paidOn||o.data.date)):'—'"),'Calendar detail must show actual payment date');
 assert(css.includes('.calendar-month-summary'),'Calendar summary must be responsive');

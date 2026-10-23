@@ -22,6 +22,12 @@ export function obligationDashboard(w:Workspace,project:string,start:string,end:
   totalScheduledReceivables:sum(dueIncoming),
   totalScheduledPayables:sum(dueOutgoing),
   dueIncomingCount:dueIncoming.length,dueOutgoingCount:dueOutgoing.length,
+  // Explicit cross-period reconciliation: the user can inspect the exact installment(s)
+  // that were paid in this window but scheduled for another window.
+  incomingFromOtherPeriods:summary.settledIn.filter(r=>String(r.data.date||'')<start||String(r.data.date||'')>end),
+  outgoingFromOtherPeriods:summary.settledOut.filter(r=>String(r.data.date||'')<start||String(r.data.date||'')>end),
+  dueIncomingPaidElsewhere:dueIncoming.filter(r=>r.data.status==='paid'&&(String(r.data.paidOn||r.data.date)<start||String(r.data.paidOn||r.data.date)>end)),
+  dueOutgoingPaidElsewhere:dueOutgoing.filter(r=>r.data.status==='paid'&&(String(r.data.paidOn||r.data.date)<start||String(r.data.paidOn||r.data.date)>end)),
   settledDueIncoming:sum(dueIncoming.filter(r=>r.data.status==='paid')),
   settledDueOutgoing:sum(dueOutgoing.filter(r=>r.data.status==='paid')),
   overdueInAmount:sum(overdueIn),overdueOutAmount:sum(overdueOut),

@@ -7,7 +7,7 @@ import {commitmentSummary,today,type Workspace} from './finance';
 export function obligationDashboard(w:Workspace,project:string,start:string,end:string,asOf=today()){
  const summary=commitmentSummary(w,project,start,end);
  // Due-window totals and settlement-window totals are independent: a due paid in another month must not be counted as this month's scheduled collection.
- const dueRows=w.records.filter(r=>r.kind==='obligation'&&(project==='all'||r.data.project===project)&&!['cancelled','replaced'].includes(String(r.data.status||''))&&String(r.data.date||'')>=start&&String(r.data.date||'')<=end);
+ const dueRows=w.records.filter(r=>r.kind==='obligation'&&(project==='all'||r.data.project===project)&&['pending','paid'].includes(String(r.data.status||''))&&String(r.data.date||'')>=start&&String(r.data.date||'')<=end);
  const dueIncoming=dueRows.filter(r=>r.data.direction==='in'),dueOutgoing=dueRows.filter(r=>r.data.direction==='out');
  const sum=(rs:typeof summary.scheduledIn)=>rs.reduce((s,r)=>s+Math.max(0,Number(r.data.amount||0)),0);
  const inDue=summary.scheduledIn,outDue=summary.scheduledOut;

@@ -11,7 +11,7 @@ export const pageGuides:Record<string,{title:string;description:string;links:str
  dashboard:{title:'ملخص أعمالك',description:'ابدأ بالمستحقات القريبة، ثم راجع الرصيد والربح. افتح أي قسم للاطلاع على تفاصيله.',links:['projects','commitments','daily']},
  projects:{title:'المشاريع والفروع',description:'اختر مشروعًا لتتابع تكاليفه وعقوده وفروعه، وما دفعته وما تبقى عليه.',links:['contracts','capital','reports']},
  daily:{title:'الدخل اليومي',description:'سجّل دخل كل مشروع حسب وسيلة الدفع. مبيعات البطاقات تظل مستحقات حتى تسجيل تسويتها.',links:['ledger','reports']},
- commitments:{title:'السداد والتحصيل',description:'اعرف المطلوب سداده، والمنتظر تحصيله، وما نُفّذ بالفعل. راجع العملية قبل تأكيد السداد.',links:['calendar','ledger','contracts']},
+ commitments:{title:'التزاماتي — السداد والتحصيل',description:'راجع المفروض تحصيله والمحصّل والمتبقي في الشهر، ثم تابع العجز وسلف المالك والمبالغ المطلوب سدادها.',links:['calendar','ledger','contracts']},
  calendar:{title:'المواعيد والاستحقاقات',description:'حدّد الفترة لعرض الاستحقاقات، أو اختر التقويم الشهري. التنفيذ الفعلي يظهر بتاريخ السداد أو التحصيل.',links:['commitments','contracts']},
  contracts:{title:'العقود والإيجارات',description:'تابع أطراف العقد ومدته وأقساطه. سداد الأقساط وتحصيلها من سجل الاستحقاقات.',links:['projects','commitments']},
  ledger:{title:'سجل الحركات المالية',description:'تتبّع أثر كل عملية على الحسابات. تصحيح الحركة يكون بقيد عكسي يحافظ على سجل المراجعة.',links:['daily','reports','capital']},

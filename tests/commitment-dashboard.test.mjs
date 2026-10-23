@@ -45,6 +45,10 @@ assert.equal(v2.totalScheduledReceivables,49000,'October due paid in November st
 assert.equal(v2.settledInflows,20000,'November receipt must not increase October cash receipts');
 assert.equal(v2.settledDueIncoming,7000,'Paid portion of October due dates is tracked separately');
 assert.equal(v2.dueIncomingPaidElsewhere.length,1,'Due in October paid in November must be traceable');
+w.records.push(due('deferred-in','2026-10-05','in',999000,'deferred'));
+const afterDeferral=obligationDashboard(w,'p1','2026-10-01','2026-10-31','2026-10-22');
+assert.equal(afterDeferral.totalScheduledReceivables,49000,'Deferred original installments must not inflate due-month totals');
+assert.equal(afterDeferral.totalScheduledReceivables,afterDeferral.settledDueIncoming+afterDeferral.expectedInflows,'Monthly due receipts must reconcile exactly to paid portion plus pending portion');
 const ui=fs.readFileSync('app/page.tsx','utf8'),css=fs.readFileSync('app/globals.css','utf8');
 assert(ui.includes("summary=obligationDashboard(w,scope,range.start,range.end)"));
 assert(ui.includes("actualAfterCommitments=summary.settledNet"));

@@ -6,6 +6,9 @@ import {commitmentSummary,today,type Workspace} from './finance';
  */
 export function obligationDashboard(w:Workspace,project:string,start:string,end:string,asOf=today()){
  const summary=commitmentSummary(w,project,start,end);
+ // Due-window totals and settlement-window totals are independent: a due paid in another month must not be counted as this month's scheduled collection.
+ const dueRows=w.records.filter(r=>r.kind==='obligation'&&(project==='all'||r.data.project===project)&&!['cancelled','replaced'].includes(String(r.data.status||''))&&String(r.data.date||'')>=start&&String(r.data.date||'')<=end);
+ const dueIncoming=dueRows.filter(r=>r.data.direction==='in'),dueOutgoing=dueRows.filter(r=>r.data.direction==='out');
  const sum=(rs:typeof summary.scheduledIn)=>rs.reduce((s,r)=>s+Math.max(0,Number(r.data.amount||0)),0);
  const inDue=summary.scheduledIn,outDue=summary.scheduledOut;
  const past=(d:unknown)=>String(d||'')<asOf;
@@ -16,14 +19,17 @@ export function obligationDashboard(w:Workspace,project:string,start:string,end:
  const settledInflows=sum(summary.settledIn),settledOutflows=sum(summary.settledOut);
  return {
   ...summary,expectedInflows,expectedOutflows,settledInflows,settledOutflows,
-  totalScheduledReceivables:expectedInflows+settledInflows,
-  totalScheduledPayables:expectedOutflows+settledOutflows,
+  totalScheduledReceivables:sum(dueIncoming),
+  totalScheduledPayables:sum(dueOutgoing),
+  dueIncomingCount:dueIncoming.length,dueOutgoingCount:dueOutgoing.length,
+  settledDueIncoming:sum(dueIncoming.filter(r=>r.data.status==='paid')),
+  settledDueOutgoing:sum(dueOutgoing.filter(r=>r.data.status==='paid')),
   overdueInAmount:sum(overdueIn),overdueOutAmount:sum(overdueOut),
   overdueInCount:overdueIn.length,overdueOutCount:overdueOut.length,
   dueTodayInAmount:sum(dueTodayIn),dueTodayOutAmount:sum(dueTodayOut),
   futureInAmount:sum(futureIn),futureOutAmount:sum(futureOut),
   pendingNet:expectedInflows-expectedOutflows,
   settledNet:settledInflows-settledOutflows,
-  periodNet:(expectedInflows+settledInflows)-(expectedOutflows+settledOutflows)
+  periodNet:sum(dueIncoming)-sum(dueOutgoing)
  };
 }

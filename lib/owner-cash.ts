@@ -1,6 +1,7 @@
 import {projectDescendantIds} from './project-portfolio';
 import {balance,dayAdd,monthAdd,type Workspace} from './finance';
 
+export type MonthlyCashEntry={journalId:string;date:string;memo:string;projects:string[];category:'receipt'|'operating'|'installment'|'capital'|'funding'|'owner';amount:number;dueDate?:string};
 export type OwnerCashAllocation={project:string;amount:number};
 /** Cash surplus is separate from accounting profit. Values are integer halalas. */
 export function ownerCashMonth(w:Workspace,month:string,scope='all',asOf:string,includeBranches=true){
@@ -13,7 +14,8 @@ export function ownerCashMonth(w:Workspace,month:string,scope='all',asOf:string,
  const projectIds=(project:string)=>project==='all'?undefined:new Set([project,...(includeBranches?projectDescendantIds(projects,project):[])]);
  const calculate=(project:string)=>{
   const selectedIds=projectIds(project),matches=(id:string)=>!selectedIds||selectedIds.has(id);
-  let received=0,paid=0,withdrawn=0,reinvested=0;
+  let received=0,paid=0,operatingPaid=0,installmentsPaid=0,capitalPaid=0,fundingReceived=0,priorInstallmentsPaid=0,withdrawn=0,reinvested=0;
+  const entries:MonthlyCashEntry[]=[];
   const receipts:{journalId:string;project:string;amount:number}[]=[];
   for(const j of w.journals){
    if(j.date>asOf)continue;
@@ -38,16 +40,31 @@ export function ownerCashMonth(w:Workspace,month:string,scope='all',asOf:string,
    const sign=j.reversal?-1:1,normalNet=cashNet*sign,kind=original?.kind||j.kind;
    const collection=['income','collect','dailyReport','cardSettlement','settle','dividend'].includes(kind);
    const income=lines.filter(l=>l.account==='revenue'||l.account==='dividend').reduce((n,l)=>n+l.credit-l.debit,0)*sign;
-   if(normalNet>0){const amount=(collection?normalNet:Math.min(normalNet,Math.max(0,income)))*sign;received+=amount;if(amount>0)receipts.push({journalId:j.id,project:lines.find(l=>['cash','bank'].includes(l.account)&&l.debit>0)?.project||'',amount});}
-   else if(normalNet<0)paid+=-normalNet*sign;
+   const entry=(category:MonthlyCashEntry['category'],amount:number,dueDate?:string)=>{if(amount)entries.push({journalId:j.id,date:j.date,memo:j.memo,projects:[...new Set(lines.filter(l=>['cash','bank'].includes(l.account)).map(l=>l.project))],category,amount,dueDate});};
+   if(normalNet>0){
+    const eligible=collection?normalNet:Math.min(normalNet,Math.max(0,income)),amount=eligible*sign;received+=amount;entry('receipt',amount);
+    const financing=(normalNet-eligible)*sign;fundingReceived+=financing;entry('funding',financing);
+    if(amount>0)receipts.push({journalId:j.id,project:lines.find(l=>['cash','bank'].includes(l.account)&&l.debit>0)?.project||'',amount});
+   }else if(normalNet<0){
+    const amount=-normalNet*sign,source=original?.source||'',linkedId=source.split(':')[1];
+    const linked=w.records.find(r=>r.id===linkedId),due=linked?.kind==='obligation'?linked:linked?.data.sourceObligation?w.records.find(r=>r.id===linked.data.sourceObligation):undefined;
+    const installment=['settle','prepay'].includes(kind)||!!due;
+    const capital=['asset','projectAsset','invest','investmentStart','investmentReturn','returnCapital','transfer','repayTransfer','fundingRepayment','loan','loanAdjustment'].includes(kind)||source.startsWith('loan-use:')||lines.some(l=>['fixed','investment'].includes(l.account)&&(l.debit-l.credit)*sign>0);
+    if(['distribution','annualOwnerDistribution'].includes(kind)){withdrawn+=amount;entry('owner',amount);}
+    else if(installment){installmentsPaid+=amount;if(due?.data.date<start)priorInstallmentsPaid+=amount;entry('installment',amount,due?.data.date);}
+    else if(capital){capitalPaid+=amount;entry('capital',amount);}
+    else{operatingPaid+=amount;entry('operating',amount);}
+   }
   }
   const pendingItems=w.records.filter(r=>r.kind==='obligation'&&r.data.status==='pending'&&r.data.direction==='out'&&!personalLoans.has(r.data.loan)&&matches(String(r.data.project||'')));
-  const pending=pendingItems.filter(r=>r.data.date<=end).reduce((n,r)=>n+Number(r.data.amount||0),0);
+  const monthPending=pendingItems.filter(r=>r.data.date>=start&&r.data.date<=end).reduce((n,r)=>n+Number(r.data.amount||0),0);
+  const overduePending=pendingItems.filter(r=>r.data.date<start).reduce((n,r)=>n+Number(r.data.amount||0),0),pending=monthPending+overduePending;
   const currentEnd=dayAdd(monthAdd(asOf.slice(0,7)+'-01',1),-1),cashPending=pendingItems.filter(r=>r.data.date<=(end>currentEnd?end:currentEnd)).reduce((n,r)=>n+Number(r.data.amount||0),0);
   const reserve=w.records.filter(r=>r.kind==='project'&&matches(r.id)).reduce((n,r)=>n+Math.max(0,Number(r.data.reserve||0)),0);
   const cash=w.journals.filter(j=>j.date<=asOf).flatMap(j=>j.lines).filter(l=>matches(l.project)&&['cash','bank'].includes(l.account)).reduce((n,l)=>n+l.debit-l.credit,0);
+  paid=operatingPaid+installmentsPaid;withdrawn=Math.max(0,withdrawn);
   const surplus=received-paid,remaining=Math.max(0,surplus-pending-withdrawn-reinvested);
-  return {received,paid,pending,withdrawn,reinvested,receipts,surplus,remaining,cash,reserve,cashLimit:Math.max(0,cash-cashPending-reserve)};
+  return {received,paid,operatingPaid,installmentsPaid,priorInstallmentsPaid,capitalPaid,fundingReceived,monthPending,overduePending,entries:entries.sort((a,b)=>a.date.localeCompare(b.date)),pending,withdrawn,reinvested,receipts,surplus,remaining,cash,reserve,cashLimit:Math.max(0,cash-cashPending-reserve)};
  };
  const totals=calculate(scope),global=scope==='all'?totals:calculate('all');
  const available=start>asOf?0:Math.max(0,Math.min(totals.remaining,totals.cashLimit,global.remaining,global.cashLimit));

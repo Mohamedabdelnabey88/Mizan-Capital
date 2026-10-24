@@ -311,7 +311,7 @@ try{
   let organizerJournalCount=w.journals.length;checks+=4;
 
   const commitmentFirst=nextMonth(date),commitmentSecond=nextMonth(commitmentFirst);
-  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'أقساط مقاول تنظيمية',party:'مقاول تجريبي',totalAmount:3000,installments:commitmentFirst+',1500\n'+commitmentSecond+',1500'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'أقساط مقاول تنظيمية',startDate:commitmentFirst,endDate:commitmentSecond,party:'مقاول تجريبي',totalAmount:3000,installments:commitmentFirst+',1500\n'+commitmentSecond+',1500'}}},200);
   w=await (await call()).json();
   const organizerCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='أقساط مقاول تنظيمية');
   assert(organizerCommitment);assert.equal(organizerCommitment.data.installments.length,2);
@@ -319,7 +319,7 @@ try{
   let organizerCommitmentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===organizerCommitment.id&&r.data.status==='pending');
   assert(organizerCommitmentDue);assert.equal(organizerCommitmentDue.data.direction,'out');assert.equal(w.journals.length,organizerJournalCount);checks+=6;
 
-  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'قرض بأقساط ربع سنوية',totalAmount:9000,scheduleType:'quarterly',firstDate:commitmentFirst,installmentCount:3}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'قرض بأقساط ربع سنوية',startDate:commitmentFirst,endDate:nextMonth(nextMonth(nextMonth(nextMonth(nextMonth(nextMonth(commitmentFirst)))))),totalAmount:9000,scheduleType:'quarterly',firstDate:commitmentFirst,installmentCount:3}}},200);
   w=await (await call()).json();
   const periodicCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قرض بأقساط ربع سنوية');
   assert(periodicCommitment);assert.equal(periodicCommitment.data.installments.length,3);
@@ -340,7 +340,7 @@ try{
 
   // Settling a construction installment capitalizes it once; it must not be treated as operating expense.
   const constructionDueDate=nextMonth(date);
-  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'قسط إنشاء رأسمالي للاختبار',costType:'construction',totalAmount:1200,scheduleType:'once',firstDate:constructionDueDate}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project,title:'قسط إنشاء رأسمالي للاختبار',startDate:constructionDueDate,endDate:constructionDueDate,costType:'construction',totalAmount:1200,scheduleType:'once',firstDate:constructionDueDate}}},200);
   w=await (await call()).json();
   const constructionCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قسط إنشاء رأسمالي للاختبار');
   const constructionDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===constructionCommitment?.id&&r.data.status==='pending');
@@ -361,7 +361,7 @@ try{
 
   // Land rent is recognized as operating expense on the due date and paid against the accrued payable exactly once.
   const rentExpenseProject=await createTestProject('مشروع اختبار مصروف إيجار الأرض');
-  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:rentExpenseProject,title:'قسط إيجار أرض للاختبار',costType:'rent',totalAmount:800,scheduleType:'custom',installments:date+',800'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:rentExpenseProject,title:'قسط إيجار أرض للاختبار',startDate:date,endDate:date,costType:'rent',totalAmount:800,scheduleType:'custom',installments:date+',800'}}},200);
   w=await (await call()).json();
   const landRentCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قسط إيجار أرض للاختبار');
   const landRentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===landRentCommitment?.id&&r.data.status==='pending');
@@ -484,7 +484,7 @@ try{
   checks+=6;
 
   // Existing project rental records must also support contract cancellation without touching prior accounting.
-  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:contractTestProject,title:'إيجار قائم لاختبار صفحة العقود',costType:'rent',totalAmount:2000,scheduleType:'custom',installments:contractTomorrow+',1000\n'+contractAfterTomorrow+',1000'}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:contractTestProject,title:'إيجار قائم لاختبار صفحة العقود',startDate:contractTomorrow,endDate:contractAfterTomorrow,costType:'rent',totalAmount:2000,scheduleType:'custom',installments:contractTomorrow+',1000\n'+contractAfterTomorrow+',1000'}}},200);
   w=await (await call()).json();
   const rentCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='إيجار قائم لاختبار صفحة العقود');
   assert(rentCommitment,'existing rent commitments must be available as contract records');
@@ -557,7 +557,7 @@ try{
   // Deleting a project with financial history must archive it, not reverse/delete its accounting history.
   const archivedProjectId=await createTestProject('مشروع اختبار حماية التاريخ');
   await expectStatus({method:'POST',body:{action:'projectFunding',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,sourceType:'personal',amount:500,date,memo:'تمويل تاريخ المشروع'}}},200);
-  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,title:'التزام يجب تسويته بعد الأرشفة',costType:'expense',totalAmount:50,scheduleType:'once',firstDate:date,installmentCount:1}}},200);
+  await expectStatus({method:'POST',body:{action:'projectCommitment',requestId:crypto.randomUUID(),payload:{project:archivedProjectId,title:'التزام يجب تسويته بعد الأرشفة',startDate:date,endDate:date,costType:'expense',totalAmount:50,scheduleType:'once',firstDate:date,installmentCount:1}}},200);
   w=await (await call()).json();
   const archivedProjectDue=w.records.find(r=>r.kind==='obligation'&&r.data.project===archivedProjectId&&r.data.title.includes('التزام يجب تسويته'));
   assert(archivedProjectDue,'project obligation must remain available for settlement after archival');

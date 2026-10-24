@@ -53,8 +53,19 @@ try{
   }
   await post(action==='settleLoansSingle'?'settleLoans':action,action==='settleLoansSingle'?{ids:[item.id],date,paymentAccount:'bank'}:{id:item.id,date,paymentAccount:'bank'});
  }
+ // Contract term is explicit, persisted independently of the installment dates, and validated atomically.
+ const term={project,title:'مدة عقد مستقلة',costType:'rent',totalAmount:1000,scheduleType:'yearly',firstDate:'2026-11-23',installmentCount:2,startDate:'2026-10-01',endDate:'2028-09-30'};
+ const recordCount=(await snapshot()).records.length;
+ for(const invalid of [{startDate:''},{endDate:''},{endDate:'2026-09-30'},{firstDate:'2026-09-30'},{endDate:'2027-11-22'},{scheduleType:'custom',installments:'2028-10-01,1000'}]){
+  assert.equal((await call('projectCommitment',{...term,...invalid})).status,400);
+  assert.equal((await snapshot()).records.length,recordCount,'invalid term must create no contract or obligations');
+ }
+ await post('projectCommitment',term);
+ const dated=(await snapshot()).records.find(r=>r.kind==='projectCommitment'&&r.data.title===term.title);
+ assert.equal(dated.data.startDate,'2026-10-01');assert.equal(dated.data.endDate,'2028-09-30');
+ assert.deepEqual(dated.data.installments.map(x=>x.date),['2026-11-23','2027-11-23']);
  for(const costType of ['construction','expense']){
-  await post('projectCommitment',{project,title:'اختبار التزام '+costType,party:'مقاول',totalAmount:500,costType,scheduleType:'once',firstDate:date});
+  await post('projectCommitment',{project,title:'اختبار التزام '+costType,party:'مقاول',startDate:date,endDate:date,totalAmount:500,costType,scheduleType:'once',firstDate:date});
   w=await snapshot();const commitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='اختبار التزام '+costType);
   await repayTwice(w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===commitment.id),'projectSchedulePayment');
  }

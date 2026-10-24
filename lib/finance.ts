@@ -360,7 +360,7 @@ export function ownerDistributionsInRange(w:Workspace,start:string,end:string){
  let total=0;
  for(const j of w.journals){
   const original=j.reversal?byId.get(j.reversal):j;if(original?.kind==='annualOwnerDistribution')continue;
-  const record=draws.get(original?.source||'');const at=record?String(record.data.month)+'-01':j.date;
+  const record=draws.get(original?.source||'');const at=record?String(record.data.month)+'-01':(original?.date||j.date);
   if(at<start||at>end)continue;
   total+=j.lines.filter(l=>l.account==='distribution'&&(eligible.has(l.project)||(!!record&&!l.project))).reduce((n,l)=>n+l.debit-l.credit,0);
  }

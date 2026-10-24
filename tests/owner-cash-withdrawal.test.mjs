@@ -82,5 +82,11 @@ try{
  {id:'drawj',kind:'ownerCashWithdrawal',source:'owner-cash:draw',date,memo:'owner',lines:[{project:'p',account:'distribution',debit:10000,credit:0},{project:'p',account:'bank',debit:0,credit:10000}]}]};
  assert.equal(ownerCashMonth(past,pastMonth,'all',date).withdrawn,10000);
  assert.equal(ownerCashMonth(past,month,'all',date).paid,0);
+ const legacyDraw={records:[{id:'p',kind:'project',data:{mode:'operating'}}],audit:[],journals:[
+ {id:'old-draw',kind:'distribution',date:'2025-12-01',memo:'old',lines:[{project:'p',account:'distribution',debit:10000,credit:0},{project:'p',account:'bank',debit:0,credit:10000}]},
+ {id:'old-undo',kind:'reversal',reversal:'old-draw',date:'2026-01-01',memo:'undo',lines:[{project:'p',account:'distribution',debit:0,credit:10000},{project:'p',account:'bank',debit:10000,credit:0}]}]};
+ assert.equal(ownerDistributionsInRange(legacyDraw,'2025-01-01','2025-12-31'),0);
+ assert.equal(ownerDistributionsInRange(legacyDraw,'2026-01-01','2026-12-31'),0,'a prior-year reversal must not increase the next annual entitlement');
+
  console.log('Owner cash passed: 50,000 receipts minus 40,000 installments, pending reserve, partial/full draw to zero, actual bank and profit reconciliation, retry/concurrency protection, undo, annual credit and period attribution.');
 }finally{await mf.dispose();}

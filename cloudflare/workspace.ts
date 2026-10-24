@@ -115,7 +115,7 @@ const taxParts=(amount:number,mode:any,rateBps:number)=>{if(mode==='none'||rateB
 const paymentAccounts=['cash','bank','mada','visa','mastercard','receivable'] as const;
 const paymentLabels:Record<string,string>={cash:'كاش',bank:'الحساب البنكي',mada:'مدى',visa:'Visa',mastercard:'Mastercard',receivable:'آجل'};
 const ensurePayment=(v:any)=>{if(!paymentAccounts.includes(v))throw Error('طريقة الإيداع غير صحيحة.');return v;};
-const archivedProjectAllowedActions=new Set(['settle','settleLoans','projectSchedulePayment','cancelProjectCost','deleteLoan','cancelFunding','cancelFundingRepayment','fundingRepayment','settleCards','dailyReportCorrection','undoInstallmentPayment','undoOwnerCashWithdrawal','cancelContract','investmentReturn','returnCapital','reversal']);const project=(rid:string)=>{const r=find(rid,'project');if(r.data.status==='archived'&&!archivedProjectAllowedActions.has(action))throw Error('هذا المشروع مؤرشف للحفاظ على تاريخه المالي؛ لا يمكن تسجيل عمليات جديدة عليه.');if(r.data.mode==='investment')throw Error('الاستثمار الخارجي يسجل في دفاتر المشروع الممول.');return r;};
+const archivedProjectAllowedActions=new Set(['settle','settleLoans','projectSchedulePayment','cancelProjectCost','deleteLoan','cancelFunding','cancelFundingRepayment','fundingRepayment','settleCards','dailyReportCorrection','undoInstallmentPayment','undoOwnerCashWithdrawal','undoSurplusReinvestment','cancelContract','investmentReturn','returnCapital','reversal']);const project=(rid:string)=>{const r=find(rid,'project');if(r.data.status==='archived'&&!archivedProjectAllowedActions.has(action))throw Error('هذا المشروع مؤرشف للحفاظ على تاريخه المالي؛ لا يمكن تسجيل عمليات جديدة عليه.');if(r.data.mode==='investment')throw Error('الاستثمار الخارجي يسجل في دفاتر المشروع الممول.');return r;};
 const journal=(kind:string,memo:string,d:string,lines:Line[],source:string|null=null,reversal:string|null=null)=>{validateLines(lines);date(d);if(d>today())throw Error('سجل العمليات المستقبلية في الالتزامات، وليس في القيود الفعلية.');for(const l of lines){if(!l.project)continue;const pr=project(l.project);ledgerLocks.set(pr.id,pr.version);if(pr.data.closedThrough&&d<=pr.data.closedThrough)throw Error('الفترة مقفلة في هذا المشروع.');}ops.push(db.prepare('INSERT INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,?,?)').bind(uid(),owner,d,str(memo,500),kind,JSON.stringify(lines),source,reversal,time));};
 const pair=(pr:string,debit:string,credit:string,a:number):Line[]=>[{project:pr,account:debit,debit:a,credit:0},{project:pr,account:credit,debit:0,credit:a}];
 const directionLines=(pr:string,direction:string,category:string,a:number):Line[]=>direction==='out'?pair(pr,category,'payable',a):pair(pr,'receivable',category,a);
@@ -627,6 +627,32 @@ else if(action==='setOwnerPolicy'){
  else put('ownerPolicy',{percentBps:pct,effectiveFrom});
  description='تحديث نسبة المالك السنوية إلى '+(pct/100).toFixed(2)+'%';
 }
+else if(action==='surplusReinvestment'){
+ const month=str(p.month,7);if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw Error('اختر شهر الفائض.');
+ const dt=date(p.date||today());if(dt!==today())throw Error('سجل الضخ بتاريخ اليوم لضمان مطابقة السيولة الحالية.');
+ if(month>today().slice(0,7))throw Error('لا يمكن ضخ فائض شهر مستقبلي.');
+ const scope=str(p.scope||'all',100);if(scope!=='all')project(scope);
+ const target=project(str(p.targetProject,100));if(target.id===scope)throw Error('اختر مشروعًا آخر مستفيدًا من الفائض.');
+ const amount=halala(p.amount,'مبلغ إعادة الضخ');if(amount<=0)throw Error('أدخل مبلغًا أكبر من صفر.');
+ const pay=str(p.paymentAccount||'bank',20),receive=str(p.targetAccount||pay,20);if(!['cash','bank'].includes(pay)||!['cash','bank'].includes(receive))throw Error('اختر الكاش أو البنك لحسابي المصدر والاستلام.');
+ const summary=ownerCashMonth(w,month,scope,dt);if(amount>summary.available)throw Error('المبلغ يتجاوز الفائض المتبقي بعد السحب وإعادة الضخ والالتزامات.');
+ const sources=ownerCashSources(w,month,scope,dt,pay).filter(x=>x.project!==target.id);let remaining=amount;const allocations:{project:string;amount:number}[]=[];
+ for(const source of sources){const part=Math.min(remaining,source.available);if(part>0)allocations.push({project:source.project,amount:part});remaining-=part;if(remaining===0)break;}
+ if(remaining>0)throw Error('لا تكفي سيولة المصدر خارج المشروع المستفيد؛ اختر حسابًا أو مصدرًا آخر.');
+ for(const r of w.records.filter(x=>x.kind==='project'))guardProject(r.id);
+ const rid=put('surplusReinvestment',{project:target.id,targetProject:target.id,month,scope,amount,date:dt,paymentAccount:pay,targetAccount:receive,allocations,originReceipts:summary.receipts,sourceSummary:{received:summary.received,paid:summary.paid,pending:summary.pending},memo:p.memo?str(p.memo,500):'',status:'posted'});
+ journal('surplusReinvestment','ضخ فائض '+month+' كرأس مال في '+target.data.name,dt,[...allocations.flatMap(a=>pair(a.project,'retained',pay,a.amount)),...pair(target.id,receive,'capital_reinvested',amount)],'surplus-reinvestment:'+rid);
+ description='إعادة ضخ فائض '+month+' في '+target.data.name+' بقيمة '+(amount/100).toFixed(2)+' ريال';
+}
+else if(action==='undoSurplusReinvestment'){
+ const record=find(p.id,'surplusReinvestment'),d=record.data;if(d.status!=='posted')throw Error('تم التراجع عن هذا الضخ بالفعل.');
+ const reason=str(p.reason,500),dt=date(p.date||today());if(dt!==today())throw Error('التراجع يسجل بتاريخ اليوم.');
+ const original=w.journals.find(j=>j.source==='surplus-reinvestment:'+record.id);if(!original||w.journals.some(j=>j.reversal===original.id))throw Error('قيد الضخ غير موجود أو تم عكسه.');
+ if((balance(w,d.targetProject,dt)[d.targetAccount]||0)<Number(d.amount))throw Error('سيولة المشروع المستفيد لا تكفي لإرجاع الضخ؛ قد يكون المبلغ صُرف بالفعل.');
+ for(const l of original.lines){const pr=w.records.find(r=>r.kind==='project'&&r.id===l.project);if(pr?.data.closedThrough&&original.date<=pr.data.closedThrough)throw Error('الضخ داخل فترة مقفلة ويحتاج تسوية محاسبية مستقلة.');}
+ journal('reversal','تراجع عن ضخ فائض — '+reason,dt,original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),'surplus-reinvestment-undo:'+record.id,original.id);
+ update(record,{...d,status:'reversed',reversedOn:dt,reason});description='التراجع عن ضخ فائض في مشروع: '+d.targetProject;
+}
 else if(action==='ownerCashWithdrawal'){
  const month=str(p.month,7);if(!/^\d{4}-\d{2}$/.test(month))throw Error('اختر شهر الفائض.');date(month+'-01');
  const dt=date(p.date||today());if(dt!==today())throw Error('سجل تحويل المالك بتاريخ اليوم لضمان مطابقة السيولة الحالية.');
@@ -641,12 +667,13 @@ else if(action==='ownerCashWithdrawal'){
  if(remaining>0)throw Error('رصيد حساب السداد المختار لا يكفي؛ راجع الكاش والبنك لكل مشروع.');
  // Lock every project used to calculate the shared month cap, in addition to the workspace CAS.
  for(const r of w.records.filter(x=>x.kind==='project'))guardProject(r.id);
- const rid=put('ownerCashWithdrawal',{month,scope,amount,date:dt,paymentAccount:pay,destination,memo:p.memo?str(p.memo,500):'',allocations,status:'posted'});
+ const rid=put('ownerCashWithdrawal',{month,scope,amount,date:dt,paymentAccount:pay,destination,memo:p.memo?str(p.memo,500):'',allocations,originReceipts:summary.receipts,status:'posted'});
  journal('ownerCashWithdrawal','تحويل فائض '+month+' إلى المالك — '+destination,dt,allocations.flatMap(a=>pair(a.project,'distribution',pay,a.amount)),'owner-cash:'+rid);
  description='تحويل فائض نقدي للمالك عن '+month+' بقيمة '+(amount/100).toFixed(2)+' ريال';
 }
 else if(action==='undoOwnerCashWithdrawal'){
  const record=find(p.id,'ownerCashWithdrawal');if(record.data.status!=='posted')throw Error('هذا التحويل متراجع عنه بالفعل.');
+ if(w.records.some(r=>r.kind==='projectFunding'&&r.data.withdrawalId===record.id&&r.data.status!=='cancelled'))throw Error('هذا السحب أعيد ضخه في مشروع؛ صحح التمويل المرتبط أولًا.');
  const reason=str(p.reason,500);if(!reason.trim())throw Error('اكتب سبب التراجع.');
  const dt=date(p.date||today());if(dt!==today())throw Error('التراجع يسجل بتاريخ اليوم.');
  const original=w.journals.find(j=>j.source==='owner-cash:'+record.id);if(!original||w.journals.some(j=>j.reversal===original.id))throw Error('تعذر عكس تحويل المالك أو تم عكسه بالفعل.');
@@ -669,7 +696,27 @@ else if(action==='annualOwnerDistribution'){
  put('ownerSettlement',{year,fiscalYearId:fy.id||'',fiscalYearStart:fy.start,fiscalYearEnd:fy.end,percentBps:pct,totalProfit,totalOwner,allocations,status:'paid',paidOn:today(),paymentAccount:p.paymentAccount||'bank'},uid());
  description='اعتماد توزيع المالك السنوي لعام '+year;
 }
-else if(action==='projectFunding'){const target=project(p.project);const amount=cents(p.amount);const dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغ التمويل.');const source=['personal','project','external'].includes(p.sourceType)?p.sourceType:'personal';let lines:Line[];let sourceLabel='تمويل شخصي';if(source==='project'){if(!p.sourceProject||p.sourceProject===p.project)throw Error('اختر مشروعًا آخر كمصدر للتمويل.');project(p.sourceProject);guardProject(p.sourceProject);const available=balance(w,p.sourceProject,dt).cash||0;if(amount>available)throw Error('رصيد النقدية المتاح في المشروع المصدر لا يكفي لهذا التحويل.');lines=[...pair(p.sourceProject,'inter_receivable','cash',amount),...pair(p.project,'cash','inter_payable',amount)];sourceLabel='تمويل من مشروع آخر';}else if(source==='external'){lines=pair(p.project,'cash','payable',amount);sourceLabel='تمويل خارجي مستحق';}else{lines=pair(p.project,'cash','capital',amount);}const rid=put('projectFunding',{project:p.project,sourceType:source,sourceProject:source==='project'?p.sourceProject:'',amount,date:dt,memo:str(p.memo||sourceLabel,300)});journal('transfer',sourceLabel+' — '+target.data.name,dt,lines,'projectFunding:'+rid);description='تمويل '+target.data.name+' — '+sourceLabel;}
+else if(action==='projectFunding'){
+ const target=project(p.project),amount=cents(p.amount),dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغ التمويل.');
+ const source=['personal','project','external','ownerWithdrawal'].includes(p.sourceType)?p.sourceType:'personal';
+ const pay=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash',receive=['cash','bank'].includes(p.targetAccount)?p.targetAccount:pay;
+ let lines:Line[],sourceLabel='تمويل شخصي',withdrawalId='',originMonth='',originReceipts:any[]=[];
+ if(source==='project'){
+  if(!p.sourceProject||p.sourceProject===p.project)throw Error('اختر مشروعًا آخر كمصدر للتمويل.');project(p.sourceProject);guardProject(p.sourceProject);
+  if(amount>(balance(w,p.sourceProject,dt)[pay]||0))throw Error('رصيد النقدية المتاح في المشروع المصدر لا يكفي لهذا التحويل.');
+  lines=[...pair(p.sourceProject,'inter_receivable',pay,amount),...pair(p.project,receive,'inter_payable',amount)];sourceLabel='تمويل من مشروع آخر — مستحق الرد';
+ }else if(source==='external'){lines=pair(p.project,receive,'payable',amount);sourceLabel='تمويل خارجي مستحق';}
+ else if(source==='ownerWithdrawal'){
+  const draw=find(str(p.withdrawalId,100),'ownerCashWithdrawal');if(draw.data.status!=='posted')throw Error('اختر تحويلًا نشطًا سبق استلامه للمالك.');
+  const used=w.records.filter(r=>r.kind==='projectFunding'&&r.data.withdrawalId===draw.id&&r.data.status!=='cancelled').reduce((n,r)=>n+Number(r.data.amount||0),0);
+  if(amount>Number(draw.data.amount||0)-used)throw Error('المبلغ يتجاوز الجزء الذي لم يُضخ بعد من سحب المالك المحدد.');
+  if(dt<String(draw.data.date))throw Error('تاريخ الضخ يسبق استلام المالك للمبلغ.');
+  withdrawalId=draw.id;originMonth=draw.data.month;originReceipts=draw.data.originReceipts||ownerCashMonth(w,originMonth,draw.data.scope||'all',draw.data.date,false).receipts;
+  lines=pair(p.project,receive,'capital_reinvested',amount);sourceLabel='رأس مال من سحب المالك — فائض '+originMonth;
+ }else lines=pair(p.project,receive,'capital',amount);
+ const rid=put('projectFunding',{project:p.project,sourceType:source,sourceProject:source==='project'?p.sourceProject:'',amount,date:dt,paymentAccount:pay,targetAccount:receive,withdrawalId,originMonth,originReceipts,memo:str(p.memo||sourceLabel,300)});
+ journal('transfer',sourceLabel+' — '+target.data.name,dt,lines,'projectFunding:'+rid);description='تمويل '+target.data.name+' — '+sourceLabel;
+}
 else if(action==='cancelFunding'){
  const funding=find(p.id,'projectFunding');
  const fd=funding.data as any;
@@ -683,7 +730,7 @@ else if(action==='cancelFunding'){
  if(w.journals.some(j=>j.reversal===original.id))throw Error('تم عكس قيد التمويل بالفعل.');
  const cancelDate=date(p.date||today());
  if(cancelDate<date(fd.date))throw Error('تاريخ الإلغاء لا يمكن أن يسبق تاريخ التمويل.');
- const availableCash=balance(w,String(fd.project||''),cancelDate).cash||0;
+ const availableCash=balance(w,String(fd.project||''),cancelDate)[fd.targetAccount||'cash']||0;
  if(Number(fd.amount||0)>availableCash)throw Error('لا يمكن إلغاء التمويل لأن النقدية المتاحة في المشروع لا تكفي لعكس المبلغ بأمان.');
  journal('reversal','عكس تمويل: '+(fd.memo||fd.project)+' — '+str(p.reason||'تصحيح تمويل',200),cancelDate,original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),null,original.id);
  update(funding,{...fd,status:'cancelled',cancelledAt:cancelDate,cancelReason:str(p.reason||'تصحيح تمويل',200)});
@@ -730,7 +777,7 @@ else if(action==='fundingRepayment'){
    lines=pair(recipient.id,'payable',pay,amount);
    memo='استرداد تمويل خارجي';
  }else{
-   lines=pair(recipient.id,'capital',pay,amount);
+   lines=pair(recipient.id,fd.sourceType==='ownerWithdrawal'?'capital_reinvested':'capital',pay,amount);
    memo='استرداد رأس مال المالك';
  }
  const rid=put('fundingRepayment',{fundingId:funding.id,project:recipient.id,sourceType:fd.sourceType,sourceProject:fd.sourceProject||'',amount,date:dt,memo:str(p.memo||memo,300)});

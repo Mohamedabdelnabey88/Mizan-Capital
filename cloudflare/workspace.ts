@@ -1,7 +1,8 @@
+import {ownerCashMonth,ownerCashSources} from '@/lib/owner-cash';
 import {database} from '@/db';
 import {installmentPaymentSource,installmentPaymentHistory} from '@/lib/installment-payments';
 import {projectPerformance} from '@/lib/project-performance';
-import {accounts,cents,dayAdd,monthAdd,today,validateLines,loanRateFromPaymentExact,loanScheduleFromPaymentExact,balance,profit,forecast,internalFunding,distributionEntitlement,fiscalYearForStart,fiscalYearForDate,type Workspace,type Line} from '@/lib/finance';
+import {accounts,cents,dayAdd,monthAdd,today,validateLines,loanRateFromPaymentExact,loanScheduleFromPaymentExact,balance,profit,forecast,internalFunding,distributionEntitlement,ownerDistributionsInRange,fiscalYearForStart,fiscalYearForDate,type Workspace,type Line} from '@/lib/finance';
 export const dynamic='force-dynamic'; // Production ledger: project deletion reverses posted entries before removing operational records. // financial operations: halala-safe ledger, auditable daily corrections, investments, annual owner settlement, historical owner-policy effective dates
 const uid=()=>crypto.randomUUID();
 function str(v:any,n=200){if(typeof v!=='string'||!v.trim()||v.length>n)throw Error('راجع الحقول المطلوبة وطول النص.');return v.trim();}
@@ -87,7 +88,7 @@ function identify(req:Request){const owner=req.headers.get('oai-authenticated-us
 export async function GET(req:Request){try{const owner=identify(req),db=database();await materializeDueAccruals(db,owner);return Response.json(await snapshot(db,owner),{headers:{'Cache-Control':'no-store'}});}catch(e:any){return Response.json({...(e.code==='STALE_WRITE'||e.code==='PAYMENT_ALREADY_POSTED'?{code:e.code}:{}),error:e.message==='AUTH'?'سجل الدخول للوصول إلى بياناتك.':'تعذر تحميل البيانات. حاول مجددًا.'},{status:e.message==='AUTH'?401:503});}}
 function operatingRows(w:Workspace,year:number){const fy=fiscalYearForStart(w,year);return w.records.filter(r=>r.kind==='project'&&r.data.mode==='operating').map(r=>({...r.data,id:r.id,net:profit(w,r.id,fy.start,fy.end).net}));}
 function ownerPolicyForYear(w:Workspace,year:number){const end=fiscalYearForStart(w,year).end;return w.records.filter(r=>r.kind==='ownerPolicy'&&String(r.data.effectiveFrom||'')<=end).sort((a,b)=>String(a.data.effectiveFrom||'').localeCompare(String(b.data.effectiveFrom||''))).at(-1);}
-export async function POST(req:Request){try{const owner=identify(req);if(req.headers.get('sec-fetch-site')==='cross-site')return Response.json({error:'طلب غير مسموح'},{status:403});if(!req.headers.get('content-type')?.includes('application/json'))throw Error('نوع الطلب غير صحيح.');const raw=await req.text();if(raw.length>100000)throw Error('حجم الطلب أكبر من المسموح.');const body=JSON.parse(raw);const action=str(body.action,50),id=str(body.requestId,100),p=body.payload||{};const db=database();if(await db.prepare('SELECT id FROM commands WHERE id=? AND owner=?').bind(id,owner).first())return Response.json({ok:true,replayed:true});await materializeDueAccruals(db,owner,action==='settle'?String(p.id||''):'',action==='settle'?String(p.date||today()):'');const w=await snapshot(db,owner),time=new Date().toISOString();let ops:D1PreparedStatement[]=[];const ledgerLocks=new Map<string,number>();const inserts:{id:string;kind:string;data:string}[]=[];
+export async function POST(req:Request){try{const owner=identify(req);if(req.headers.get('sec-fetch-site')==='cross-site')return Response.json({error:'طلب غير مسموح'},{status:403});if(!req.headers.get('content-type')?.includes('application/json'))throw Error('نوع الطلب غير صحيح.');const raw=await req.text();if(raw.length>100000)throw Error('حجم الطلب أكبر من المسموح.');const body=JSON.parse(raw);const action=str(body.action,50),id=str(body.requestId,100),p=body.payload||{};const db=database();if(await db.prepare('SELECT id FROM commands WHERE id=? AND owner=?').bind(id,owner).first())return Response.json({ok:true,replayed:true});const writeVersion=Number((await db.prepare('SELECT version FROM workspace_versions WHERE owner=?').bind(owner).first<{version:number}>())?.version||0);await materializeDueAccruals(db,owner,action==='settle'?String(p.id||''):'',action==='settle'?String(p.date||today()):'');const w=await snapshot(db,owner),time=new Date().toISOString();let ops:D1PreparedStatement[]=[];const ledgerLocks=new Map<string,number>();const inserts:{id:string;kind:string;data:string}[]=[];
 const patches=new Map<string,{id:string;version:number;data:string}>();
 const guardProject=(pid:string)=>{const pr=w.records.find(r=>r.id===pid&&r.kind==='project');if(pr)ledgerLocks.set(pr.id,pr.version);};
 const put=(kind:string,data:any,rid=uid())=>{inserts.push({id:rid,kind,data:JSON.stringify(data)});if(data.project)guardProject(data.project);return rid;};
@@ -114,7 +115,7 @@ const taxParts=(amount:number,mode:any,rateBps:number)=>{if(mode==='none'||rateB
 const paymentAccounts=['cash','bank','mada','visa','mastercard','receivable'] as const;
 const paymentLabels:Record<string,string>={cash:'كاش',bank:'الحساب البنكي',mada:'مدى',visa:'Visa',mastercard:'Mastercard',receivable:'آجل'};
 const ensurePayment=(v:any)=>{if(!paymentAccounts.includes(v))throw Error('طريقة الإيداع غير صحيحة.');return v;};
-const archivedProjectAllowedActions=new Set(['settle','settleLoans','projectSchedulePayment','cancelProjectCost','deleteLoan','cancelFunding','cancelFundingRepayment','fundingRepayment','settleCards','dailyReportCorrection','undoInstallmentPayment','cancelContract','investmentReturn','returnCapital','reversal']);const project=(rid:string)=>{const r=find(rid,'project');if(r.data.status==='archived'&&!archivedProjectAllowedActions.has(action))throw Error('هذا المشروع مؤرشف للحفاظ على تاريخه المالي؛ لا يمكن تسجيل عمليات جديدة عليه.');if(r.data.mode==='investment')throw Error('الاستثمار الخارجي يسجل في دفاتر المشروع الممول.');return r;};
+const archivedProjectAllowedActions=new Set(['settle','settleLoans','projectSchedulePayment','cancelProjectCost','deleteLoan','cancelFunding','cancelFundingRepayment','fundingRepayment','settleCards','dailyReportCorrection','undoInstallmentPayment','undoOwnerCashWithdrawal','cancelContract','investmentReturn','returnCapital','reversal']);const project=(rid:string)=>{const r=find(rid,'project');if(r.data.status==='archived'&&!archivedProjectAllowedActions.has(action))throw Error('هذا المشروع مؤرشف للحفاظ على تاريخه المالي؛ لا يمكن تسجيل عمليات جديدة عليه.');if(r.data.mode==='investment')throw Error('الاستثمار الخارجي يسجل في دفاتر المشروع الممول.');return r;};
 const journal=(kind:string,memo:string,d:string,lines:Line[],source:string|null=null,reversal:string|null=null)=>{validateLines(lines);date(d);if(d>today())throw Error('سجل العمليات المستقبلية في الالتزامات، وليس في القيود الفعلية.');for(const l of lines){if(!l.project)continue;const pr=project(l.project);ledgerLocks.set(pr.id,pr.version);if(pr.data.closedThrough&&d<=pr.data.closedThrough)throw Error('الفترة مقفلة في هذا المشروع.');}ops.push(db.prepare('INSERT INTO journals(id,owner,date,memo,kind,lines,source,reversal,created) VALUES(?,?,?,?,?,?,?,?,?)').bind(uid(),owner,d,str(memo,500),kind,JSON.stringify(lines),source,reversal,time));};
 const pair=(pr:string,debit:string,credit:string,a:number):Line[]=>[{project:pr,account:debit,debit:a,credit:0},{project:pr,account:credit,debit:0,credit:a}];
 const directionLines=(pr:string,direction:string,category:string,a:number):Line[]=>direction==='out'?pair(pr,category,'payable',a):pair(pr,'receivable',category,a);
@@ -626,13 +627,41 @@ else if(action==='setOwnerPolicy'){
  else put('ownerPolicy',{percentBps:pct,effectiveFrom});
  description='تحديث نسبة المالك السنوية إلى '+(pct/100).toFixed(2)+'%';
 }
+else if(action==='ownerCashWithdrawal'){
+ const month=str(p.month,7);if(!/^\d{4}-\d{2}$/.test(month))throw Error('اختر شهر الفائض.');date(month+'-01');
+ const dt=date(p.date||today());if(dt!==today())throw Error('سجل تحويل المالك بتاريخ اليوم لضمان مطابقة السيولة الحالية.');
+ const scope=str(p.scope||'all',100);if(scope!=='all')project(scope);
+ if(month>today().slice(0,7))throw Error('لا يمكن سحب فائض شهر مستقبلي.');
+ const amount=halala(p.amount,'المبلغ المحول للمالك');if(amount<=0)throw Error('أدخل مبلغًا أكبر من صفر.');
+ const pay=str(p.paymentAccount||'bank',20);if(!['cash','bank'].includes(pay))throw Error('السحب متاح من الكاش أو البنك فقط.');
+ const destination=str(p.destination,200);if(!destination.trim())throw Error('اكتب حساب المالك أو مرجع استلامه.');
+ const summary=ownerCashMonth(w,month,scope,dt);if(amount>summary.available)throw Error('المبلغ يتجاوز فائض الشهر المتاح بعد المسحوبات والالتزامات والاحتياطي.');
+ const sources=ownerCashSources(w,month,scope,dt,pay);let remaining=amount;const allocations:{project:string;amount:number}[]=[];
+ for(const source of sources){const part=Math.min(remaining,source.available);if(part>0)allocations.push({project:source.project,amount:part});remaining-=part;if(remaining===0)break;}
+ if(remaining>0)throw Error('رصيد حساب السداد المختار لا يكفي؛ راجع الكاش والبنك لكل مشروع.');
+ // Lock every project used to calculate the shared month cap, in addition to the workspace CAS.
+ for(const r of w.records.filter(x=>x.kind==='project'))guardProject(r.id);
+ const rid=put('ownerCashWithdrawal',{month,scope,amount,date:dt,paymentAccount:pay,destination,memo:p.memo?str(p.memo,500):'',allocations,status:'posted'});
+ journal('ownerCashWithdrawal','تحويل فائض '+month+' إلى المالك — '+destination,dt,allocations.flatMap(a=>pair(a.project,'distribution',pay,a.amount)),'owner-cash:'+rid);
+ description='تحويل فائض نقدي للمالك عن '+month+' بقيمة '+(amount/100).toFixed(2)+' ريال';
+}
+else if(action==='undoOwnerCashWithdrawal'){
+ const record=find(p.id,'ownerCashWithdrawal');if(record.data.status!=='posted')throw Error('هذا التحويل متراجع عنه بالفعل.');
+ const reason=str(p.reason,500);if(!reason.trim())throw Error('اكتب سبب التراجع.');
+ const dt=date(p.date||today());if(dt!==today())throw Error('التراجع يسجل بتاريخ اليوم.');
+ const original=w.journals.find(j=>j.source==='owner-cash:'+record.id);if(!original||w.journals.some(j=>j.reversal===original.id))throw Error('تعذر عكس تحويل المالك أو تم عكسه بالفعل.');
+ if(dt<original.date)throw Error('تاريخ التراجع يسبق التحويل.');
+ for(const l of original.lines){const pr=w.records.find(r=>r.kind==='project'&&r.id===l.project);if(pr?.data.closedThrough&&original.date<=pr.data.closedThrough)throw Error('التحويل داخل فترة مقفلة؛ يحتاج تسوية محاسبية مستقلة.');}
+ journal('reversal','تراجع عن تحويل فائض للمالك — '+reason,dt,original.lines.map(l=>({...l,debit:l.credit,credit:l.debit})),'owner-cash-undo:'+record.id,original.id);
+ update(record,{...record.data,status:'reversed',reversedOn:dt,reason});description='التراجع عن تحويل فائض للمالك: '+reason;
+}
 else if(action==='annualOwnerDistribution'){
  const year=Math.trunc(num(p.year,2000,2100));const fy=fiscalYearForStart(w,year);const existing=w.records.find(x=>x.kind==='ownerSettlement'&&x.data.fiscalYearStart===fy.start);if(existing)throw Error('تم اعتماد تسوية المالك لهذه السنة مسبقًا.');
  const policy=ownerPolicyForYear(w,year);
  if(!policy)throw Error('حدد نسبة المالك السنوية أولاً.');
  const pct=Number(policy.data.percentBps||0);if(pct<=0)throw Error('نسبة المالك السنوية يجب أن تكون أكبر من صفر.');
  const rows=operatingRows(w,year);const totalProfit=rows.reduce((s,x)=>s+x.net,0);if(totalProfit<=0)throw Error('لا يوجد صافي ربح موجب للمحفظة في هذه السنة.');
- const totalOwner=Math.floor(totalProfit*pct/10000);if(totalOwner<=0)throw Error('حصة المالك أقل من هللة بعد التقريب.');
+ const priorWithdrawals=ownerDistributionsInRange(w,fy.start,fy.end);const totalOwner=Math.max(0,Math.floor(totalProfit*pct/10000)-priorWithdrawals);if(totalOwner<=0)throw Error('لا توجد حصة مالك متبقية بعد احتساب المسحوبات السابقة.');
  const positive=rows.filter(x=>x.net>0);let remaining=totalOwner;const lines:Line[]=[];const allocations:any[]=[];
  for(let i=0;i<positive.length;i++){const x=positive[i];const a=i===positive.length-1?remaining:Math.floor(totalOwner*x.net/positive.reduce((s,y)=>s+y.net,0));if(a<=0)continue;remaining-=a;const pay=ensurePayment(p.paymentAccount||'bank');if(!['cash','bank'].includes(pay))throw Error('حساب دفع المالك يجب أن يكون كاش أو بنك.');const b=balance(w,x.id,today());if(a>Math.max(0,(b.cash||0)+(b.bank||0)-Number(x.reserve||0)))throw Error('السيولة المتاحة في '+x.name+' لا تكفي لحصتها من توزيع المالك بعد الاحتياطي.');if(a>(b[pay]||0))throw Error('حساب '+paymentLabels[pay]+' في '+x.name+' لا يحتوي على المبلغ المطلوب للدفع.');lines.push({project:x.id,account:'distribution',debit:a,credit:0},{project:x.id,account:pay,debit:0,credit:a});allocations.push({project:x.id,amount:a});}
  if(remaining!==0)throw Error('تعذر توزيع المبلغ بدقة على المشاريع.');
@@ -907,6 +936,8 @@ else if(action==='replaceSchedule'){const r=find(p.id,'loan'),d=r.data;const pen
 else if(action==='risk'){if(p.project!=='all')find(p.project,'project');put('risk',{project:p.project,title:str(p.title),likelihood:num(p.likelihood,1,5),impact:num(p.impact,1,5),control:str(p.control,1000),responsible:str(p.responsible),reviewDate:date(p.reviewDate),status:'open'});description='إضافة خطر: '+p.title;}
 else if(action==='resolveRisk'){const r=find(p.id,'risk');update(r,{...r.data,status:'resolved',resolution:str(p.resolution,500),resolvedOn:today()});description='توثيق معالجة خطر';}
 else throw Error('عملية غير معروفة.');
+// Reject a stale financial snapshot atomically, including writes to unallocated accounts.
+ops.unshift(db.prepare("INSERT INTO workspace_versions(owner,version) VALUES(?,1) ON CONFLICT(owner) DO UPDATE SET version=workspace_versions.version+1 WHERE workspace_versions.version=?").bind(owner,writeVersion),db.prepare("INSERT INTO commands(id,owner,created) SELECT ?,?,? WHERE changes()<>1").bind(id,owner,time));
 // Bound JSON keeps SQL and parameter counts small even for a 360-month loan.
 if(inserts.length)ops.push(db.prepare("INSERT INTO records(id,owner,kind,data,created) SELECT json_extract(value,'$.id'),?,json_extract(value,'$.kind'),json_extract(value,'$.data'),? FROM json_each(?)").bind(owner,time,JSON.stringify(inserts)));
 if(patches.size){

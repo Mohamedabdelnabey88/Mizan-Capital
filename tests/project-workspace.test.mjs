@@ -29,13 +29,13 @@ assert.throws(()=>installmentPaymentSource(fixture,'project-tenant-rent-payment:
 const reversed={...fixture,journals:[...fixture.journals,{id:'reverse',date:'2026-10-03',reversal:'j1',lines:[]}]};
 assert.equal(installmentPaymentSource(reversed,'project-tenant-rent-payment:due1','next'),'project-tenant-rent-payment:due1:payment:next');
 assert.equal(installmentPaymentHistory(reversed,fixture.records.find(r=>r.id==='due1'))[0].reversed,true);
-// Server-render all six sections with the actual table, tabs, financial selectors and callbacks.
+// Server-render all seven sections with the actual table, tabs, financial selectors and callbacks.
 const stateModule=path.resolve('.sites-runtime/project-render-state.mjs');
 await fs.writeFile(stateModule,`export function useState(initial){const i=globalThis.__projectIndex++;return [Object.hasOwn(globalThis.__projectState,i)?globalThis.__projectState[i]:initial,()=>{}]}`);
 await build({entryPoints:['components/project-workspace.tsx'],bundle:true,platform:'node',format:'esm',jsx:'automatic',alias:{'@':process.cwd()},external:['react','react-dom','react-dom/server'],loader:{'.css':'empty'},banner:{js:"import {createRequire as __cr} from 'node:module';const require=__cr(import.meta.url);"},plugins:[{name:'project-render-state',setup(b){b.onLoad({filter:/components\/project-workspace\.tsx$/},async args=>({contents:(await fs.readFile(args.path,'utf8')).replace('useMemo,useState,type ReactNode','useMemo,type ReactNode').replace("import {Tabs,TabsContent",`import {useState} from ${JSON.stringify(stateModule)};\nimport {Tabs,TabsContent`),loader:'tsx',resolveDir:path.dirname(args.path)}));}}],outfile:'.sites-runtime/project-workspace-render.mjs'});
 const {ProjectWorkspace}=await import('../.sites-runtime/project-workspace-render.mjs');
 const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
-for(const section of ['overview','contracts','pending','paid','units','history']){
+for(const section of ['overview','capital','contracts','pending','paid','units','history']){
  globalThis.__projectIndex=0;globalThis.__projectState={1:section};
  const html=renderToStaticMarkup(createElement(ProjectWorkspace,{workspace:fixture,projectId:'p',from:'2026-10-01',to:'2026-10-31',busy:false,onBack:()=>{},onProject:()=>{},onOpen:()=>{}}));
  assert(html.includes('العقار الرئيسي'));assert(!html.includes('MUST_NOT_LEAK'));assert(!html.includes('NaN'));
@@ -45,4 +45,4 @@ for(const section of ['overview','contracts','pending','paid','units','history']
  if(section==='units')assert(html.includes('فتح الملف'));
  if(section==='history')assert(html.includes('التراجع عن الدفعة'));
 }
-console.log('Project files passed: exact branch scope, contract balances, all pending/paid dates, six sections and reversal history.');
+console.log('Project files passed: exact branch scope, contract balances, all pending/paid dates, seven sections and reversal history.');

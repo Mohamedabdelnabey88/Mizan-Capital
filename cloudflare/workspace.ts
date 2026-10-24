@@ -203,6 +203,9 @@ else if(action==='cancelProjectCost'){
 else if(action==='projectCommitment'){
  const pr=project(str(p.project)),title=str(p.title||'التزام مشروع',200),party=String(p.party||'').trim().slice(0,200),total=cents(p.totalAmount),costType=['construction','rent','expense'].includes(p.costType)?p.costType:'construction';
  if(total<=0)throw Error('أدخل إجمالي الالتزام أكبر من صفر.');
+ if(!p.startDate||!p.endDate)throw Error('حدد تاريخ بداية العقد وتاريخ نهايته.');
+ const startDate=date(p.startDate),endDate=date(p.endDate);
+ if(endDate<startDate)throw Error('نهاية العقد يجب ألا تسبق بدايته.');
  const scheduleType=['once','monthly','quarterly','semiannual','yearly','custom'].includes(p.scheduleType)?p.scheduleType:(p.installments?'custom':'monthly'),firstDate=date(p.firstDate||today());
  const installments:{date:string;amount:number;status:string;obligationId:string}[]=[];
  if(scheduleType==='custom'){
@@ -217,9 +220,10 @@ else if(action==='projectCommitment'){
  if(!installments.length)throw Error('أدخل موعد قسط واحدًا على الأقل.');
  if(installments.reduce((sum,x)=>sum+x.amount,0)!==total)throw Error('مجموع الأقساط يجب أن يساوي إجمالي الالتزام بالضبط.');
  installments.sort((a,b)=>a.date.localeCompare(b.date));
+ if(installments.some(item=>item.date<startDate||item.date>endDate))throw Error('يجب أن تقع جميع الأقساط داخل مدة العقد؛ راجع بداية ونهاية العقد أو مواعيد الأقساط.');
  const commitmentId=uid();
  for(let i=0;i<installments.length;i++){const item=installments[i],obligationId=uid();item.obligationId=obligationId;due({project:pr.id,title:'قسط التزام — '+title+' / '+(i+1),amount:item.amount,date:item.date,direction:'out',category:costType==='rent'||costType==='expense'?'expense':'payable',certainty:100,projectCommitmentId:commitmentId,commitmentInstallment:i+1,party,costType},obligationId);}
- put('projectCommitment',{project:pr.id,title,party,totalAmount:total,scheduleType,costType,createdOn:today(),status:'active',installments},commitmentId);
+ put('projectCommitment',{project:pr.id,title,party,totalAmount:total,startDate,endDate,scheduleType,costType,createdOn:today(),status:'active',installments},commitmentId);
  description='إضافة التزام مشروع وجدولة '+installments.length+' قسطًا دون اشتراط مصدر السيولة: '+title;
 }
 else if(action==='projectTenantLease'){

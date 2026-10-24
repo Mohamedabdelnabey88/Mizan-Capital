@@ -15,6 +15,9 @@ const fixture={records:[
  record('lease','tenantLease',{project:'p',unitId:'unit',title:'عقد الوحدة',tenantName:'سعد',status:'active',startDate:'2026-01-01',endDate:'2027-12-31'}),
  record('due1','obligation',{project:'unit-project',projectTenantLeaseId:'rent',title:'قسط يمني المدفوع',direction:'in',status:'paid',date:'2026-09-01',paidOn:'2026-10-02',amount:1000000}),
  record('due2','obligation',{project:'unit-project',projectTenantLeaseId:'rent',title:'قسط يمني المتبقي',direction:'in',status:'pending',date:'2026-11-01',amount:2000000}),
+ record('term','projectCommitment',{project:'p',title:'عقد الأرض بتاريخ مستقل',costType:'rent',startDate:'2026-08-15',endDate:'2036-08-14',status:'active'}),
+ record('legacy-term','projectCommitment',{project:'p',title:'عقد قديم بلا مدة',costType:'rent',status:'active'}),
+ record('term-due','obligation',{project:'p',projectCommitmentId:'term',title:'قسط العقد السنوي',direction:'out',status:'pending',date:'2027-01-01',amount:0}),
  record('expense','obligation',{project:'p',title:'دفعة مقاول',direction:'out',status:'pending',date:'2026-10-12',amount:500000}),
  record('cancelled','obligation',{project:'unit-project',projectTenantLeaseId:'rent',title:'قسط ملغى',direction:'in',status:'cancelled',date:'2026-11-12',amount:999999}),
  record('unrelated','obligation',{project:'other',title:'MUST_NOT_LEAK',direction:'in',status:'pending',date:'2026-10-05',amount:99999999})
@@ -39,7 +42,7 @@ for(const section of ['overview','capital','contracts','pending','paid','units',
  globalThis.__projectIndex=0;globalThis.__projectState={1:section};
  const html=renderToStaticMarkup(createElement(ProjectWorkspace,{workspace:fixture,projectId:'p',from:'2026-10-01',to:'2026-10-31',busy:false,onBack:()=>{},onProject:()=>{},onOpen:()=>{}}));
  assert(html.includes('العقار الرئيسي'));assert(!html.includes('MUST_NOT_LEAK'));assert(!html.includes('NaN'));
- if(section==='contracts')assert(html.includes('دفعات العقد'));
+ if(section==='contracts'){assert(html.includes('دفعات العقد'));assert(html.includes('بداية العقد:')&&html.includes('نهاية العقد:'));assert(html.includes('١٥ أغسطس ٢٠٢٦')||html.includes('15 أغسطس 2026'));assert(html.includes('عقد قديم بلا مدة')&&html.includes('غير مسجلة'));}
  if(section==='pending')assert(html.includes('قسط يمني المتبقي')&&html.includes('تأكيد التحصيل'));
  if(section==='paid')assert(html.includes('قسط يمني المدفوع')&&html.includes('التراجع عن'));
  if(section==='units')assert(html.includes('فتح الملف'));

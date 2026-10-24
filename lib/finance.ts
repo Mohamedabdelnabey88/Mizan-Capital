@@ -3,7 +3,7 @@ export type Line={project:string;account:string;debit:number;credit:number};
 export type Journal={id:string;date:string;memo:string;kind:string;lines:Line[];source?:string;reversal?:string;created?:string};
 export type Workspace={records:RecordItem[];journals:Journal[];audit:any[]};
 export const accounts:Record<string,{name:string;type:string}>={cash:{name:'الصندوق / كاش',type:'asset'},bank:{name:'الحساب البنكي',type:'asset'},personal_cash:{name:'سيولة القرض الشخصي — خارج حسابات التشغيل',type:'asset'},personal_loan:{name:'قرض شخصي على المالك',type:'liability'},owner_advance:{name:'سلف مستحقة للمالك — تغطية عجز',type:'liability'},personal_use:{name:'استخدامات شخصية من السيولة الشخصية',type:'distribution'},mada:{name:'مستحقات مدى',type:'asset'},visa:{name:'مستحقات Visa',type:'asset'},mastercard:{name:'مستحقات Mastercard',type:'asset'},receivable:{name:'الذمم المدينة / آجل',type:'asset'},inventory:{name:'المخزون',type:'asset'},fixed:{name:'الأصول الثابتة',type:'asset'},investment:{name:'استثمارات قيد التشغيل',type:'asset'},prepaid_rent:{name:'إيجار مدفوع مقدمًا',type:'asset'},rent_payable:{name:'دفعات إيجار مستحقة السداد',type:'liability'},inter_receivable:{name:'تمويل مستحق من مشروع',type:'asset'},accumulated:{name:'مجمع الإهلاك',type:'contra'},payable:{name:'الموردون والمستحقات',type:'liability'},loan:{name:'أصل التمويل',type:'liability'},inter_payable:{name:'تمويل مستحق لمشروع',type:'liability'},tax_payable:{name:'ضريبة مستحقة',type:'liability'},tax_receivable:{name:'ضريبة مدخلات قابلة للاسترداد',type:'asset'},capital:{name:'رأس المال / أرصدة افتتاحية',type:'equity'},retained:{name:'أرباح سابقة',type:'equity'},distribution:{name:'توزيعات الملاك',type:'distribution'},revenue:{name:'إيرادات التشغيل',type:'income'},dividend:{name:'عوائد استثمارات',type:'income'},expense:{name:'مصروفات التشغيل',type:'expense'},salary:{name:'الرواتب',type:'expense'},interest:{name:'تكلفة التمويل',type:'expense'},cogs:{name:'تكلفة المبيعات',type:'expense'},depreciation:{name:'مصروف الإهلاك',type:'expense'},tax_expense:{name:'مصروف ضريبة / زكاة',type:'expense'}};
-export const kinds:Record<string,string>={income:'إيراد محصّل',invoice:'إيراد آجل',collect:'تحصيل ذمة',expense:'مصروف مدفوع',bill:'مصروف مستحق',paybill:'سداد مستحقات',capital:'إيداع رأس مال',asset:'شراء أصل',inventory:'شراء مخزون',cogs:'تكلفة بضاعة مباعة',depreciation:'إهلاك أصل',invest:'ضخ استثمار',dividend:'عائد استثمار',returnCapital:'استرداد رأس مال استثمار',distribution:'توزيع أرباح',transfer:'تمويل بين مشروعين',repayTransfer:'رد تمويل إلى مشروع',investmentStart:'بدء دورة استثمار داخلية',investmentReturn:'استرداد دورة استثمار داخلية',dailyReport:'اعتماد تقرير يومي',cardSettlement:'تسوية مستحقات بطاقات',annualOwnerDistribution:'توزيع مالك سنوي',manual:'قيد محاسبي',reversal:'قيد عكسي',loan:'استلام تمويل',settle:'سداد التزام',prepay:'سداد مبكر'};
+export const kinds:Record<string,string>={income:'إيراد محصّل',invoice:'إيراد آجل',collect:'تحصيل ذمة',expense:'مصروف مدفوع',bill:'مصروف مستحق',paybill:'سداد مستحقات',capital:'إيداع رأس مال',asset:'شراء أصل',inventory:'شراء مخزون',cogs:'تكلفة بضاعة مباعة',depreciation:'إهلاك أصل',invest:'ضخ استثمار',dividend:'عائد استثمار',returnCapital:'استرداد رأس مال استثمار',distribution:'توزيع أرباح',transfer:'تمويل بين مشروعين',repayTransfer:'رد تمويل إلى مشروع',investmentStart:'بدء دورة استثمار داخلية',investmentReturn:'استرداد دورة استثمار داخلية',dailyReport:'اعتماد تقرير يومي',cardSettlement:'تسوية مستحقات بطاقات',annualOwnerDistribution:'توزيع مالك سنوي',ownerCashWithdrawal:'تحويل فائض نقدي للمالك',manual:'قيد محاسبي',reversal:'قيد عكسي',loan:'استلام تمويل',settle:'سداد التزام',prepay:'سداد مبكر'};
 export const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 export function dayAdd(s:string,n:number){const d=new Date(s+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 export function monthAdd(s:string,n:number){const d=new Date(s+'T12:00:00Z');const day=d.getUTCDate();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+n);const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();d.setUTCDate(Math.min(day,last));return d.toISOString().slice(0,10);}
@@ -310,7 +310,7 @@ export function actualCashFlow(w:Workspace,project='all',start='0000-01-01',end=
   if(kind==='projectCost')return j.lines.some(l=>(l.account==='investment'||l.account==='fixed')&&l.debit>0)?'investing':'operating';
   if(['income','collect','dailyReport','cardSettlement','expense','paybill','cogs','inventory','salary'].includes(kind))return 'operating';
   if(['asset','invest','dividend','returnCapital','investmentStart','investmentReturn'].includes(kind))return 'investing';
-  if(['capital','loan','prepay','distribution','annualOwnerDistribution','deficitPayment','repayOwnerAdvance'].includes(kind))return 'financing';
+  if(['capital','loan','prepay','distribution','annualOwnerDistribution','ownerCashWithdrawal','deficitPayment','repayOwnerAdvance'].includes(kind))return 'financing';
   if(kind==='settle')return j.lines.some(l=>l.account==='loan'||l.account==='interest')?'financing':'operating';
   if(['transfer','repayTransfer','fundingRepayment'].includes(kind)){
    if(j.lines.some(l=>l.account==='inter_receivable'||l.account==='inter_payable'))return 'transfer';
@@ -352,6 +352,20 @@ export function investmentFundingReport(w:Workspace,project='all',start='0000-01
  const funding=[...map.values()].filter(r=>r.funded!==0||r.repaid!==0||r.outstanding!==0).map(r=>({...r,outstanding:Math.max(0,r.outstanding)}));
  return {investments,funding,activeInvestment:investments.filter(r=>r.status==='active').reduce((s,r)=>s+r.principal,0),expectedReturn:investments.reduce((s,r)=>s+r.expectedReturn,0),actualReturn:investments.filter(r=>r.status!=='active').reduce((s,r)=>s+r.actualReturn,0),fundingOutstanding:funding.reduce((s,r)=>s+r.outstanding,0)};
 }
+/** Prior owner drawings are credited against annual distributions; reversals follow the original month. */
+export function ownerDistributionsInRange(w:Workspace,start:string,end:string){
+ const byId=new Map(w.journals.map(j=>[j.id,j]));
+ const draws=new Map(w.records.filter(r=>r.kind==='ownerCashWithdrawal').map(r=>['owner-cash:'+r.id,r]));
+ const eligible=new Set(w.records.filter(r=>r.kind==='project'&&r.data.mode==='operating').map(r=>r.id));
+ let total=0;
+ for(const j of w.journals){
+  const original=j.reversal?byId.get(j.reversal):j;if(original?.kind==='annualOwnerDistribution')continue;
+  const record=draws.get(original?.source||'');const at=record?String(record.data.month)+'-01':(original?.date||j.date);
+  if(at<start||at>end)continue;
+  total+=j.lines.filter(l=>l.account==='distribution'&&(eligible.has(l.project)||(!!record&&!l.project))).reduce((n,l)=>n+l.debit-l.credit,0);
+ }
+ return total;
+}
 export function annualOwnerReport(w:Workspace,year:number){
  const fy=fiscalYearForStart(w,year),fyEnd=fy.end;
  const projects=w.records.filter(r=>r.kind==='project'&&r.data.mode==='operating');
@@ -360,7 +374,8 @@ export function annualOwnerReport(w:Workspace,year:number){
  const rows=projects.map(p=>({project:p.id,name:p.data.name,ownership:Number(p.data.ownership||0),profit:profit(w,p.id,fy.start,fy.end).net}));
  const totalProfit=rows.reduce((s,r)=>s+r.profit,0),ownerShare=Math.floor(totalProfit*percentBps/10000);
  const settlement=w.records.find(r=>r.kind==='ownerSettlement'&&(String(r.data.fiscalYearStart||'')===fy.start||(!r.data.fiscalYearStart&&Number(r.data.year)===year)));
- return {year,fyStart:fy.start,fyEnd:fy.end,fiscalYearId:fy.id||'',fiscalLabel:fy.label||'',percentBps,policyDate:policy?.data.effectiveFrom||'',rows,totalProfit,ownerShare,paid:Number(settlement?.data.totalOwner||0),settlementDate:settlement?.data.paidOn||'',status:settlement?'paid':'pending',remaining:Math.max(0,ownerShare-Number(settlement?.data.totalOwner||0))};
+ const priorWithdrawals=ownerDistributionsInRange(w,fy.start,fy.end),paid=Number(settlement?.data.totalOwner||0)+priorWithdrawals;
+ return {year,fyStart:fy.start,fyEnd:fy.end,fiscalYearId:fy.id||'',fiscalLabel:fy.label||'',percentBps,policyDate:policy?.data.effectiveFrom||'',rows,totalProfit,ownerShare,paid,priorWithdrawals,settlementDate:settlement?.data.paidOn||'',status:settlement?'paid':'pending',remaining:Math.max(0,ownerShare-paid)};
 }
 export function distributionEntitlement(w:Workspace,project:RecordItem){
  const b=balance(w,project.id),net=profit(w,project.id,'0000-01-01').net;

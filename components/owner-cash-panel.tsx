@@ -1,0 +1,19 @@
+'use client';
+import {ArrowUpLeft,Check,Wallet} from 'lucide-react';
+import {DateInput} from './date-input';
+import {calendarValueLabel} from '@/lib/calendar-date';
+import {type ownerCashMonth,type OwnerCashAllocation} from '@/lib/owner-cash';
+
+const money=(n:number)=>new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n/100)+' ر.س';
+type Summary=ReturnType<typeof ownerCashMonth>;
+export function OwnerCashPanel({summary,scope,busy,onMonth,onWithdraw,onUndo}:{summary:Summary;scope:string;busy:boolean;onMonth:(month:string)=>void;onWithdraw:()=>void;onUndo:(id:string)=>void}){
+ const items=[['التحصيل الفعلي',summary.received],['المدفوعات الفعلية — الأقساط كاملة',summary.paid],['التزامات الشهر والمتأخرات — محجوزة',summary.pending],['الفائض قبل السحب وحجز الالتزامات',summary.surplus],['المحوّل للمالك من فائض هذا الشهر',summary.withdrawn]] as const;
+ return <section className="owner-cash-panel" aria-label="فائض الشهر ومسحوبات المالك">
+  <div className="owner-cash-heading"><div><span className="eyebrow">تحصيلات فعلية · أقساط كاملة · سحب موثّق</span><h2>فائض الشهر وتحويله للمالك</h2><p>شهر {calendarValueLabel(summary.month,'month')} · {summary.start>summary.cutoff?'الشهر لم يبدأ بعد':'الحساب حتى '+calendarValueLabel(summary.cutoff)} · حسب نطاق المشاريع المختار</p></div><div className="owner-cash-month"><label htmlFor="owner-cash-month">شهر الفائض</label><DateInput id="owner-cash-month" aria-label="شهر فائض المالك" type="month" required value={summary.month} onChange={e=>{if(e.target.value)onMonth(e.target.value);}}/></div></div>
+  <div className="owner-cash-breakdown">{items.map(([label,value])=><div key={label}><span>{label}</span><strong dir="ltr">{money(value)}</strong></div>)}</div>
+  <div className="owner-cash-available"><div><span><Wallet size={18}/>المتبقي القابل للتحويل للمالك</span><strong dir="ltr">{money(summary.available)}</strong><p>{summary.available===0&&summary.withdrawn>0&&summary.remaining===0?<><Check size={15}/>تم تحويل كامل الفائض المتاح لهذا الشهر.</>:'بعد المسحوبات، وحجز الالتزامات والاحتياطي، وبحد السيولة الفعلية المتاحة.'}</p></div><button className="btn primary" disabled={busy||summary.available<=0} onClick={onWithdraw}>تسجيل تحويل لحساب المالك<ArrowUpLeft size={17}/></button></div>
+  <p className="owner-cash-explanation">التحصيل ناقص المدفوعات والأقساط كاملة يوضح الفائض النقدي. القروض وسلف المالك ورأس المال الوارد لا تُحسب تحصيلًا قابلًا للسحب. التحويل يخفض الكاش أو البنك ويسجل مسحوبات للمالك؛ لا يغير ربح الفترة أو يحذف تاريخها. السحب الكامل يصفّر المتبقي من الشهر، وتظل أرصدة الشهور السابقة محفوظة. تُحتسب هذه المسحوبات ضمن المدفوع للمالك عند تسويته السنوية.</p>
+  {scope!=='all'&&<p className="owner-cash-explanation">سحب المشروع يتقيد أيضًا بإجمالي الفائض والسيولة المتاحة لجميع المشاريع، بما فيها الالتزامات العامة.</p>}
+  <details className="owner-cash-history"><summary>سجل التحويلات لهذا الشهر <span>{summary.records.length} تحويل</span></summary>{summary.records.length?<div className="owner-cash-table"><table><thead><tr><th>تاريخ التحويل</th><th>المبلغ</th><th>من حساب</th><th>حساب المالك / المرجع</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody>{summary.records.slice().sort((a,b)=>String(b.data.date).localeCompare(String(a.data.date))).map(record=>{const d=record.data,amount=scope==='all'?Number(d.amount):(d.allocations as OwnerCashAllocation[]).filter(a=>a.project===scope).reduce((n,a)=>n+a.amount,0);return <tr key={record.id}><td>{calendarValueLabel(String(d.date))}</td><td dir="ltr">{money(amount)}</td><td>{d.paymentAccount==='bank'?'البنك':'الكاش'}</td><td>{d.destination}</td><td>{d.status==='posted'?'تم التحويل':'تم التراجع'}</td><td>{d.status==='posted'?<button className="text-button danger" disabled={busy} onClick={()=>onUndo(record.id)}>تراجع عن التحويل</button>:'—'}</td></tr>;})}</tbody></table></div>:<p>لم تُسجل تحويلات للمالك من فائض هذا الشهر.</p>}</details>
+ </section>;
+}

@@ -503,6 +503,36 @@ else if(action==='lease'){
  for(let i=0;i<installments.length;i++){const installment=installments[i],obligationId=uid();due({project:pr.id,title:'إيجار — '+str(p.title||pr.data.name,120)+' / '+(i+1),amount:installment.amount,date:installment.date,direction:'out',category:'expense',certainty:num(p.certainty??100,0,100),leaseId,leaseInstallment:i+1,leaseTotal:total},obligationId);}
  description='إضافة عقد إيجار وجدولة '+installments.length+' دفعة: '+pr.data.name;
 }
+else if(action==='updateContract'){
+ const c=find(str(p.contractId,100));
+ if(!['lease','tenantLease','projectTenantLease','projectCommitment'].includes(c.kind))throw Error('نوع العقد لا يدعم التعديل.');
+ const pr=project(c.data.project);
+ if(Number(p.version)!==c.version)throw Error('تغير العقد؛ حدّث الصفحة قبل تعديله.');
+ if(['cancelled','terminated'].includes(c.data.status))throw Error('لا يمكن تعديل عقد ملغى.');
+ const title=str(p.title,200),reason=str(p.reason,1000),start=date(p.startDate),end=date(p.endDate),total=cents(p.totalAmount),party=String(p.party||'').trim().slice(0,200);
+ if(reason.length<3)throw Error('اكتب سبب التعديل.');
+ if(end<start||total<=0)throw Error('راجع مدة العقد وإجمالي قيمته.');
+ if(pr.data.closedThrough&&start<=pr.data.closedThrough)throw Error('مدة العقد تبدأ داخل فترة مقفلة؛ يلزم تصحيح محاسبي مستقل.');
+ const key=c.kind==='lease'?'leaseId':c.kind==='tenantLease'?'tenantLeaseId':c.kind==='projectTenantLease'?'projectTenantLeaseId':'projectCommitmentId';
+ const linked=w.records.filter(r=>r.kind==='obligation'&&r.data[key]===c.id),live=linked.filter(r=>['pending','paid'].includes(r.data.status));
+ if(!Array.isArray(p.rows)||!p.rows.length||p.rows.length>360)throw Error('أدخل من دفعة واحدة إلى 360 دفعة.');
+ const seen=new Set<string>();
+ const rows=p.rows.map((r:any)=>{const rid=String(r.id||''),old=rid?live.find(o=>o.id===rid):null;if(rid&&(!old||seen.has(rid)))throw Error('دفعة غير صالحة أو مكررة.');if(rid)seen.add(rid);const dt=date(r.date),amount=cents(r.amount);if(amount<=0||dt<start||dt>end)throw Error('كل دفعة يجب أن تكون موجبة وداخل مدة العقد.');if(old?.data.status==='paid'&&(dt!==old.data.date||amount!==old.data.amount))throw Error('تراجع عن سداد الدفعة أولًا لتصحيحها.');return {id:rid||uid(),date:dt,amount,old};});
+ if(live.some(o=>o.data.status==='paid'&&!seen.has(o.id)))throw Error('لا يمكن حذف دفعة مسددة؛ تراجع عن السداد أولًا.');
+ if(rows.reduce((sum:number,r:any)=>sum+r.amount,0)!==total)throw Error('مجموع الدفعات يجب أن يساوي إجمالي العقد.');
+ if(['tenantLease','projectTenantLease'].includes(c.kind)&&w.records.some(r=>r.id!==c.id&&r.kind===c.kind&&r.data.status==='active'&&(c.kind==='tenantLease'?r.data.unitId===c.data.unitId:r.data.project===c.data.project)&&String(r.data.startDate)<=end&&String(r.data.endDate)>=start))throw Error('مدة العقد تتداخل مع عقد آخر.');
+ const financialChange=start!==c.data.startDate||end!==c.data.endDate||total!==c.data.totalAmount||rows.length!==live.length||rows.some((r:any)=>!r.old||r.date!==r.old.data.date||r.amount!==r.old.data.amount);
+ if(financialChange&&c.kind==='lease'&&w.journals.some(j=>!j.reversal&&!w.journals.some(v=>v.reversal===j.id)&&(String(j.source||'').includes(c.id)||linked.some(o=>String(j.source||'').includes(o.id)))))throw Error('هذا الإيجار له قيود محاسبية مرحلة؛ اعكس الدفعات وراجع قيود الاستحقاق قبل تغيير العقد.');
+ for(const o of live){if(o.data.status==='pending'&&!seen.has(o.id))update(o,{...o.data,status:'replaced',reason:'تعديل العقد: '+reason});}
+ rows.sort((a:any,b:any)=>a.date.localeCompare(b.date));
+ for(const [index,row] of rows.entries()){
+  if(row.old?.data.status==='paid')continue;
+  const data={...(row.old?.data||{}),costType:c.data.costType,unitId:c.data.unitId,certainty:100,project:c.data.project,[key]:c.id,title:title+' / '+(index+1),date:row.date,amount:row.amount,status:'pending',direction:['tenantLease','projectTenantLease'].includes(c.kind)?'in':'out',category:c.kind==='projectCommitment'?(c.data.costType==='construction'?'payable':'expense'):c.kind==='lease'?'expense':'receivable',tenantName:party,party,leaseTotal:total,updatedAt:time};
+  if(row.old)update(row.old,data);else due(data,row.id);
+ }
+ update(c,{...c.data,title,startDate:start,endDate:end,totalAmount:total,...(['tenantLease','projectTenantLease'].includes(c.kind)?{tenantName:party}:{party}),scheduleType:'custom',status:['tenantLease','projectTenantLease'].includes(c.kind)?'active':rows.every((r:any)=>r.old?.data.status==='paid')?'completed':'active',installments:rows.map((r:any)=>({date:r.date,amount:r.amount,status:r.old?.data.status==='paid'?'paid':'pending',obligationId:r.id})),updatedAt:time,amendments:[...(c.data.amendments||[]),{date:today(),reason,previous:c.data.totalAmount,startDate:c.data.startDate,endDate:c.data.endDate}]});
+ description='تعديل العقد وجدول الإيجار مع حفظ الدفعات المسددة: '+title+' — '+reason;
+}
 else if(action==='cancelContract'){
  const contract=find(str(p.contractId,100));
  if(!['lease','tenantLease','projectTenantLease'].includes(contract.kind)&&!(contract.kind==='projectCommitment'&&contract.data.costType==='rent'))throw Error('نوع العقد غير مدعوم للإلغاء.');

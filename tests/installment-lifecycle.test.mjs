@@ -20,12 +20,23 @@ try{
  let w=await snapshot();const project=w.records.find(r=>r.kind==='project').id;
  await post('projectTenantLease',{project,title:'عقد يمني',tenantName:'يمني',totalAmount:10000,startDate:date,endDate:date,paymentDate:date,scheduleType:'once'});
  w=await snapshot();const due=w.records.find(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId);
+ // Edit contract in place, keep the same due IDs, and never rewrite a paid receipt.
+ let editable=w.records.find(r=>r.id===due.data.projectTenantLeaseId);
+ const editPayload=()=>({contractId:editable.id,version:editable.version,title:'عقد يمني مصحح',party:'يمني',startDate:date,endDate:date,totalAmount:12000,reason:'تصحيح قيمة الإيجار',rows:[{id:due.id,date,amount:12000}]});
+ await post('updateContract',editPayload());
+ w=await snapshot();assert.equal(w.records.find(r=>r.id===due.id).data.amount,1200000);assert.equal(w.records.filter(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId===editable.id).length,1);
+ editable=w.records.find(r=>r.id===editable.id);
+ await post('updateContract',{...editPayload(),totalAmount:10000,rows:[{id:due.id,date,amount:10000}]});
+ w=await snapshot();
  const countCash=(workspace,account)=>workspace.journals.flatMap(j=>j.lines).filter(l=>l.project===project&&l.account===account).reduce((s,l)=>s+l.debit-l.credit,0);
  const income=workspace=>-countCash(workspace,'revenue')||0;
  for(let cycle=0;cycle<3;cycle++){
   const requestId=crypto.randomUUID();await post('projectSchedulePayment',{id:due.id,date,paymentAccount:'bank'},requestId);
   w=await snapshot();assert.equal(countCash(w,'bank'),1000000);assert.equal(income(w),1000000);
   assert.equal(w.records.find(r=>r.id===due.id).data.status,'paid');
+  editable=w.records.find(r=>r.id===editable.id);
+  const paidEdit=await call('updateContract',{...editPayload(),version:editable.version});assert.equal(paidEdit.status,400,'paid amount cannot be silently changed');
+  assert.equal((await snapshot()).journals.length,w.journals.length);
   const journalCount=w.journals.length;await post('projectSchedulePayment',{id:due.id,date,paymentAccount:'bank'},requestId);
   assert.equal((await snapshot()).journals.length,journalCount,'retry with same request must not duplicate receipt');
   assert.equal((await call('projectSchedulePayment',{id:due.id,date,paymentAccount:'bank'})).status,400,'second receipt while paid must be rejected');
@@ -64,6 +75,15 @@ try{
  const dated=(await snapshot()).records.find(r=>r.kind==='projectCommitment'&&r.data.title===term.title);
  assert.equal(dated.data.startDate,'2026-10-01');assert.equal(dated.data.endDate,'2028-09-30');
  assert.deepEqual(dated.data.installments.map(x=>x.date),['2026-11-23','2027-11-23']);
+ const amendment={contractId:dated.id,version:dated.version,title:term.title,party:'مالك الأرض',startDate:term.startDate,endDate:term.endDate,totalAmount:1000,reason:'تصحيح جدول العقد',rows:[{id:dated.data.installments[0].obligationId,date:'2026-12-23',amount:400},{id:'',date:'2028-01-23',amount:600}]};
+ const journalBeforeEdit=(await snapshot()).journals.length;
+ assert.equal((await call('updateContract',{...amendment,totalAmount:900})).status,400);
+ assert.equal((await call('updateContract',{...amendment,version:0})).status,400);
+ await post('updateContract',amendment);
+ const amended=await snapshot();assert.equal(amended.journals.length,journalBeforeEdit,'editing planned dues must not move cash or change posted profit');
+ assert.equal(amended.records.find(r=>r.id===dated.data.installments[1].obligationId).data.status,'replaced');
+ const activeRows=amended.records.filter(r=>r.kind==='obligation'&&r.data.projectCommitmentId===dated.id&&r.data.status==='pending');assert.equal(activeRows.length,2);assert.equal(activeRows.reduce((s,r)=>s+r.data.amount,0),100000);
+
  for(const costType of ['construction','expense']){
   await post('projectCommitment',{project,title:'اختبار التزام '+costType,party:'مقاول',startDate:date,endDate:date,totalAmount:500,costType,scheduleType:'once',firstDate:date});
   w=await snapshot();const commitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='اختبار التزام '+costType);

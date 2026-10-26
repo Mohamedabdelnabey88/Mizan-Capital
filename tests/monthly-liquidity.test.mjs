@@ -1,0 +1,65 @@
+import {createRequire} from 'node:module';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url),wr=createRequire(require.resolve('wrangler/package.json'));
+const {build}=wr('esbuild'),{Miniflare}=wr('miniflare');
+fs.mkdirSync('.sites-runtime',{recursive:true});
+await build({stdin:{contents:"import {GET,POST} from './cloudflare/workspace';export default {fetch:(r)=>r.method==='POST'?POST(r):GET(r)}",resolveDir:process.cwd()},bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],outfile:'.sites-runtime/month-plan-worker.mjs'});
+await build({entryPoints:['lib/owner-cash.ts','lib/finance.ts','lib/monthly-liquidity.ts'],bundle:true,format:'esm',platform:'node',outdir:'.sites-runtime/month-plan-lib'});
+const {monthlyLiquidity}=await import('../.sites-runtime/month-plan-lib/monthly-liquidity.js');
+const {ownerCashMonth}=await import('../.sites-runtime/month-plan-lib/owner-cash.js');
+const {balance,profit,annualOwnerReport,ownerDistributionsInRange,actualCashFlow}=await import('../.sites-runtime/month-plan-lib/finance.js');
+await build({entryPoints:['components/owner-cash-panel.tsx'],bundle:true,format:'esm',platform:'node',jsx:'automatic',alias:{'@':process.cwd()},external:['react','react-dom','react-dom/server'],loader:{'.css':'empty'},banner:{js:"import {createRequire as __cr} from 'node:module';const require=__cr(import.meta.url);"},outfile:'.sites-runtime/month-plan-panel-render.mjs'});
+const {OwnerCashPanel}=await import('../.sites-runtime/month-plan-panel-render.mjs');
+const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
+const render=(summary)=>renderToStaticMarkup(createElement(OwnerCashPanel,{summary,scope:'all',busy:false,onMonth:()=>{},onWithdraw:()=>{},onUndo:()=>{}}));
+const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/month-plan-worker.mjs',compatibilityDate:'2026-05-15',d1Databases:['DB']});
+try{
+ const db=await mf.getD1Database('DB');
+ for(const file of fs.readdirSync('drizzle').filter(s=>s.endsWith('.sql')).sort())for(const sql of fs.readFileSync('drizzle/'+file,'utf8').split('--> statement-breakpoint').filter(s=>s.trim()))await db.prepare(sql).run();
+ const headers={'oai-authenticated-user-id':'owner-cash-review','Content-Type':'application/json'};
+ const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh'}).format(new Date()),month=date.slice(0,7),start=month+'-01';
+ const snapshot=async()=>{const r=await mf.dispatchFetch('https://test.example/api/workspace',{headers});assert.equal(r.status,200);return r.json();};
+ const call=async(action,payload,requestId=crypto.randomUUID())=>{const r=await mf.dispatchFetch('https://test.example/api/workspace',{method:'POST',headers,body:JSON.stringify({action,payload,requestId})});return {status:r.status,body:await r.json()};};
+ const post=async(action,payload,requestId)=>{const r=await call(action,payload,requestId);assert.equal(r.status,200,action+': '+JSON.stringify(r.body));return r.body;};
+ await post('project',{name:'إيجار وسحب فائض',activity:'تأجير',mode:'operating',ownership:100,reserve:0,payout:100});
+ let w=await snapshot();const project=w.records.find(r=>r.kind==='project').id;
+
+ await post('projectTenantLease',{project,title:'دخل الشهر',tenantName:'مستأجر',totalAmount:50000,startDate:start,endDate:date,paymentDate:date,scheduleType:'once'});
+ w=await snapshot();const due=w.records.find(r=>r.kind==='obligation'&&r.data.projectTenantLeaseId);
+ await post('projectSchedulePayment',{id:due.id,date,paymentAccount:'bank'});
+ await post('loan',{project,holder:'business',name:'دين',amount:40000,monthlyPayment:40000,months:1,start:date,firstDate:date,fundingMode:'opening'});
+ w=await snapshot();await post('settle',{id:w.records.find(r=>r.kind==='obligation'&&r.data.loan).id,date,paymentAccount:'bank'});
+ await post('project',{name:'مشروع لم يبدأ تحصيله',activity:'تأجير',mode:'operating',ownership:100,reserve:0,payout:100});
+ const targetMonth=(Number(month.slice(0,4))+1)+'-01';
+ w=await snapshot();let plan=monthlyLiquidity(w,month,'all',date);assert.equal(plan.cash.available,1000000);assert.equal(plan.rows.find(r=>r.name==='مشروع لم يبدأ تحصيله').received,0);
+ const profitBefore=profit(w,'all',start,date).net,bankBefore=balance(w,'all',date).bank,journalCount=w.journals.length;
+ const key=crypto.randomUUID();await post('monthCarryover',{month,targetMonth,amount:6000,memo:'تغطية يناير'},key);await post('monthCarryover',{month,targetMonth,amount:6000,memo:'تغطية يناير'},key);
+ w=await snapshot();assert.equal(w.records.filter(r=>r.kind==='monthCarryover').length,1);assert.equal(w.journals.length,journalCount);assert.equal(profit(w,'all',start,date).net,profitBefore);assert.equal(balance(w,'all',date).bank,bankBefore);assert.equal(ownerCashMonth(w,month,'all',date).available,400000);
+ assert.equal(ownerCashMonth(w,targetMonth,'all',date).carryIn,600000);assert.equal(ownerCashMonth(w,targetMonth,'all',date).available,0,'future credits cannot be withdrawn early');
+ assert.equal((await call('monthCarryover',{month,targetMonth,amount:4000.01})).status,400);
+ assert.equal((await call('monthCarryover',{month,targetMonth:month,amount:1})).status,400);
+ assert.equal((await call('ownerCashWithdrawal',{month,scope:'all',amount:5000,date,paymentAccount:'bank',destination:'المالك'})).status,400,'carried funds cannot also be withdrawn');
+ const race=await Promise.all([1,2].map(i=>call('monthCarryover',{month,targetMonth,amount:4000,memo:'اختبار التزامن '+i})));assert.deepEqual(race.map(r=>r.status).sort(),[200,400]);
+ w=await snapshot();const extra=w.records.find(r=>r.kind==='monthCarryover'&&r.data.memo.startsWith('اختبار التزامن'));await post('undoMonthCarryover',{id:extra.id,reason:'إلغاء حجز الاختبار'});w=await snapshot();
+ const carry=w.records.find(r=>r.kind==='monthCarryover'&&r.data.status==='posted');await post('undoMonthCarryover',{id:carry.id,reason:'تصحيح حجز السيولة'});
+ w=await snapshot();assert.equal(ownerCashMonth(w,month,'all',date).available,1000000);assert.equal(ownerCashMonth(w,targetMonth,'all',date).carryIn,0);
+ await post('ownerAdvanceGeneral',{date,amount:3000,paymentAccount:'bank',fundingMonth:targetMonth,memo:'سلفة يناير'});
+ w=await snapshot();assert.equal(monthlyLiquidity(w,targetMonth,'all',date).totals.advanced,300000);assert.equal(ownerCashMonth(w,month,'all',date).available,1000000,'loan cash is not distributable income');
+ const advance=w.records.find(r=>r.kind==='deficitPayment');await post('repayOwnerAdvance',{id:advance.id,sourceMonth:month,date,amount:3000,paymentAccount:'bank'});
+ w=await snapshot();assert.equal(monthlyLiquidity(w,targetMonth,'all',date).totals.advanced,0,'advance repaid before the target month cannot fund it');assert.equal(ownerCashMonth(w,month,'all',date).ownerRepaid,300000);assert.equal(ownerCashMonth(w,month,'all',date).available,700000);assert.equal(profit(w,'all',start,date).net,profitBefore);
+
+ // Reproduce the supplied worksheet as a forecast, separately from future actual collections (zero).
+ const income=[7000,9000,9000,7667,1250,500,1300,2000,12000,0,0,0,0],out=[2444,12416,7267.36,75000,8000,15000,4750];
+ const fixture={records:income.map((_,i)=>({id:'sheet'+i,kind:'project',version:1,data:{name:'مشروع الجدول '+i,mode:'operating'}})),journals:[],audit:[]};
+ income.forEach((value,i)=>{if(value)fixture.records.push({id:'in'+i,kind:'obligation',version:1,data:{project:'sheet'+i,title:'إيجار المشروع '+i,direction:'in',status:'pending',date:'2026-11-01',amount:Math.round(value*100)}});});
+ out.forEach((value,i)=>fixture.records.push({id:'out'+i,kind:'obligation',version:1,data:{project:'sheet'+i,title:'قرض / أرض / حداد '+i,direction:'out',status:'pending',date:'2026-11-01',amount:Math.round(value*100)}}));
+ fixture.records.push({id:'carry',kind:'monthCarryover',version:1,data:{month:'2026-10',targetMonth:'2026-11',amount:4558964,date:'2026-10-01',status:'posted'}});
+ fixture.records.push({id:'deferred',kind:'obligation',version:1,data:{project:'sheet0',title:'إيجار مرحل موثق',direction:'in',status:'replaced',date:'2026-11-01',amount:100000,deferredAmount:100000,deferredToDate:'2027-01-01'}});
+ const sheet=monthlyLiquidity(fixture,'2026-11','all','2026-10-26');assert.equal(sheet.totals.expected,4971700);assert.equal(sheet.totals.obligations,12487736);assert.equal(sheet.forecast,-7516036);assert.equal(sheet.forecastAfter,-2957072);assert.equal(sheet.totals.received,0);assert.equal(sheet.rows.find(r=>r.id==='sheet0').deferred.length,1);assert.equal(sheet.rows.length,14,'all thirteen projects plus the unallocated general row');
+ await build({entryPoints:['components/monthly-liquidity.tsx'],bundle:true,format:'esm',platform:'node',jsx:'automatic',alias:{'@':process.cwd()},external:['react','react-dom','react-dom/server'],loader:{'.css':'empty'},banner:{js:"import {createRequire as __cr} from 'node:module';const require=__cr(import.meta.url);"},outfile:'.sites-runtime/month-plan-render.mjs'});
+ const {MonthlyLiquidity}=await import('../.sites-runtime/month-plan-render.mjs');
+ const html=renderToStaticMarkup(createElement(MonthlyLiquidity,{workspace:fixture,month:'2026-11',scope:'all',busy:false,onMonth:()=>{},onOpen:()=>{},onProject:()=>{}}));
+ assert(html.includes('مشروع الجدول 12'));assert(html.includes('49,717.00'));assert(html.includes('124,877.36'));assert(html.includes('-29,570.72'));assert(html.includes('إيجار مرحل موثق'));assert(html.includes('ترحيل الفائض لتغطية شهر آخر'));
+ console.log('Monthly liquidity passed: exact-project zero rows, source budget, future carry, no duplicate/early withdrawal, unchanged bank/profit, undo, attributed owner advances and repayment.');
+}finally{await mf.dispose();}

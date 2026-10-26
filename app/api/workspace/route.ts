@@ -1,3 +1,4 @@
+import {readApiResponse,ApiResponseError} from '@/lib/api-response';
 const BACKEND='https://mizan-capital.famaradona89.workers.dev';
 const UPSTREAM_TIMEOUT_MS=12000;
 
@@ -22,7 +23,13 @@ async function proxy(request:Request){
     outHeaders.set('cache-control','no-store');
     const setCookie=upstream.headers.get('set-cookie');
     if(setCookie) outHeaders.set('set-cookie',setCookie);
-    return new Response(upstream.body,{status:upstream.status,headers:outHeaders});
+    try{
+      const data=await readApiResponse(upstream,request.method==='POST');
+      outHeaders.set('content-type','application/json; charset=utf-8');
+      return Response.json(data,{status:upstream.status,headers:outHeaders});
+    }catch(error){
+      return Response.json({error:error instanceof ApiResponseError?error.message:'تعذر قراءة رد الخادم المالي.',code:'INVALID_API_RESPONSE',uncertain:request.method==='POST'},{status:502,headers:{'Cache-Control':'no-store'}});
+    }
   }catch(error){
     // Keep an upstream outage/timeout inside the API contract instead of letting it
     // become an opaque framework error page.

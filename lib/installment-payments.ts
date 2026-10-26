@@ -16,3 +16,9 @@ export function installmentPaymentHistory(w:Workspace,obligation:RecordItem){
  const reversed=new Set(w.journals.map(j=>j.reversal).filter(Boolean));
  return w.journals.filter(j=>!j.reversal&&bases.some(base=>matchesSource(String(j.source||''),base))).map(j=>({...j,reversed:reversed.has(j.id)}));
 }
+
+/** Confirm the saved result after a lost HTTP response without replaying the write. */
+export function confirmedInstallmentUndo(w:Workspace,id:string,reason:string,date:string){
+ const due=w.records.find(r=>r.kind==='obligation'&&r.id===id);
+ return !!due&&due.data.status==='pending'&&due.data.undoReason===reason.trim()&&due.data.undoDate===date&&installmentPaymentHistory(w,due).some(j=>j.reversed);
+}

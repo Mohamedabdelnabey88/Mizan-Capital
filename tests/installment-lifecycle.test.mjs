@@ -7,6 +7,8 @@ fs.mkdirSync('.sites-runtime',{recursive:true});
 await build({stdin:{contents:"import {GET,POST} from './cloudflare/workspace';export default {fetch:(req)=>req.method==='POST'?POST(req):GET(req)}",resolveDir:process.cwd()},bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],outfile:'.sites-runtime/installment-worker.mjs'});
 await build({entryPoints:['lib/dashboard-settlements.ts'],bundle:true,format:'esm',platform:'node',outfile:'.sites-runtime/installment-dashboard.mjs'});
 const {dashboardSettlements}=await import('../.sites-runtime/installment-dashboard.mjs');
+await build({entryPoints:['lib/installment-payments.ts'],bundle:true,format:'esm',platform:'node',outfile:'.sites-runtime/installment-confirmation.mjs'});
+const {confirmedInstallmentUndo}=await import('../.sites-runtime/installment-confirmation.mjs');
 const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/installment-worker.mjs',compatibilityDate:'2026-05-15',d1Databases:['DB']});
 try{
  const db=await mf.getD1Database('DB');
@@ -43,6 +45,7 @@ try{
   await post('undoInstallmentPayment',{id:due.id,date,reason:'تصحيح تحصيل مسجل بالخطأ'});
   w=await snapshot();assert.equal(countCash(w,'bank'),0);assert.equal(income(w),0);
   assert.equal(w.records.find(r=>r.id===due.id).data.status,'pending');
+  assert.equal(confirmedInstallmentUndo(w,due.id,'تصحيح تحصيل مسجل بالخطأ',date),true);assert.equal(confirmedInstallmentUndo(w,due.id,'سبب مختلف',date),false);
   const parent=w.records.find(r=>r.id===due.data.projectTenantLeaseId);assert.equal(parent.data.installments[0].status,'pending');
  }
  await post('projectSchedulePayment',{id:due.id,date,paymentAccount:'cash'});

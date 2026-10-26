@@ -51,7 +51,7 @@ assert(source.includes("ownerAdvanceGeneral:'تسجيل سلفة عامة على
 assert(source.includes("r.data.project?pname(r.data.project):'إجمالي المشاريع (سلفة عامة)'"), 'General owner advances must be labeled as consolidated rather than assigned to a project');
 assert(source.includes("open('repayOwnerAdvance',{id:r.id,project:r.data.project,advanceDate:r.data.date,title:"), 'Outstanding owner advance must open the repayment form with its source date');
 assert(worker.includes("else if(action==='ownerAdvanceGeneral')"), 'Worker must support posting general owner advances');
-assert(worker.includes("{project:'',deficitMonth:'',amount,date:dt,paymentAccount:pay,memo,repaid:0,status:'open',scope:'all'}"), 'General owner advance record must remain unassigned to an individual project');
+assert(worker.includes("{project:'',deficitMonth:fundingMonth,amount,date:dt,paymentAccount:pay,memo,repaid:0,status:'open',scope:'all'}"), 'General owner advance record must remain unassigned to an individual project');
 assert(worker.includes("pair('',pay,'owner_advance',amount)"), 'General owner advance must post against the consolidated ledger only');
 assert(worker.includes("d.project?'رد سلفة مالك عن عجز '+String(d.deficitMonth||''):'رد سلفة مالك عامة على إجمالي المشاريع'"), 'Repayment journal must distinguish general advances from project deficit advances');
 

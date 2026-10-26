@@ -661,6 +661,24 @@ else if(action==='setOwnerPolicy'){
  else put('ownerPolicy',{percentBps:pct,effectiveFrom});
  description='تحديث نسبة المالك السنوية إلى '+(pct/100).toFixed(2)+'%';
 }
+else if(action==='monthCarryover'){
+ const month=str(p.month,7),targetMonth=str(p.targetMonth,7);date(month+'-01');date(targetMonth+'-01');
+ if(targetMonth<=month)throw Error('اختر شهرًا لاحقًا لشهر المصدر، مع تحديد السنة.');
+ if(month>today().slice(0,7))throw Error('لا يمكن ترحيل فائض لم يتحصل بعد.');
+ const amount=halala(p.amount,'المبلغ المرحل'),summary=ownerCashMonth(w,month,'all',today());
+ if(amount<=0||amount>summary.available)throw Error('المبلغ يتجاوز الفائض المتاح فعليًا بعد الالتزامات والتخصيصات.');
+ for(const r of w.records.filter(x=>x.kind==='project'))guardProject(r.id);
+ put('monthCarryover',{month,targetMonth,amount,date:today(),status:'posted',memo:str(p.memo||'حجز سيولة لتغطية التزامات شهر لاحق',500),originReceipts:summary.receipts});
+ description='ترحيل سيولة من '+month+' إلى '+targetMonth+' بقيمة '+(amount/100).toFixed(2)+' دون إنشاء إيراد أو قيد نقد جديد';
+}
+else if(action==='undoMonthCarryover'){
+ const r=find(p.id,'monthCarryover'),d=r.data;if(d.status!=='posted')throw Error('تم التراجع عن الترحيل بالفعل.');
+ const target=ownerCashMonth(w,String(d.targetMonth),'all',today());
+ const used=Math.max(0,target.paid+target.withdrawn+target.reinvested+target.carryOut+target.ownerRepaid-target.received);
+ if(Number(d.amount)>Math.max(0,target.carryIn-used))throw Error('تم استخدام السيولة في الشهر المستفيد؛ راجع مدفوعاته وتخصيصاته قبل التراجع.');
+ const reason=str(p.reason,500);update(r,{...d,status:'reversed',reversedOn:today(),reason});
+ description='إلغاء ترحيل سيولة '+d.month+' إلى '+d.targetMonth+' — '+reason;
+}
 else if(action==='surplusReinvestment'){
  const month=str(p.month,7);if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw Error('اختر شهر الفائض.');
  const dt=date(p.date||today());if(dt!==today())throw Error('سجل الضخ بتاريخ اليوم لضمان مطابقة السيولة الحالية.');
@@ -773,7 +791,8 @@ else if(action==='cancelFunding'){
 else if(action==='ownerAdvanceGeneral'){
  const amount=cents(p.amount),dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغًا أكبر من صفر.');if(dt>today())throw Error('لا يمكن تسجيل سلفة فعلية بتاريخ مستقبلي.');
  const pay=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:'cash',memo=str(p.memo||'سلفة عامة من المالك على إجمالي المشاريع',300);const duplicate=w.records.some(x=>x.kind==='deficitPayment'&&!x.data.project&&x.data.date===dt&&Number(x.data.amount)===amount&&String(x.data.memo||'')===memo&&x.data.status!=='cancelled');if(duplicate)throw Error('توجد سلفة عامة مطابقة بالفعل؛ راجع السجل لتجنب التكرار.');
- const rid=put('deficitPayment',{project:'',deficitMonth:'',amount,date:dt,paymentAccount:pay,memo,repaid:0,status:'open',scope:'all'});journal('deficitPayment','سلفة عامة من المالك — إجمالي المشاريع',dt,pair('',pay,'owner_advance',amount),'deficitPayment:'+rid);description='تسجيل سلفة عامة من المالك على إجمالي المشاريع بقيمة '+(amount/100).toFixed(2)+' ريال؛ دون تحميلها على مشروع منفرد';
+ const fundingMonth=p.fundingMonth?str(p.fundingMonth,7):'';if(fundingMonth)date(fundingMonth+'-01');
+ const rid=put('deficitPayment',{project:'',deficitMonth:fundingMonth,amount,date:dt,paymentAccount:pay,memo,repaid:0,status:'open',scope:'all'});journal('deficitPayment','سلفة عامة من المالك — إجمالي المشاريع',dt,pair('',pay,'owner_advance',amount),'deficitPayment:'+rid);description='تسجيل سلفة عامة من المالك على إجمالي المشاريع بقيمة '+(amount/100).toFixed(2)+' ريال؛ دون تحميلها على مشروع منفرد';
 }
 else if(action==='deficitPayment'){
  const pr=project(p.project),amount=cents(p.amount),dt=date(p.date||today()),month=String(p.deficitMonth||'');
@@ -786,7 +805,10 @@ else if(action==='deficitPayment'){
 else if(action==='repayOwnerAdvance'){
  const r=find(p.id,'deficitPayment'),d=r.data,amount=cents(p.amount),dt=date(p.date||today());if(!amount)throw Error('أدخل مبلغًا أكبر من صفر.');if(d.status==='cancelled')throw Error('لا يمكن تسوية سجل ملغى.');
  if(dt<date(d.date))throw Error('تاريخ رد السلفة لا يمكن أن يسبق تاريخ تسجيلها.');const repaid=Number(d.repaid||0),remaining=Number(d.amount||0)-repaid;if(amount>remaining)throw Error('مبلغ الرد يتجاوز السلفة المتبقية.');const pay=['cash','bank'].includes(p.paymentAccount)?p.paymentAccount:(d.paymentAccount||'cash');if((balance(w,d.project||'all',dt)[pay]||0)<amount)throw Error('الرصيد المتاح في حساب الدفع لا يكفي لرد السلفة.');
- const rid=put('ownerAdvanceRepayment',{advanceId:r.id,project:d.project||'',scope:d.project?'project':'all',amount,date:dt,paymentAccount:pay,status:'posted'});const repaymentLabel=d.project?'رد سلفة مالك عن عجز '+String(d.deficitMonth||''):'رد سلفة مالك عامة على إجمالي المشاريع';journal('repayOwnerAdvance',repaymentLabel+' — '+String(d.memo||''),dt,pair(d.project||'', 'owner_advance',pay,amount),'ownerAdvanceRepayment:'+rid);const next=repaid+amount;update(r,{...d,repaid:next,status:next>=Number(d.amount||0)?'repaid':'open',lastRepaidOn:dt});description='رد سلفة مالك بقيمة '+(amount/100).toFixed(2)+' ريال؛ المتبقي '+((Number(d.amount||0)-next)/100).toFixed(2)+' ريال';
+ const sourceMonth=p.sourceMonth?str(p.sourceMonth,7):'';if(sourceMonth){date(sourceMonth+'-01');if(dt!==today()||sourceMonth>dt.slice(0,7)||amount>ownerCashMonth(w,sourceMonth,'all',dt).available)throw Error('رد السلفة يتجاوز فائض الشهر المتاح؛ راجع التخصيصات والسيولة.');}
+ let repaymentLines:Line[]=pair(d.project||'','owner_advance',pay,amount);const allocations:{project:string;amount:number}[]=[];
+ if(sourceMonth&&!d.project){let left=amount;for(const source of ownerCashSources(w,sourceMonth,'all',dt,pay)){const part=Math.min(left,source.available);if(part>0)allocations.push({project:source.project,amount:part});left-=part;if(!left)break;}if(left>0)throw Error('سيولة حساب الدفع بعد الالتزامات لا تكفي لرد السلفة.');repaymentLines=[{project:'',account:'owner_advance',debit:amount,credit:0},...allocations.flatMap(a=>a.project?[...pair(a.project,'retained',pay,a.amount),{project:'',account:'retained',debit:0,credit:a.amount}]:[{project:'',account:pay,debit:0,credit:a.amount}])];}
+ const rid=put('ownerAdvanceRepayment',{sourceMonth,allocations,advanceId:r.id,project:d.project||'',scope:d.project?'project':'all',amount,date:dt,paymentAccount:pay,status:'posted'});const repaymentLabel=d.project?'رد سلفة مالك عن عجز '+String(d.deficitMonth||''):'رد سلفة مالك عامة على إجمالي المشاريع';journal('repayOwnerAdvance',repaymentLabel+' — '+String(d.memo||''),dt,repaymentLines,'ownerAdvanceRepayment:'+rid);const next=repaid+amount;update(r,{...d,repaid:next,status:next>=Number(d.amount||0)?'repaid':'open',lastRepaidOn:dt});description='رد سلفة مالك بقيمة '+(amount/100).toFixed(2)+' ريال؛ المتبقي '+((Number(d.amount||0)-next)/100).toFixed(2)+' ريال';
 }
 else if(action==='fundingRepayment'){
  const funding=w.records.find(x=>x.kind==='projectFunding'&&x.id===p.fundingId);

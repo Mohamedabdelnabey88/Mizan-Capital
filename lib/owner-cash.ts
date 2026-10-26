@@ -9,17 +9,23 @@ export function ownerCashMonth(w:Workspace,month:string,scope='all',asOf:string,
  const personalLoans=new Set(w.records.filter(r=>r.kind==='loan'&&r.data.holder==='personal').map(r=>r.id));
  const journals=new Map(w.journals.map(j=>[j.id,j]));
  const withdrawals=new Map(w.records.filter(r=>r.kind==='ownerCashWithdrawal').map(r=>['owner-cash:'+r.id,r]));
+ const repayments=new Map(w.records.filter(r=>r.kind==='ownerAdvanceRepayment'&&r.data.sourceMonth).map(r=>['ownerAdvanceRepayment:'+r.id,r]));
  const reinvestments=new Map(w.records.filter(r=>r.kind==='surplusReinvestment').map(r=>['surplus-reinvestment:'+r.id,r]));
+ const carries=w.records.filter(r=>r.kind==='monthCarryover'&&String(r.data.date)<=asOf&&!(r.data.status==='reversed'&&String(r.data.reversedOn)<=asOf));
+ const carryIn=carries.filter(r=>r.data.targetMonth===month).reduce((n,r)=>n+Number(r.data.amount),0),carryOut=carries.filter(r=>r.data.month===month).reduce((n,r)=>n+Number(r.data.amount),0);
+ const reservedFuture=carries.filter(r=>r.data.targetMonth>asOf.slice(0,7)).reduce((n,r)=>n+Number(r.data.amount),0);
  const projects=w.records.filter(r=>r.kind==='project');
  const projectIds=(project:string)=>project==='all'?undefined:new Set([project,...(includeBranches?projectDescendantIds(projects,project):[])]);
  const calculate=(project:string)=>{
   const selectedIds=projectIds(project),matches=(id:string)=>!selectedIds||selectedIds.has(id);
-  let received=0,paid=0,operatingPaid=0,installmentsPaid=0,capitalPaid=0,fundingReceived=0,priorInstallmentsPaid=0,withdrawn=0,reinvested=0;
+  let received=0,paid=0,operatingPaid=0,installmentsPaid=0,capitalPaid=0,fundingReceived=0,priorInstallmentsPaid=0,withdrawn=0,reinvested=0,ownerRepaid=0;
   const entries:MonthlyCashEntry[]=[];
   const receipts:{journalId:string;project:string;amount:number}[]=[];
   for(const j of w.journals){
    if(j.date>asOf)continue;
    const original=j.reversal?journals.get(j.reversal):j;
+   const repayment=repayments.get(original?.source||'');
+   if(repayment){if(repayment.data.sourceMonth===month)ownerRepaid+=j.lines.filter(l=>matches(l.project)&&['cash','bank'].includes(l.account)).reduce((n,l)=>n+l.credit-l.debit,0);continue;}
    const withdrawal=withdrawals.get(original?.source||'');
    const reinvestment=reinvestments.get(original?.source||'');
    if(reinvestment){
@@ -50,7 +56,8 @@ export function ownerCashMonth(w:Workspace,month:string,scope='all',asOf:string,
     const linked=w.records.find(r=>r.id===linkedId),due=linked?.kind==='obligation'?linked:linked?.data.sourceObligation?w.records.find(r=>r.id===linked.data.sourceObligation):undefined;
     const installment=['settle','prepay'].includes(kind)||!!due;
     const capital=['asset','projectAsset','invest','investmentStart','investmentReturn','returnCapital','transfer','repayTransfer','fundingRepayment','loan','loanAdjustment'].includes(kind)||source.startsWith('loan-use:')||lines.some(l=>['fixed','investment'].includes(l.account)&&(l.debit-l.credit)*sign>0);
-    if(['distribution','annualOwnerDistribution'].includes(kind)){withdrawn+=amount;entry('owner',amount);}
+    if(kind==='repayOwnerAdvance'){ownerRepaid+=amount;entry('owner',amount);}
+    else if(['distribution','annualOwnerDistribution'].includes(kind)){withdrawn+=amount;entry('owner',amount);}
     else if(installment){installmentsPaid+=amount;if(due?.data.date<start)priorInstallmentsPaid+=amount;entry('installment',amount,due?.data.date);}
     else if(capital){capitalPaid+=amount;entry('capital',amount);}
     else{operatingPaid+=amount;entry('operating',amount);}
@@ -63,8 +70,8 @@ export function ownerCashMonth(w:Workspace,month:string,scope='all',asOf:string,
   const reserve=w.records.filter(r=>r.kind==='project'&&matches(r.id)).reduce((n,r)=>n+Math.max(0,Number(r.data.reserve||0)),0);
   const cash=w.journals.filter(j=>j.date<=asOf).flatMap(j=>j.lines).filter(l=>matches(l.project)&&['cash','bank'].includes(l.account)).reduce((n,l)=>n+l.debit-l.credit,0);
   paid=operatingPaid+installmentsPaid;withdrawn=Math.max(0,withdrawn);
-  const surplus=received-paid,remaining=Math.max(0,surplus-pending-withdrawn-reinvested);
-  return {received,paid,operatingPaid,installmentsPaid,priorInstallmentsPaid,capitalPaid,fundingReceived,monthPending,overduePending,entries:entries.sort((a,b)=>a.date.localeCompare(b.date)),pending,withdrawn,reinvested,receipts,surplus,remaining,cash,reserve,cashLimit:Math.max(0,cash-cashPending-reserve)};
+  const surplus=received-paid,remaining=Math.max(0,surplus+(project==='all'?carryIn-carryOut:0)-pending-withdrawn-reinvested-ownerRepaid);
+  return {carryIn:project==='all'?carryIn:0,carryOut:project==='all'?carryOut:0,ownerRepaid,received,paid,operatingPaid,installmentsPaid,priorInstallmentsPaid,capitalPaid,fundingReceived,monthPending,overduePending,entries:entries.sort((a,b)=>a.date.localeCompare(b.date)),pending,withdrawn,reinvested,receipts:project==='all'?[...receipts,...carries.filter(r=>r.data.targetMonth===month).flatMap(r=>r.data.originReceipts||[])]:receipts,surplus,remaining,cash,reserve,cashLimit:Math.max(0,cash-cashPending-reserve-(project==='all'?reservedFuture:0))};
  };
  const totals=calculate(scope),global=scope==='all'?totals:calculate('all');
  const available=start>asOf?0:Math.max(0,Math.min(totals.remaining,totals.cashLimit,global.remaining,global.cashLimit));

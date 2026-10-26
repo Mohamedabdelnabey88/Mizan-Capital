@@ -49,6 +49,13 @@ try{
  const advance=w.records.find(r=>r.kind==='deficitPayment');await post('repayOwnerAdvance',{id:advance.id,sourceMonth:month,date,amount:3000,paymentAccount:'bank'});
  w=await snapshot();assert.equal(monthlyLiquidity(w,targetMonth,'all',date).totals.advanced,0,'advance repaid before the target month cannot fund it');assert.equal(ownerCashMonth(w,month,'all',date).ownerRepaid,300000);assert.equal(ownerCashMonth(w,month,'all',date).available,700000);assert.equal(profit(w,'all',start,date).net,profitBefore);
 
+ // Repay a general advance using actual project cash when the general bank balance is zero.
+ await post('ownerAdvanceGeneral',{date,amount:2000,paymentAccount:'bank',fundingMonth:month,memo:'سلفة عامة ثانية'});
+ await post('ownerCashWithdrawal',{month,scope:'all',date,amount:2000,paymentAccount:'bank',destination:'سحب فائض جزئي'});
+ w=await snapshot();const second=w.records.find(r=>r.kind==='deficitPayment'&&r.data.memo==='سلفة عامة ثانية');
+ assert.equal(balance(w,'',date).bank||0,0);
+ await post('repayOwnerAdvance',{id:second.id,sourceMonth:month,date,amount:2000,paymentAccount:'bank'});
+ w=await snapshot();assert.equal(balance(w,'',date).bank||0,0);assert.equal(balance(w,project,date).bank,800000);assert.equal(profit(w,'all',start,date).net,profitBefore);assert.equal(ownerCashMonth(w,month,'all',date).available,300000);
  // Reproduce the supplied worksheet as a forecast, separately from future actual collections (zero).
  const income=[7000,9000,9000,7667,1250,500,1300,2000,12000,0,0,0,0],out=[2444,12416,7267.36,75000,8000,15000,4750];
  const fixture={records:income.map((_,i)=>({id:'sheet'+i,kind:'project',version:1,data:{name:'مشروع الجدول '+i,mode:'operating'}})),journals:[],audit:[]};

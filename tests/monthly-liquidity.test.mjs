@@ -63,6 +63,10 @@ try{
  assert.equal(balance(w,'',date).bank||0,0);
  await post('repayOwnerAdvance',{id:second.id,sourceMonth:month,date,amount:2000,paymentAccount:'bank'});
  w=await snapshot();assert.equal(balance(w,'',date).bank||0,0);assert.equal(balance(w,project,date).bank,800000);assert.equal(profit(w,'all',start,date).net,profitBefore);assert.equal(ownerCashMonth(w,month,'all',date).available,300000);
+ assert.equal((await call('entry',{project,kind:'expense',amount:4000,date,memo:'مصروف يتجاوز الفائض',surplusMonth:month,surplusScope:'all',paymentAccount:'bank'})).status,400);
+ assert.equal((await call('entry',{project,kind:'income',amount:500,date,memo:'نوع غير مسموح',surplusMonth:month,surplusScope:'all',paymentAccount:'bank'})).status,400);
+ await post('entry',{project,kind:'expense',amount:500,date,memo:'مصروف من المتبقي',surplusMonth:month,surplusScope:'all',paymentAccount:'bank'});
+ w=await snapshot();assert.equal(ownerCashMonth(w,month,'all',date).available,250000);assert.equal(balance(w,project,date).bank,750000);assert.equal(profit(w,'all',start,date).net,profitBefore-50000);
  const historyFixture={records:[{id:'history',kind:'monthCarryover',data:{month:'2026-10',targetMonth:'2027-01',date:'2026-10-01',status:'posted',amount:500000,amendments:[{date:'2026-11-01',previousAmount:600000,amount:500000}]}}],journals:[],audit:[]};
  assert.equal(ownerCashMonth(historyFixture,'2027-01','all','2026-10-31').carryIn,600000);assert.equal(ownerCashMonth(historyFixture,'2027-01','all','2026-11-01').carryIn,500000);
  // Reproduce the supplied worksheet as a forecast, separately from future actual collections (zero).
@@ -77,5 +81,11 @@ try{
  const {MonthlyLiquidity}=await import('../.sites-runtime/month-plan-render.mjs');
  const html=renderToStaticMarkup(createElement(MonthlyLiquidity,{workspace:fixture,month:'2026-11',scope:'all',busy:false,onMonth:()=>{},onOpen:()=>{},onProject:()=>{}}));
  assert(html.includes('مشروع الجدول 12'));assert(html.includes('49,717.00'));assert(html.includes('124,877.36'));assert(html.includes('-29,570.72'));assert(html.includes('إيجار مرحل موثق'));assert(html.includes('ترحيل الفائض لتغطية شهر آخر'));
+ const rest={records:[{id:'p',kind:'project',data:{name:'حساب المتبقي',mode:'operating'}},{id:'r',kind:'obligation',data:{project:'p',direction:'in',amount:5000000,date:month+'-01',status:'pending'}},{id:'o',kind:'obligation',data:{project:'p',direction:'out',amount:6000000,date:month+'-01',status:'pending'}},{id:'c',kind:'monthCarryover',data:{month:'2020-01',targetMonth:month,amount:2000000,date:'2020-01-01',status:'posted'}}],journals:[{id:'opening',date:'2020-01-01',kind:'income',lines:[{project:'p',account:'bank',debit:2000000,credit:0},{project:'p',account:'revenue',debit:0,credit:2000000}]}],audit:[]};
+ assert.equal(monthlyLiquidity(rest,month,'all',date).forecastAfter,1000000);assert.equal(monthlyLiquidity(rest,month,'all',date).cash.available,0,'expected receipts cannot be spent');
+ rest.records.find(r=>r.id==='r').data.status='paid';rest.journals.push({id:'collection',date,kind:'income',lines:[{project:'p',account:'bank',debit:5000000,credit:0},{project:'p',account:'revenue',debit:0,credit:5000000}]});
+ assert.equal(monthlyLiquidity(rest,month,'all',date).cash.available,1000000,'50k collected plus 20k carry less 60k reserved leaves 10k usable');
+ const restHtml=renderToStaticMarkup(createElement(MonthlyLiquidity,{workspace:rest,month,scope:'all',busy:false,onMonth:()=>{},onOpen:()=>{},onProject:()=>{}}));assert(restHtml.includes('المتبقي بعد الالتزامات والترحيل'));assert(restHtml.includes('10,000.00'));assert(restHtml.includes('تسجيل مصروف من المتبقي'));
+ rest.journals.push({id:'spend',date,kind:'expense',lines:[{project:'p',account:'expense',debit:50000,credit:0},{project:'p',account:'bank',debit:0,credit:50000}]});assert.equal(monthlyLiquidity(rest,month,'all',date).forecastAfter,950000);assert.equal(monthlyLiquidity(rest,month,'all',date).cash.available,950000);
  console.log('Monthly liquidity passed: exact-project zero rows, source budget, future carry, no duplicate/early withdrawal, unchanged bank/profit, undo, attributed owner advances and repayment.');
 }finally{await mf.dispose();}

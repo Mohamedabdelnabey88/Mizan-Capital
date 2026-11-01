@@ -34,12 +34,19 @@ try{
  const targetMonth=(Number(month.slice(0,4))+1)+'-01';
  w=await snapshot();let plan=monthlyLiquidity(w,month,'all',date);assert.equal(plan.cash.available,1000000);assert.equal(plan.rows.find(r=>r.name==='مشروع لم يبدأ تحصيله').received,0);
  const profitBefore=profit(w,'all',start,date).net,bankBefore=balance(w,'all',date).bank,journalCount=w.journals.length;
+ assert.equal((await call('monthCarryover',{month,targetMonth,amount:50000})).status,400,'gross receipts cannot be carried instead of the 10,000 surplus');
  const key=crypto.randomUUID();await post('monthCarryover',{month,targetMonth,amount:6000,memo:'تغطية يناير'},key);await post('monthCarryover',{month,targetMonth,amount:6000,memo:'تغطية يناير'},key);
  w=await snapshot();assert.equal(w.records.filter(r=>r.kind==='monthCarryover').length,1);assert.equal(w.journals.length,journalCount);assert.equal(profit(w,'all',start,date).net,profitBefore);assert.equal(balance(w,'all',date).bank,bankBefore);assert.equal(ownerCashMonth(w,month,'all',date).available,400000);
  assert.equal(ownerCashMonth(w,targetMonth,'all',date).carryIn,600000);assert.equal(ownerCashMonth(w,targetMonth,'all',date).available,0,'future credits cannot be withdrawn early');
- assert.equal((await call('monthCarryover',{month,targetMonth,amount:4000.01})).status,400);
+ const originalCarry=w.records.find(r=>r.kind==='monthCarryover');assert.equal(originalCarry.data.sourceBudget.received,5000000);assert.equal(originalCarry.data.sourceBudget.paid,4000000);assert.equal(originalCarry.data.sourceBudget.available,1000000);assert.equal(originalCarry.data.amount,600000);
+ assert.equal(monthlyLiquidity(w,targetMonth,project,date).portfolioCarryIn,600000,'portfolio carry remains visible when a project filter is selected');
+ await post('reduceMonthCarryover',{id:originalCarry.id,amount:5000,reason:'تصحيح مبلغ الترحيل'});
+ w=await snapshot();assert.equal(ownerCashMonth(w,month,'all',date).available,500000);assert.equal(ownerCashMonth(w,targetMonth,'all',date).carryIn,500000);assert.equal(w.journals.length,journalCount);
+ assert.equal((await call('reduceMonthCarryover',{id:originalCarry.id,amount:6000,reason:'زيادة غير مسموحة'})).status,400);
+
+ assert.equal((await call('monthCarryover',{month,targetMonth,amount:5000.01})).status,400);
  assert.equal((await call('monthCarryover',{month,targetMonth:month,amount:1})).status,400);
- assert.equal((await call('ownerCashWithdrawal',{month,scope:'all',amount:5000,date,paymentAccount:'bank',destination:'المالك'})).status,400,'carried funds cannot also be withdrawn');
+ assert.equal((await call('ownerCashWithdrawal',{month,scope:'all',amount:6000,date,paymentAccount:'bank',destination:'المالك'})).status,400,'carried funds cannot also be withdrawn');
  const race=await Promise.all([1,2].map(i=>call('monthCarryover',{month,targetMonth,amount:4000,memo:'اختبار التزامن '+i})));assert.deepEqual(race.map(r=>r.status).sort(),[200,400]);
  w=await snapshot();const extra=w.records.find(r=>r.kind==='monthCarryover'&&r.data.memo.startsWith('اختبار التزامن'));await post('undoMonthCarryover',{id:extra.id,reason:'إلغاء حجز الاختبار'});w=await snapshot();
  const carry=w.records.find(r=>r.kind==='monthCarryover'&&r.data.status==='posted');await post('undoMonthCarryover',{id:carry.id,reason:'تصحيح حجز السيولة'});
@@ -56,6 +63,8 @@ try{
  assert.equal(balance(w,'',date).bank||0,0);
  await post('repayOwnerAdvance',{id:second.id,sourceMonth:month,date,amount:2000,paymentAccount:'bank'});
  w=await snapshot();assert.equal(balance(w,'',date).bank||0,0);assert.equal(balance(w,project,date).bank,800000);assert.equal(profit(w,'all',start,date).net,profitBefore);assert.equal(ownerCashMonth(w,month,'all',date).available,300000);
+ const historyFixture={records:[{id:'history',kind:'monthCarryover',data:{month:'2026-10',targetMonth:'2027-01',date:'2026-10-01',status:'posted',amount:500000,amendments:[{date:'2026-11-01',previousAmount:600000,amount:500000}]}}],journals:[],audit:[]};
+ assert.equal(ownerCashMonth(historyFixture,'2027-01','all','2026-10-31').carryIn,600000);assert.equal(ownerCashMonth(historyFixture,'2027-01','all','2026-11-01').carryIn,500000);
  // Reproduce the supplied worksheet as a forecast, separately from future actual collections (zero).
  const income=[7000,9000,9000,7667,1250,500,1300,2000,12000,0,0,0,0],out=[2444,12416,7267.36,75000,8000,15000,4750];
  const fixture={records:income.map((_,i)=>({id:'sheet'+i,kind:'project',version:1,data:{name:'مشروع الجدول '+i,mode:'operating'}})),journals:[],audit:[]};

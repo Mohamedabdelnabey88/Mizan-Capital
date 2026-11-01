@@ -12,8 +12,9 @@ export function ownerCashMonth(w:Workspace,month:string,scope='all',asOf:string,
  const repayments=new Map(w.records.filter(r=>r.kind==='ownerAdvanceRepayment'&&r.data.sourceMonth).map(r=>['ownerAdvanceRepayment:'+r.id,r]));
  const reinvestments=new Map(w.records.filter(r=>r.kind==='surplusReinvestment').map(r=>['surplus-reinvestment:'+r.id,r]));
  const carries=w.records.filter(r=>r.kind==='monthCarryover'&&String(r.data.date)<=asOf&&!(r.data.status==='reversed'&&String(r.data.reversedOn)<=asOf));
- const carryIn=carries.filter(r=>r.data.targetMonth===month).reduce((n,r)=>n+Number(r.data.amount),0),carryOut=carries.filter(r=>r.data.month===month).reduce((n,r)=>n+Number(r.data.amount),0);
- const reservedFuture=carries.filter(r=>r.data.targetMonth>asOf.slice(0,7)).reduce((n,r)=>n+Number(r.data.amount),0);
+ const carryAmount=(r:Workspace['records'][number])=>{let amount=Number(r.data.amount);for(const a of [...(r.data.amendments||[])].reverse())if(String(a.date)>asOf)amount=Number(a.previousAmount);return amount;};
+ const carryIn=carries.filter(r=>r.data.targetMonth===month).reduce((n,r)=>n+carryAmount(r),0),carryOut=carries.filter(r=>r.data.month===month).reduce((n,r)=>n+carryAmount(r),0);
+ const reservedFuture=carries.filter(r=>r.data.targetMonth>asOf.slice(0,7)).reduce((n,r)=>n+carryAmount(r),0);
  const projects=w.records.filter(r=>r.kind==='project');
  const projectIds=(project:string)=>project==='all'?undefined:new Set([project,...(includeBranches?projectDescendantIds(projects,project):[])]);
  const calculate=(project:string)=>{

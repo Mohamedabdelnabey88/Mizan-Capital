@@ -42,6 +42,7 @@ const rootSource=await fs.readFile('app/page.tsx','utf8');
 const stateNames=[...rootSource.matchAll(/\[([A-Za-z]+),set[A-Za-z]+\]=useState/g)].map(match=>match[1]);
 function renderPage(tab,changes={}){
  globalThis.__reviewIndex=0;globalThis.__reviewState={0:fixture,1:false,4:tab,8:period.start,9:period.end};
+ globalThis.__reviewState[stateNames.indexOf('ownerMonthKey')]=period.start.slice(0,7);
  for(const [name,value] of Object.entries(changes)){const index=stateNames.indexOf(name);assert(index>=0,name);globalThis.__reviewState[index]=value;}
  return renderToStaticMarkup(createElement(Home));
 }

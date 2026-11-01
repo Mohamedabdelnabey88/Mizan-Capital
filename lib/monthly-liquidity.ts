@@ -18,5 +18,6 @@ export function monthlyLiquidity(w:Workspace,month:string,scope:string,asOf:stri
  const cash=ownerCashMonth(w,month,scope,asOf);
  const after=totals.received+totals.advanced+cash.carryIn-cash.paid-cash.monthPending-cash.ownerRepaid-cash.withdrawn-cash.reinvested-cash.carryOut;
  const carries=w.records.filter(r=>r.kind==='monthCarryover'&&(r.data.month===month||r.data.targetMonth===month));
- return {month,rows,totals,cash,forecastAfter:totals.expected-totals.obligations+cash.carryIn+totals.advanced-cash.carryOut-cash.withdrawn-cash.reinvested-cash.ownerRepaid,forecast:totals.expected-totals.obligations,after,deficit:Math.max(0,-after),carries};
+ const portfolioCash=scope==='all'?cash:ownerCashMonth(w,month,'all',asOf);
+ return {month,rows,totals,cash,portfolioCarryIn:portfolioCash.carryIn,portfolioCarryOut:portfolioCash.carryOut,forecastAfter:totals.expected-totals.obligations+cash.carryIn+totals.advanced-cash.carryOut-cash.withdrawn-cash.reinvested-cash.ownerRepaid,forecast:totals.expected-totals.obligations,after,deficit:Math.max(0,-after),carries};
 }

@@ -668,8 +668,18 @@ else if(action==='monthCarryover'){
  const amount=halala(p.amount,'المبلغ المرحل'),summary=ownerCashMonth(w,month,'all',today());
  if(amount<=0||amount>summary.available)throw Error('المبلغ يتجاوز الفائض المتاح فعليًا بعد الالتزامات والتخصيصات.');
  for(const r of w.records.filter(x=>x.kind==='project'))guardProject(r.id);
- put('monthCarryover',{month,targetMonth,amount,date:today(),status:'posted',memo:str(p.memo||'حجز سيولة لتغطية التزامات شهر لاحق',500),originReceipts:summary.receipts});
+ put('monthCarryover',{month,targetMonth,amount,date:today(),status:'posted',sourceBudget:{received:summary.received,paid:summary.paid,pending:summary.pending,surplus:summary.surplus,withdrawn:summary.withdrawn,reinvested:summary.reinvested,ownerRepaid:summary.ownerRepaid,carryIn:summary.carryIn,carryOut:summary.carryOut,available:summary.available},memo:str(p.memo||'حجز سيولة لتغطية التزامات شهر لاحق',500),originReceipts:summary.receipts});
  description='ترحيل سيولة من '+month+' إلى '+targetMonth+' بقيمة '+(amount/100).toFixed(2)+' دون إنشاء إيراد أو قيد نقد جديد';
+}
+else if(action==='reduceMonthCarryover'){
+ const r=find(p.id,'monthCarryover'),d=r.data;if(d.status!=='posted')throw Error('الترحيل غير نشط.');
+ const amount=halala(p.amount,'المبلغ المرحل الصحيح'),delta=Number(d.amount)-amount,reason=str(p.reason,500);
+ if(amount<=0||delta<=0)throw Error('التصحيح هنا لتخفيض المبلغ فقط؛ لزيادة الترحيل أنشئ تخصيصًا جديدًا من الفائض المتاح.');
+ const target=ownerCashMonth(w,String(d.targetMonth),'all',today());
+ const used=Math.max(0,target.paid+target.withdrawn+target.reinvested+target.carryOut+target.ownerRepaid-target.received);
+ if(delta>Math.max(0,target.carryIn-used))throw Error('المبلغ المطلوب إرجاعه استُخدم في الشهر المستفيد؛ راجع مدفوعاته أولًا.');
+ update(r,{...d,amount,amendments:[...(d.amendments||[]),{date:today(),previousAmount:d.amount,amount,reason}]});
+ description='تصحيح مبلغ ترحيل '+d.month+' إلى '+d.targetMonth+' من '+Number(d.amount)/100+' إلى '+amount/100+' — '+reason;
 }
 else if(action==='undoMonthCarryover'){
  const r=find(p.id,'monthCarryover'),d=r.data;if(d.status!=='posted')throw Error('تم التراجع عن الترحيل بالفعل.');

@@ -68,9 +68,9 @@ try{
   await post(action==='settleLoansSingle'?'settleLoans':action,action==='settleLoansSingle'?{ids:[item.id],date,paymentAccount:'bank'}:{id:item.id,date,paymentAccount:'bank'});
  }
  // Contract term is explicit, persisted independently of the installment dates, and validated atomically.
- const term={project,title:'مدة عقد مستقلة',costType:'rent',totalAmount:1000,scheduleType:'yearly',firstDate:'2026-11-23',installmentCount:2,startDate:'2026-10-01',endDate:'2028-09-30'};
+ const term={project,title:'مدة عقد مستقلة',costType:'construction',totalAmount:1000,scheduleType:'yearly',firstDate:'2026-11-23',installmentCount:2,startDate:'2026-10-01',endDate:'2028-09-30'};
  const recordCount=(await snapshot()).records.length;
- for(const invalid of [{startDate:''},{endDate:''},{endDate:'2026-09-30'},{firstDate:'2026-09-30'},{endDate:'2027-11-22'},{scheduleType:'custom',installments:'2028-10-01,1000'}]){
+ for(const invalid of [{startDate:''},{endDate:''},{endDate:'2026-09-30'},{firstDate:'2026-09-30',costType:'expense'},{endDate:'2027-11-22'},{scheduleType:'custom',installments:'2028-10-01,1000'}]){
   assert.equal((await call('projectCommitment',{...term,...invalid})).status,400);
   assert.equal((await snapshot()).records.length,recordCount,'invalid term must create no contract or obligations');
  }

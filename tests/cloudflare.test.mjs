@@ -365,7 +365,7 @@ try{
   w=await (await call()).json();
   const landRentCommitment=w.records.find(r=>r.kind==='projectCommitment'&&r.data.title==='قسط إيجار أرض للاختبار');
   const landRentDue=w.records.find(r=>r.kind==='obligation'&&r.data.projectCommitmentId===landRentCommitment?.id&&r.data.status==='pending');
-  const landRentAccrual=w.journals.find(j=>j.source==='obligation-accrual:'+landRentDue?.id);
+  const landRentAccrual=w.journals.find(j=>j.source==='lease-accrual:'+landRentCommitment.id+':'+date);
   assert(landRentAccrual,'rent due today must accrue as an expense and payable');
   assert(landRentAccrual.lines.some(l=>l.project===rentExpenseProject&&l.account==='expense'&&l.debit===80000));
   const rentProfitBeforeSettlement=w.journals.filter(j=>j.lines.some(l=>l.project===rentExpenseProject&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===rentExpenseProject&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0);
@@ -373,7 +373,7 @@ try{
   w=await (await call()).json();
   const rentSettlement=w.journals.find(j=>j.source==='project-commitment-payment:'+landRentDue.id);
   assert(rentSettlement,'settling rent must post a payable settlement journal');
-  assert(rentSettlement.lines.some(l=>l.project===rentExpenseProject&&l.account==='payable'&&l.debit===80000));
+  assert(rentSettlement.lines.some(l=>l.project===rentExpenseProject&&l.account==='rent_payable'&&l.debit===80000));
   const rentProfitAfterSettlement=w.journals.filter(j=>j.lines.some(l=>l.project===rentExpenseProject&&l.account==='expense')).reduce((sum,j)=>sum+j.lines.filter(l=>l.project===rentExpenseProject&&l.account==='expense').reduce((n,l)=>n+l.debit-l.credit,0),0);
   assert.equal(rentProfitAfterSettlement,rentProfitBeforeSettlement,'settling accrued rent must not expense the same amount twice');
   assert.equal(w.journals.filter(j=>j.source==='project-commitment-payment:'+landRentDue.id).length,1);
